@@ -25,7 +25,7 @@ interface Team {
 
 interface Coach {
   id: string;
-  coach_name: string;
+  name: string;
   team_id: string;
   xp: number;
   level: number;
@@ -211,7 +211,7 @@ export default function ClubhousePage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-white/70 text-sm mb-1">Welcome back, Coach</p>
+              <p className="text-white/70 text-sm mb-1">Welcome back, {coach?.name || 'Coach'}</p>
               <h1 className="text-4xl font-bold text-white mb-1">
                 {team?.name}
               </h1>
