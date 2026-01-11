@@ -251,6 +251,38 @@ export default function FixturesPage() {
   const roundFixtures = selectedRound ? getFixturesForRound(selectedRound) : [];
   const myResults = getMyResults();
 
+  // Calculate ladder standings
+  const getLadder = () => {
+    const teamsArray = Object.values(allTeams);
+    return teamsArray.sort((a, b) => {
+      // Sort by: points (W*2 + D), then point diff, then points for
+      const aPoints = (a.wins * 2) + a.draws;
+      const bPoints = (b.wins * 2) + b.draws;
+      if (bPoints !== aPoints) return bPoints - aPoints;
+      
+      const aDiff = a.points_for - a.points_against;
+      const bDiff = b.points_for - b.points_against;
+      if (bDiff !== aDiff) return bDiff - aDiff;
+      
+      return b.points_for - a.points_for;
+    });
+  };
+
+  const ladder = getLadder();
+  
+  // Get ordinal suffix (1st, 2nd, 3rd, etc.)
+  const getOrdinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+  
+  // Get ladder position for a team
+  const getLadderPosition = (teamId: string): string => {
+    const pos = ladder.findIndex(t => t.id === teamId) + 1;
+    return getOrdinal(pos);
+  };
+
   // Determine result for user's team
   const getResultBadge = (fixture: FixtureWithTeams): { text: string; color: string } => {
     if (!fixture.result || !team) return { text: '', color: '' };
@@ -331,7 +363,7 @@ export default function FixturesPage() {
                 >
                   {myNextMatch.home_team.city.substring(0, 3).toUpperCase()}
                 </div>
-                <p className="text-white font-bold">{myNextMatch.home_team.city}</p>
+                <p className="text-white font-bold">{myNextMatch.home_team.city} <span className="text-gray-400 font-normal">({getLadderPosition(myNextMatch.home_team_id)})</span></p>
                 <p className="text-gray-400 text-sm">{myNextMatch.home_team.name}</p>
                 {myNextMatch.home_team_id === team?.id && (
                   <span className="inline-block bg-green-600 text-white text-xs px-2 py-1 rounded mt-1">
@@ -359,7 +391,7 @@ export default function FixturesPage() {
                 >
                   {myNextMatch.away_team.city.substring(0, 3).toUpperCase()}
                 </div>
-                <p className="text-white font-bold">{myNextMatch.away_team.city}</p>
+                <p className="text-white font-bold">{myNextMatch.away_team.city} <span className="text-gray-400 font-normal">({getLadderPosition(myNextMatch.away_team_id)})</span></p>
                 <p className="text-gray-400 text-sm">{myNextMatch.away_team.name}</p>
                 {myNextMatch.away_team_id === team?.id && (
                   <span className="inline-block bg-green-600 text-white text-xs px-2 py-1 rounded mt-1">
@@ -441,7 +473,7 @@ export default function FixturesPage() {
                         {fixture.home_team.city.substring(0, 3).toUpperCase()}
                       </div>
                       <span className={`${isMyGame && fixture.home_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                        {fixture.home_team.city}
+                        {fixture.home_team.city} <span className="text-gray-500">({getLadderPosition(fixture.home_team_id)})</span>
                       </span>
                     </div>
 
@@ -459,7 +491,7 @@ export default function FixturesPage() {
                     {/* Away Team */}
                     <div className="flex-1 flex items-center gap-2 justify-end">
                       <span className={`${isMyGame && fixture.away_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                        {fixture.away_team.city}
+                        {fixture.away_team.city} <span className="text-gray-500">({getLadderPosition(fixture.away_team_id)})</span>
                       </span>
                       <div 
                         className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
@@ -499,7 +531,7 @@ export default function FixturesPage() {
                       </span>
                       <div>
                         <p className="text-white">
-                          {isHome ? 'vs' : '@'} {opponent.city} {opponent.name}
+                          {isHome ? 'vs' : '@'} {opponent.city} {opponent.name} <span className="text-gray-500">({getLadderPosition(opponent.id)})</span>
                         </p>
                         <p className="text-gray-500 text-sm">Round {fixture.round}</p>
                       </div>
