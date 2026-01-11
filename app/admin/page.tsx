@@ -42,15 +42,15 @@ export default function AdminPage() {
       return;
     }
 
-    // Check if current user is admin (Stu)
+    // Check if current user is admin (Stuart)
     const { data: coach } = await supabase
       .from('coaches')
       .select('coach_name')
       .eq('user_id', user.id)
       .single();
 
-    // Only allow "Stu" to access admin
-    if (coach?.coach_name !== 'Stu') {
+    // Only allow "Stuart" to access admin
+    if (coach?.coach_name !== 'Stuart') {
       router.push('/clubhouse');
       return;
     }
