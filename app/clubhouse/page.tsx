@@ -204,7 +204,7 @@ export default function ClubhousePage() {
             <div>
               <p className="text-white/70 text-sm mb-1">Welcome back, Coach</p>
               <h1 className="text-4xl font-bold text-white mb-1">
-                {team?.city} {team?.name}
+                {team?.name}
               </h1>
               <p className="text-white/80">
                 {getOrdinal(ladderPosition)} Place • {team?.wins}-{team?.draws}-{team?.losses}
@@ -231,7 +231,7 @@ export default function ClubhousePage() {
               <div>
                 <p className="text-gray-400 text-sm">NEXT MATCH • Round {nextMatch.round}</p>
                 <p className="text-white text-xl font-bold mt-1">
-                  {nextMatch.isHome ? 'vs' : '@'} {nextMatch.opponent.city} {nextMatch.opponent.name}
+                  {nextMatch.isHome ? 'vs' : '@'} {nextMatch.opponent.name}
                 </p>
                 <p className="text-gray-500 text-sm">{nextMatch.isHome ? 'Home' : 'Away'}</p>
               </div>
