@@ -15,6 +15,7 @@ interface Player {
   first_name: string;
   last_name: string;
   position: string;
+  age: number;
   overall: number;
   kicking: number;
   goal_kick_attempts: number;
@@ -99,7 +100,7 @@ export default function TacticsPage() {
 
       const { data: playersData } = await supabase
         .from('players')
-        .select('id, first_name, last_name, position, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state')
+        .select('id, first_name, last_name, position, age, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state')
         .eq('team_id', coach.team_id)
         .order('overall', { ascending: false });
 
@@ -413,7 +414,7 @@ export default function TacticsPage() {
                   <p className="text-white font-bold text-lg">
                     {currentKicker.first_name} {currentKicker.last_name}
                   </p>
-                  <p className="text-gray-500 text-sm">{currentKicker.position}</p>
+                  <p className="text-gray-500 text-sm">{currentKicker.position} • Age {currentKicker.age}</p>
                 </div>
                 <div className="text-right">
                   <p className={`text-2xl font-bold ${currentKickerStats?.color}`}>
@@ -445,7 +446,7 @@ export default function TacticsPage() {
                   const stats = getConversionDisplay(p);
                   return (
                     <div key={p.id} className="flex justify-between text-sm">
-                      <span className="text-gray-400">{p.first_name} {p.last_name}</span>
+                      <span className="text-gray-400">{p.first_name} {p.last_name} ({p.age})</span>
                       <span className={stats.color}>{stats.rate}</span>
                     </div>
                   );
@@ -470,7 +471,7 @@ export default function TacticsPage() {
             <option value="">-- Select Captain --</option>
             {players.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.first_name} {p.last_name} ({p.position}, {p.overall} OVR)
+                {p.first_name} {p.last_name} ({p.position}, Age {p.age}, {p.overall} OVR)
               </option>
             ))}
           </select>
@@ -529,7 +530,7 @@ export default function TacticsPage() {
                     <div>
                       <div className="font-bold">{p.first_name} {p.last_name}</div>
                       <div className="text-sm text-gray-400">
-                        {p.position} • {p.nationality}{p.state ? `, ${p.state}` : ''}
+                        {p.position} • Age {p.age} • {p.nationality}{p.state ? `, ${p.state}` : ''}
                       </div>
                     </div>
                     <span className="text-green-500 font-bold">{p.overall}</span>
@@ -591,7 +592,7 @@ export default function TacticsPage() {
                           {p.first_name} {p.last_name}
                           {isCurrentKicker && <span className="text-green-400 ml-2">✓</span>}
                         </div>
-                        <div className="text-sm text-gray-400">{p.position}</div>
+                        <div className="text-sm text-gray-400">{p.position} • Age {p.age}</div>
                       </div>
                       <div className="text-right">
                         <span className={`font-bold ${stats.color}`}>{stats.rate}</span>
