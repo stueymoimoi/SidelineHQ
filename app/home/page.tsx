@@ -74,7 +74,6 @@ export default function HomePage() {
   const handleSelectSport = async (sport: Sport) => {
     if (!sport.available) return;
 
-    // Check if user has a coach record with a team
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -85,16 +84,12 @@ export default function HomePage() {
       .single();
 
     if (!coach) {
-      // No coach record - go to choose team (which will create one)
       router.push('/choose-team');
     } else if (!coach.team_id) {
-      // Has coach record but no team
       router.push('/choose-team');
     } else if (!coach.approved) {
-      // Has team but not approved
       router.push('/pending');
     } else {
-      // Fully set up - go to clubhouse
       router.push('/clubhouse');
     }
   };
@@ -117,7 +112,7 @@ export default function HomePage() {
           <div className="absolute bottom-20 right-20 text-[150px]">⭐</div>
         </div>
         
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-16 text-center">
+        <div className="relative z-10 max-w-4xl mx-auto px-6 py-16 text-center">
           <h1 className="text-5xl md:text-7xl font-black text-white mb-4">
             Sideline<span className="text-green-500">HQ</span>
           </h1>
@@ -130,56 +125,44 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Sport Selection */}
-      <div className="max-w-5xl mx-auto px-6 pb-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Sport Selection - Single Column */}
+      <div className="max-w-3xl mx-auto px-6 pb-16">
+        <div className="flex flex-col gap-4">
           {sports.map((sport) => (
             <div
               key={sport.id}
               onClick={() => handleSelectSport(sport)}
               onMouseEnter={() => setHoveredSport(sport.id)}
               onMouseLeave={() => setHoveredSport(null)}
-              className={`relative rounded-2xl overflow-hidden transition-all duration-300 ${
+              className={`relative rounded-xl overflow-hidden transition-all duration-300 ${
                 sport.available
-                  ? 'cursor-pointer transform hover:scale-[1.02] hover:shadow-2xl'
+                  ? 'cursor-pointer transform hover:scale-[1.01] hover:shadow-2xl'
                   : 'cursor-not-allowed opacity-60'
               }`}
             >
               {/* Background Gradient */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${sport.color} opacity-90`} />
+              <div className={`absolute inset-0 bg-gradient-to-r ${sport.color} opacity-90`} />
               
               {/* Content */}
-              <div className="relative z-10 p-8">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="text-6xl">{sport.icon}</div>
+              <div className="relative z-10 p-6 flex items-center gap-6">
+                <div className="text-5xl">{sport.icon}</div>
+                
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-white">{sport.name}</h2>
+                  <p className="text-white/80 text-sm mt-1">{sport.description}</p>
+                </div>
+                
+                <div className="text-right">
                   {sport.available ? (
-                    <span className="bg-white/20 backdrop-blur text-white text-sm font-bold px-3 py-1 rounded-full">
-                      PLAY NOW
+                    <span className="bg-white/20 backdrop-blur text-white text-sm font-bold px-4 py-2 rounded-full">
+                      PLAY NOW →
                     </span>
                   ) : (
-                    <span className="bg-black/30 backdrop-blur text-gray-300 text-sm font-bold px-3 py-1 rounded-full">
+                    <span className="bg-black/30 backdrop-blur text-gray-300 text-sm font-bold px-4 py-2 rounded-full">
                       COMING SOON
                     </span>
                   )}
                 </div>
-                
-                <h2 className="text-3xl font-bold text-white mb-2">{sport.name}</h2>
-                <p className="text-white/80 text-sm leading-relaxed">{sport.description}</p>
-                
-                {sport.available && (
-                  <div className="mt-6 flex items-center gap-2 text-white font-bold">
-                    <span>Enter the Game</span>
-                    <span className={`transition-transform duration-300 ${hoveredSport === sport.id ? 'translate-x-2' : ''}`}>
-                      →
-                    </span>
-                  </div>
-                )}
-                
-                {!sport.available && (
-                  <div className="mt-6 text-white/50 text-sm">
-                    🔒 Stay tuned for updates
-                  </div>
-                )}
               </div>
               
               {/* Shine Effect on Hover */}
