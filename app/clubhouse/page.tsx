@@ -78,10 +78,15 @@ export default function ClubhousePage() {
   const [coach, setCoach] = useState<Coach | null>(null);
   const [ladderPosition, setLadderPosition] = useState(1);
   const [nextMatch, setNextMatch] = useState<{ opponent: Team; isHome: boolean; round: number } | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
     loadData();
+    
+    // Auto-refresh every 90 seconds
+    const interval = setInterval(loadData, 90000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -150,6 +155,15 @@ export default function ClubhousePage() {
             setNextMatch({ opponent, isHome, round: fixture.round });
           }
         }
+        
+        // Get unread notification count
+        const { count } = await supabase
+          .from('notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('team_id', coachData.team_id)
+          .eq('read', false);
+        
+        setUnreadCount(count || 0);
       }
 
     } catch (err) {
@@ -186,13 +200,25 @@ export default function ClubhousePage() {
         }}
       >
         <div className="max-w-6xl mx-auto">
-          <p className="text-white/70 text-sm mb-1">Welcome back, Coach</p>
-          <h1 className="text-4xl font-bold text-white mb-1">
-            {team?.city} {team?.name}
-          </h1>
-          <p className="text-white/80">
-            {getOrdinal(ladderPosition)} Place • {team?.wins}-{team?.draws}-{team?.losses}
-          </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-white/70 text-sm mb-1">Welcome back, Coach</p>
+              <h1 className="text-4xl font-bold text-white mb-1">
+                {team?.city} {team?.name}
+              </h1>
+              <p className="text-white/80">
+                {getOrdinal(ladderPosition)} Place • {team?.wins}-{team?.draws}-{team?.losses}
+              </p>
+            </div>
+            <Link href="/clubhouse/notifications" className="relative">
+              <div className="text-4xl">🔔</div>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
       </div>
 
