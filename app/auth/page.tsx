@@ -75,7 +75,7 @@ export default function AuthPage() {
       <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-green-500">🏆 SidelineHQ</h1>
-          <p className="text-gray-400 mt-2">Sports Management Sim</p>
+          <p className="text-gray-400 mt-2">Build Your Legacy</p>
         </div>
 
         <div className="flex mb-6 bg-gray-700 rounded-lg p-1">
