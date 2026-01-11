@@ -54,15 +54,13 @@ const TIER_NAMES: Record<number, string> = {
   8: 'World Class'
 };
 
-// Nationality flags
-const NATIONALITY_FLAGS: Record<string, string> = {
-  'AUS': '🇦🇺',
-  'NZL': '🇳🇿',
-  'TON': '🇹🇴',
-  'SAM': '🇼🇸',
-  'FIJ': '🇫🇯',
-  'PNG': '🇵🇬',
-  'ENG': '🏴󠁧󠁢󠁥󠁮󠁧󠁿'
+// Potential labels
+const POTENTIAL_LABELS: Record<number, string> = {
+  1: 'POOR',
+  2: 'LOW',
+  3: 'AVG',
+  4: 'HIGH',
+  5: 'ELITE'
 };
 
 // Position stat importance
@@ -187,14 +185,13 @@ export default function SquadPage() {
     return 'bg-red-500';                   // Youth/Dev
   };
 
-  // Get OVR label
-  const getOvrLabel = (ovr: number) => {
-    if (ovr >= 41) return 'Elite';
-    if (ovr >= 35) return 'Star';
-    if (ovr >= 29) return 'Quality';
-    if (ovr >= 23) return 'Solid';
-    if (ovr >= 17) return 'Fringe';
-    return 'Development';
+  // Get OVR stars (1-5) based on OVR value
+  const getOvrStars = (ovr: number) => {
+    if (ovr >= 39) return '⭐⭐⭐⭐⭐';
+    if (ovr >= 33) return '⭐⭐⭐⭐';
+    if (ovr >= 27) return '⭐⭐⭐';
+    if (ovr >= 21) return '⭐⭐';
+    return '⭐';
   };
 
   const getPositionColor = (position: string) => {
@@ -216,6 +213,15 @@ export default function SquadPage() {
     if (fatigue >= 60) return 'text-red-500';
     if (fatigue >= 40) return 'text-yellow-500';
     return 'text-green-500';
+  };
+
+  // Get potential color
+  const getPotentialColor = (potential: number) => {
+    if (potential >= 5) return 'text-purple-400';
+    if (potential >= 4) return 'text-green-400';
+    if (potential >= 3) return 'text-yellow-400';
+    if (potential >= 2) return 'text-orange-400';
+    return 'text-red-400';
   };
 
   // Get tier name from value
@@ -254,20 +260,6 @@ export default function SquadPage() {
       case 'minor': return { icon: '⚪', color: 'text-gray-400', opacity: 'opacity-70' };
       case 'negligible': return { icon: '❌', color: 'text-gray-600', opacity: 'opacity-50' };
     }
-  };
-
-  // Get nationality display
-  const getNationalityDisplay = (player: Player) => {
-    const flag = NATIONALITY_FLAGS[player.nationality] || '🏳️';
-    if (player.nationality === 'AUS' && player.state) {
-      return `${flag} ${player.nationality}, ${player.state}`;
-    }
-    return `${flag} ${player.nationality}`;
-  };
-
-  // Get potential stars
-  const getPotentialStars = (potential: number) => {
-    return '⭐'.repeat(potential);
   };
 
   // Render stat bar for modal
@@ -348,12 +340,10 @@ export default function SquadPage() {
             >
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  {/* Nationality Flag + Name */}
-                  <p className="text-gray-400 text-xs flex items-center gap-1">
-                    <span>{NATIONALITY_FLAGS[player.nationality] || '🏳️'}</span>
-                    {player.first_name}
-                  </p>
-                  <p className="text-white font-bold text-lg">{player.last_name}</p>
+                  {/* First Name - Bigger */}
+                  <p className="text-gray-300 text-base font-semibold">{player.first_name}</p>
+                  {/* Last Name - Biggest */}
+                  <p className="text-white font-bold text-xl">{player.last_name}</p>
                   {/* Nationality + State */}
                   <p className="text-gray-500 text-xs">
                     {player.nationality === 'AUS' && player.state 
@@ -361,25 +351,27 @@ export default function SquadPage() {
                       : player.nationality}
                   </p>
                   {/* Position Badge */}
-                  <div className="flex gap-2 mt-1">
+                  <div className="flex gap-2 mt-2">
                     <span className={`${getPositionColor(player.position)} text-white text-xs px-2 py-1 rounded`}>
                       {player.position}
                     </span>
                   </div>
                 </div>
-                {/* OVR Badge */}
+                {/* OVR Badge + Stars */}
                 <div className="text-right">
                   <span className={`${getOvrColor(player.overall)} text-white px-3 py-1 rounded-lg font-bold text-lg inline-block`}>
                     {player.overall}
                   </span>
-                  <p className="text-gray-500 text-xs mt-1">{getOvrLabel(player.overall)}</p>
+                  <p className="text-yellow-500 text-sm mt-1">{getOvrStars(player.overall)}</p>
                 </div>
               </div>
               
               {/* Bottom Row: Age, Potential, Fatigue */}
               <div className="flex justify-between text-sm text-gray-400 mt-3 pt-2 border-t border-gray-700">
                 <span>Age: {player.age}</span>
-                <span className="text-yellow-500">{getPotentialStars(player.potential)}</span>
+                <span className={getPotentialColor(player.potential)}>
+                  Potential: {POTENTIAL_LABELS[player.potential] || 'AVG'}
+                </span>
                 <span className={getFatigueColor(player.fatigue || 0)}>
                   {player.fatigue || 0}% Fatigue
                 </span>
@@ -396,10 +388,7 @@ export default function SquadPage() {
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-gray-400 text-sm flex items-center gap-2">
-                  <span className="text-xl">{NATIONALITY_FLAGS[selectedPlayer.nationality] || '🏳️'}</span>
-                  {selectedPlayer.first_name}
-                </p>
+                <p className="text-gray-300 text-lg font-semibold">{selectedPlayer.first_name}</p>
                 <h2 className="text-2xl font-bold text-white">{selectedPlayer.last_name}</h2>
                 <p className="text-gray-500 text-sm">
                   {selectedPlayer.nationality === 'AUS' && selectedPlayer.state 
@@ -416,7 +405,7 @@ export default function SquadPage() {
                 <span className={`${getOvrColor(selectedPlayer.overall)} text-white px-4 py-2 rounded-lg font-bold text-2xl inline-block`}>
                   {selectedPlayer.overall}
                 </span>
-                <p className="text-gray-500 text-sm mt-1">{getOvrLabel(selectedPlayer.overall)}</p>
+                <p className="text-yellow-500 text-sm mt-1">{getOvrStars(selectedPlayer.overall)}</p>
               </div>
             </div>
 
@@ -428,7 +417,9 @@ export default function SquadPage() {
               </div>
               <div className="bg-gray-700 rounded p-3 text-center">
                 <p className="text-gray-400 text-xs">Potential</p>
-                <p className="text-yellow-500 text-lg">{getPotentialStars(selectedPlayer.potential)}</p>
+                <p className={`text-lg font-bold ${getPotentialColor(selectedPlayer.potential)}`}>
+                  {POTENTIAL_LABELS[selectedPlayer.potential] || 'AVG'}
+                </p>
               </div>
               <div className="bg-gray-700 rounded p-3 text-center">
                 <p className="text-gray-400 text-xs">Fatigue</p>
