@@ -16,6 +16,7 @@ interface Team {
   city: string;
   primary_color: string;
   secondary_color: string;
+  division: number;
 }
 
 interface Player {
@@ -25,6 +26,8 @@ interface Player {
   position: string;
   overall: number;
   age: number;
+  nationality: string;
+  state: string | null;
 }
 
 interface Coach {
@@ -32,6 +35,148 @@ interface Coach {
   team_id: string;
   last_academy_pull_round: number;
 }
+
+// ============================================================================
+// CONSTANTS FOR PLAYER GENERATION
+// ============================================================================
+
+const NATIONALITIES = {
+  AUS: { percentage: 55 },
+  NZL: { percentage: 15 },
+  TON: { percentage: 8 },
+  SAM: { percentage: 7 },
+  FIJ: { percentage: 6 },
+  PNG: { percentage: 5 },
+  ENG: { percentage: 4 }
+};
+
+const AUSTRALIAN_STATES = {
+  NSW: { percentage: 45 },
+  QLD: { percentage: 45 },
+  ROA: { percentage: 10 }
+};
+
+const NAME_POOLS: Record<string, { firstNames: string[], lastNames: string[] }> = {
+  ANGLO: {
+    firstNames: ['Jack', 'Tom', 'James', 'William', 'Oliver', 'Harry', 'Charlie', 'Thomas', 'George', 'Oscar', 'Henry', 'Leo', 'Joshua', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Jacob', 'Michael', 'Daniel', 'Matthew', 'Ryan', 'Nathan', 'Luke', 'Benjamin', 'Samuel', 'Dylan', 'Connor', 'Liam', 'Noah', 'Cooper', 'Riley', 'Harrison', 'Blake', 'Tyler', 'Jayden', 'Mitchell', 'Lachlan', 'Caleb', 'Max', 'Angus', 'Finn', 'Patrick', 'Sean', 'Declan', 'Aiden', 'Brody', 'Zach', 'Cody', 'Shane'],
+    lastNames: ['Smith', 'Jones', 'Williams', 'Brown', 'Wilson', 'Taylor', 'Johnson', 'White', 'Martin', 'Anderson', 'Thompson', 'Walker', 'Harris', 'Lewis', 'Robinson', 'Clark', 'Young', 'Hall', 'Allen', 'King', 'Wright', 'Scott', 'Green', 'Baker', 'Adams', 'Nelson', 'Hill', 'Moore', 'Mitchell', 'Roberts', 'Carter', 'Phillips', 'Evans', 'Turner', 'Collins', 'Stewart', 'Murphy', 'Cook', 'Rogers', 'Morgan', "O'Brien", "O'Connor", 'Kennedy', 'Walsh', 'Quinn', 'Lynch', 'Brady']
+  },
+  MAORI: {
+    firstNames: ['Tane', 'Nikau', 'Rawiri', 'Wiremu', 'Manaaki', 'Ihaia', 'Kauri', 'Tamati', 'Tipene', 'Hemi', 'Matiu', 'Pita', 'Rewi', 'Tama', 'Eru', 'Rangi', 'Hoani', 'Mikaere', 'Hone', 'Paora', 'Josh', 'Shaun', 'Benji', 'Manu', 'Kieran', 'Dallin', 'Joseph', 'Jordan', 'Jahrome', 'Nelson', 'Dylan', 'Charnze', 'Jared', 'Kodi', 'Issac', 'Tohu', 'Ruben', 'Brandon', 'Isaiah'],
+    lastNames: ['Taukeiaho', 'Manu', 'Tuivasa-Sheck', 'Rapana', 'Nikora', 'Tapine', 'Taumalolo', 'Williams', 'Harris', 'Thompson', 'Hughes', 'Bromwich', 'Smith', 'Johnson', 'Marshall', 'Foran', 'Matulino', 'Blair', 'Henare', 'Mannering', 'Hurrell', 'Kata', 'Hiku', 'Lino', 'Nikorima', 'Kearney', 'Nightingale', 'Laulala', 'Sipley', 'Afoa', 'Pompey', 'Curran']
+  },
+  TONGAN: {
+    firstNames: ['Jason', 'Manu', 'Tevita', 'Sione', 'Taniela', 'Siliva', 'Konrad', 'Addin', 'Daniel', 'David', 'Felise', 'Sitili', 'Kotoni', 'Haumole', 'Will', 'Moeaki', 'Junior', 'Ata', 'Sio', 'Fotu', 'Tui', 'Sika', 'Viliami', 'Malakai', 'Michael', 'Mosese'],
+    lastNames: ['Taumalolo', 'Fifita', 'Havili', 'Kaufusi', 'Pangai', 'Fonua', 'Fainu', 'Katoa', 'Tatola', 'Tupou', 'Lolohea', 'Maumalo', 'Koloamatangi', 'Hopoate', 'Finau', 'Tonga', 'Folau', 'Fotuaika', 'Haas', 'Taupau', 'Fonua-Blake', 'Talakai', 'Moimoi', 'Vea', 'Langi']
+  },
+  SAMOAN: {
+    firstNames: ['Jarome', 'Brian', 'Junior', 'Anthony', 'Martin', 'Tim', 'Ricky', 'Josh', 'Luciano', 'Spencer', 'Chanel', 'Jaydn', 'Isaiah', 'Kelma', 'Stephen', 'Francis', 'Joseph', 'Danny', 'Manu', 'Tino', 'Siua', 'Tyrone', 'Sebastian', 'Zane', 'Jerome', 'Penani', 'Leone'],
+    lastNames: ['Luai', "To'o", 'Papalii', 'Aloiai', 'Milford', 'Afoa', 'Leilua', 'Lafai', 'Talagi', 'Tago', 'Crichton', 'Tagataese', 'Faamausili', 'Tuimavave', 'Paulo', 'Tuilagi', 'Sao', 'Sauiluma', 'Gavet', 'Peteru', 'Amone', 'Levi', 'Soliola', 'Vitale', 'Ioane', 'Leota']
+  },
+  FIJIAN: {
+    firstNames: ['Maika', 'Suliasi', 'Marcelo', 'Viliame', 'Semi', 'Apisai', 'Kevin', 'Mikaele', 'Tariq', 'Henry', 'Brayden', 'Taane', 'Vunisei', 'Pio', 'Api', 'Sitiveni', 'Waisea', 'Joeli', 'Josefa', 'Nemani', 'Iowane', 'Setareki', 'Penioni', 'Kini'],
+    lastNames: ['Sivo', 'Vunivalu', 'Naiqama', 'Koroibete', 'Tuqiri', 'Radradra', 'Koroisau', 'Waqaniburotu', 'Nakubuwai', 'Uluinayau', 'Bai', 'Mataka', 'Nawaqanitawase', 'Lovobalavu', 'Naivalu', 'Tuisova', 'Botia', 'Yato', 'Mata', 'Natogo', 'Qera', 'Delai']
+  },
+  PNG: {
+    firstNames: ['David', 'James', 'Michael', 'John', 'Paul', 'William', 'Justin', 'Alex', 'Marcus', 'Nene', 'Wartovo', 'Kato', 'Enock', 'Thompson', 'Wellington', 'Edwin', 'Norman', 'Watson', 'Stargroth', 'Xavier', 'Lachlan', 'Terry', 'Roderick', 'Emmanuel', 'Nixon'],
+    lastNames: ['Lam', 'Aiton', 'Segeyaro', 'Mead', 'Boas', 'Songoro', 'Ottio', 'Mundo', 'Kila', 'Ako', 'Mamando', 'Simon', 'Tep', 'Numbaru', 'Kahu', 'Namba', 'Gimai', 'Morea', 'Wangi', 'Ongogo', 'Minga', 'Olam', 'Silas', 'Albert']
+  }
+};
+
+const NATIONALITY_NAME_POOL: Record<string, string> = {
+  AUS: 'ANGLO',
+  ENG: 'ANGLO',
+  NZL: 'MAORI',
+  TON: 'TONGAN',
+  SAM: 'SAMOAN',
+  FIJ: 'FIJIAN',
+  PNG: 'PNG'
+};
+
+const POSITION_STATS: Record<string, { primary: string[], secondary: string[], minor: string[], negligible: string[] }> = {
+  'Prop': { primary: ['strength', 'defense'], secondary: ['stamina', 'skill'], minor: ['speed'], negligible: ['kicking'] },
+  'Hooker': { primary: ['skill', 'stamina'], secondary: ['defense', 'speed'], minor: ['strength'], negligible: ['kicking'] },
+  'Second Row': { primary: ['strength', 'defense'], secondary: ['stamina', 'skill'], minor: ['speed'], negligible: ['kicking'] },
+  'Lock': { primary: ['defense', 'stamina'], secondary: ['strength', 'skill'], minor: ['speed'], negligible: ['kicking'] },
+  'Halfback': { primary: ['skill', 'kicking'], secondary: ['speed', 'stamina'], minor: ['defense'], negligible: ['strength'] },
+  'Five-Eighth': { primary: ['skill', 'kicking'], secondary: ['speed', 'defense'], minor: ['stamina'], negligible: ['strength'] },
+  'Centre': { primary: ['defense', 'skill'], secondary: ['speed', 'strength'], minor: ['stamina'], negligible: ['kicking'] },
+  'Winger': { primary: ['speed', 'skill'], secondary: ['stamina', 'defense'], minor: ['strength'], negligible: ['kicking'] },
+  'Fullback': { primary: ['speed', 'skill'], secondary: ['kicking', 'defense'], minor: ['stamina'], negligible: ['strength'] }
+};
+
+const GOAL_KICKING_BY_POSITION: Record<string, { avg: number, min: number, max: number }> = {
+  'Halfback': { avg: 72, min: 50, max: 95 },
+  'Five-Eighth': { avg: 68, min: 45, max: 92 },
+  'Fullback': { avg: 65, min: 40, max: 90 },
+  'Centre': { avg: 45, min: 20, max: 75 },
+  'Hooker': { avg: 40, min: 15, max: 70 },
+  'Winger': { avg: 38, min: 15, max: 72 },
+  'Lock': { avg: 25, min: 5, max: 50 },
+  'Second Row': { avg: 22, min: 5, max: 45 },
+  'Prop': { avg: 18, min: 5, max: 40 }
+};
+
+const TIER_NAMES: Record<number, string> = {
+  1: 'None', 2: 'Poor', 3: 'Fair', 4: 'Good', 5: 'Very Good', 6: 'Excellent', 7: 'Elite', 8: 'World Class'
+};
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+function randomInt(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomChoice<T>(array: T[]): T {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+function weightedRandomChoice<T>(items: T[], weights: number[]): T {
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  let random = Math.random() * totalWeight;
+  for (let i = 0; i < items.length; i++) {
+    random -= weights[i];
+    if (random <= 0) return items[i];
+  }
+  return items[items.length - 1];
+}
+
+function generateNationality(): string {
+  const nats = Object.entries(NATIONALITIES);
+  return weightedRandomChoice(nats.map(n => n[0]), nats.map(n => n[1].percentage));
+}
+
+function generateState(nationality: string): string | null {
+  if (nationality !== 'AUS') return null;
+  const states = Object.entries(AUSTRALIAN_STATES);
+  return weightedRandomChoice(states.map(s => s[0]), states.map(s => s[1].percentage));
+}
+
+function generateName(nationality: string): { firstName: string, lastName: string } {
+  const poolKey = NATIONALITY_NAME_POOL[nationality] || 'ANGLO';
+  const pool = NAME_POOLS[poolKey];
+  return {
+    firstName: randomChoice(pool.firstNames),
+    lastName: randomChoice(pool.lastNames)
+  };
+}
+
+function generateGoalKicking(position: string): number {
+  // 5% chance of hidden gem
+  if (Math.random() < 0.05) {
+    return randomInt(85, 95);
+  }
+  const config = GOAL_KICKING_BY_POSITION[position] || { avg: 30, min: 5, max: 50 };
+  const variance = (config.max - config.min) / 4;
+  let value = config.avg + (Math.random() - 0.5) * variance * 2;
+  return Math.max(config.min, Math.min(config.max, Math.round(value)));
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 export default function DevelopmentSquadPage() {
   const [loading, setLoading] = useState(true);
@@ -43,7 +188,7 @@ export default function DevelopmentSquadPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedPositionType, setSelectedPositionType] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [newPlayer, setNewPlayer] = useState<Player | null>(null);
+  const [newPlayer, setNewPlayer] = useState<any | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -79,7 +224,6 @@ export default function DevelopmentSquadPage() {
 
       setTeam(teamData);
 
-      // Get squad
       const { data: playersData } = await supabase
         .from('players')
         .select('*')
@@ -88,7 +232,6 @@ export default function DevelopmentSquadPage() {
 
       setPlayers(playersData || []);
 
-      // Get current round (first unplayed fixture)
       const { data: fixtures } = await supabase
         .from('fixtures')
         .select('round')
@@ -122,14 +265,11 @@ export default function DevelopmentSquadPage() {
     try {
       // Release player if needed
       if (releasePlayerId) {
-        // Move to free agents
         await supabase.from('free_agents').insert({
           player_id: releasePlayerId,
           released_by_team_id: team.id,
           available_round: currentRound + 1
         });
-
-        // Remove from team
         await supabase.from('players').delete().eq('id', releasePlayerId);
       }
 
@@ -141,54 +281,87 @@ export default function DevelopmentSquadPage() {
       };
 
       const posOptions = positions[positionType];
-      const position = posOptions[Math.floor(Math.random() * posOptions.length)];
+      const position = randomChoice(posOptions);
 
-      // Random Aussie names
-      const firstNames = ['Jack', 'Liam', 'Noah', 'Oliver', 'James', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Alex', 'Ryan', 'Cooper', 'Riley', 'Harrison', 'Jordan', 'Kai', 'Tyler', 'Blake', 'Mitchell', 'Cameron', 'Dylan', 'Hunter', 'Ashton', 'Bailey', 'Caleb', 'Daniel', 'Flynn', 'Hamish', 'Isaac', 'Jesse'];
-      const lastNames = ['Smith', 'Jones', 'Williams', 'Brown', 'Wilson', 'Taylor', 'Johnson', 'White', 'Martin', 'Thompson', 'Anderson', 'Walker', 'Harris', 'Clark', 'Lewis', 'Robinson', 'Young', 'King', 'Scott', 'Mitchell', 'Campbell', 'Edwards', 'Murphy', 'Collins', 'Stewart', 'Morris', 'Rogers', 'Reed', 'Cook', 'Morgan'];
+      // Generate nationality and name
+      const nationality = generateNationality();
+      const state = generateState(nationality);
+      const { firstName, lastName } = generateName(nationality);
 
-      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+      // Calculate patience bonus (rounds waited)
+      const roundsWaited = coach.last_academy_pull_round > 0 
+        ? currentRound - coach.last_academy_pull_round 
+        : 0;
+      const patienceBonus = Math.min(20, Math.floor(roundsWaited / 6) * 5); // +5% per cooldown, max 20%
 
-      // Generate quality based on luck
-      // Base: 55-70, with rare chance for gems
-      const luck = Math.random() * 100;
-      let baseOverall: number;
-      let potential: number;
+      // Generate potential (1-5 stars) with patience bonus
+      // Youth players have higher chance of good potential
+      let potentialWeights = [15, 25, 35, 20, 5]; // Base weights for 1-5 stars
+      // Apply patience bonus to higher potentials
+      if (patienceBonus > 0) {
+        potentialWeights[3] += patienceBonus / 2; // +HIGH
+        potentialWeights[4] += patienceBonus / 2; // +ELITE
+      }
+      const potential = weightedRandomChoice([1, 2, 3, 4, 5], potentialWeights);
 
-      if (luck < 2) {
-        // 2% - Generational talent
-        baseOverall = 70 + Math.floor(Math.random() * 10); // 70-79
-        potential = 90 + Math.floor(Math.random() * 5); // 90-94
-      } else if (luck < 10) {
-        // 8% - Gun prospect
-        baseOverall = 65 + Math.floor(Math.random() * 10); // 65-74
-        potential = 82 + Math.floor(Math.random() * 8); // 82-89
-      } else if (luck < 40) {
-        // 30% - Solid prospect
-        baseOverall = 58 + Math.floor(Math.random() * 10); // 58-67
-        potential = 72 + Math.floor(Math.random() * 10); // 72-81
-      } else {
-        // 60% - Average youth
-        baseOverall = 50 + Math.floor(Math.random() * 12); // 50-61
-        potential = 62 + Math.floor(Math.random() * 10); // 62-71
+      // Generate stats based on position and potential
+      const posStats = POSITION_STATS[position];
+      const stats: Record<string, number> = {};
+
+      // Base tier range for youth (age 18)
+      // Higher potential = slightly better starting stats
+      const baseMin = 2;
+      const baseMax = 3 + potential;
+
+      ['speed', 'strength', 'skill', 'stamina', 'defense', 'kicking'].forEach(stat => {
+        let min = baseMin;
+        let max = baseMax;
+
+        if (posStats.primary.includes(stat)) {
+          min += 1; max += 1;
+        } else if (posStats.secondary.includes(stat)) {
+          // normal
+        } else if (posStats.minor.includes(stat)) {
+          max -= 1;
+        } else {
+          min = 1; max -= 1;
+        }
+
+        // Clamp and generate with bell curve
+        min = Math.max(1, min);
+        max = Math.min(8, Math.max(min, max));
+        const r1 = randomInt(min, max);
+        const r2 = randomInt(min, max);
+        stats[stat] = Math.round((r1 + r2) / 2);
+      });
+
+      // Calculate OVR
+      let overall = stats.speed + stats.strength + stats.skill + stats.stamina + stats.defense + stats.kicking;
+      
+      // Enforce minimum OVR of 12
+      if (overall < 12) {
+        const statKeys = ['speed', 'strength', 'skill', 'stamina', 'defense', 'kicking'];
+        while (overall < 12) {
+          const lowest = statKeys.reduce((a, b) => stats[a] <= stats[b] ? a : b);
+          stats[lowest] = Math.min(8, stats[lowest] + 1);
+          overall = stats.speed + stats.strength + stats.skill + stats.stamina + stats.defense + stats.kicking;
+        }
       }
 
-      // Generate stats around base overall
-      const variance = () => Math.floor(Math.random() * 12) - 6;
-      const speed = Math.max(45, Math.min(85, baseOverall + variance()));
-      const strength = Math.max(45, Math.min(85, baseOverall + variance()));
-      const skill = Math.max(45, Math.min(85, baseOverall + variance()));
-      const stamina = Math.max(45, Math.min(85, baseOverall + variance()));
-      const defense = Math.max(45, Math.min(85, baseOverall + variance()));
+      // Calculate match power (hidden)
+      let matchPower = 0;
+      ['speed', 'strength', 'skill', 'stamina', 'defense', 'kicking'].forEach(stat => {
+        if (posStats.primary.includes(stat)) {
+          matchPower += stats[stat] * 4;
+        } else if (posStats.secondary.includes(stat)) {
+          matchPower += stats[stat] * 2;
+        } else if (posStats.minor.includes(stat)) {
+          matchPower += stats[stat] * 1;
+        }
+      });
 
-      // Calculate actual overall from stats
-      const actualOverall = Math.round((speed + strength + skill + stamina + defense) / 5);
-
-      // Kicking based on position
-      let kicking = 30 + Math.floor(Math.random() * 20);
-      if (position === 'Halfback' || position === 'Fullback') kicking = 50 + Math.floor(Math.random() * 25);
-      if (position === 'Five-Eighth' || position === 'Hooker') kicking = 45 + Math.floor(Math.random() * 20);
+      // Generate hidden goal kicking
+      const goalKicking = generateGoalKicking(position);
 
       // Insert new player
       const { data: newPlayerData, error } = await supabase
@@ -199,16 +372,23 @@ export default function DevelopmentSquadPage() {
           last_name: lastName,
           position: position,
           age: 18,
-          overall: actualOverall,
+          nationality: nationality,
+          state: state,
+          speed: stats.speed,
+          strength: stats.strength,
+          skill: stats.skill,
+          stamina: stats.stamina,
+          defense: stats.defense,
+          kicking: stats.kicking,
+          overall: overall,
+          match_power: matchPower,
+          goal_kicking: goalKicking,
+          goal_kick_attempts: 0,
+          goal_kick_successes: 0,
           potential: potential,
-          speed: speed,
-          strength: strength,
-          skill: skill,
-          stamina: stamina,
-          defense: defense,
-          kicking: kicking,
           fatigue: 0,
-          is_u21: false
+          training_progress: 0,
+          retiring_end_of_season: false
         })
         .select()
         .single();
@@ -221,44 +401,35 @@ export default function DevelopmentSquadPage() {
         .update({ last_academy_pull_round: currentRound })
         .eq('id', coach.id);
 
-      // Notify ALL teams about the new player
+      // Notify ALL teams in the division about the new player
       const { data: allTeams } = await supabase
         .from('teams')
         .select('id')
-        .eq('division', 1);
+        .eq('division', team.division);
 
       for (const t of allTeams || []) {
         await supabase.from('notifications').insert({
           team_id: t.id,
           type: 'league_news',
           title: '📰 Development Squad Promotion',
-          message: `${team.name} promoted ${firstName} ${lastName} (${position}, ${actualOverall} OVR, Age 18) from their development squad.`
+          message: `${team.name} promoted ${firstName} ${lastName} (${position}, ${overall} OVR, Age 18) from their development squad.`
         });
       }
 
       // If a player was released, notify everyone
-      if (releasePlayerId) {
-        const { data: releasedPlayer } = await supabase
-          .from('players')
-          .select('*')
-          .eq('id', releasePlayerId)
-          .single();
-
-        // Player already deleted, use selectedPlayer info
-        if (selectedPlayer) {
-          for (const t of allTeams || []) {
-            await supabase.from('notifications').insert({
-              team_id: t.id,
-              type: 'league_news',
-              title: '🏪 Player Released to Free Agents',
-              message: `${team.name} released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR, Age ${selectedPlayer.age}). Available next round.`
-            });
-          }
+      if (releasePlayerId && selectedPlayer) {
+        for (const t of allTeams || []) {
+          await supabase.from('notifications').insert({
+            team_id: t.id,
+            type: 'league_news',
+            title: '🏪 Player Released to Free Agents',
+            message: `${team.name} released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR, Age ${(selectedPlayer as any).age}). Available next round.`
+          });
         }
       }
 
       // Show the new player
-      setNewPlayer(newPlayerData);
+      setNewPlayer({ ...newPlayerData, potential });
 
       // Reload data
       await loadData();
@@ -276,6 +447,8 @@ export default function DevelopmentSquadPage() {
   const hasPromotedBefore = coach && coach.last_academy_pull_round > 0;
   const canPromote = coach && (!hasPromotedBefore || (currentRound - coach.last_academy_pull_round) >= 6);
   const roundsUntilPromote = hasPromotedBefore ? Math.max(0, 6 - (currentRound - (coach?.last_academy_pull_round || 0))) : 0;
+  const roundsWaited = coach && coach.last_academy_pull_round > 0 ? currentRound - coach.last_academy_pull_round : 0;
+  const patienceLevel = Math.floor(roundsWaited / 6);
 
   const getPositionColor = (position: string) => {
     const colors: Record<string, string> = {
@@ -292,11 +465,21 @@ export default function DevelopmentSquadPage() {
     return colors[position] || 'bg-gray-600';
   };
 
-  const getOverallColor = (overall: number) => {
-    if (overall >= 75) return 'text-green-400';
-    if (overall >= 65) return 'text-yellow-400';
-    if (overall >= 55) return 'text-orange-400';
-    return 'text-red-400';
+  const getOvrColor = (ovr: number) => {
+    if (ovr >= 41) return 'bg-purple-500';
+    if (ovr >= 35) return 'bg-green-500';
+    if (ovr >= 29) return 'bg-green-600';
+    if (ovr >= 23) return 'bg-yellow-500';
+    if (ovr >= 17) return 'bg-orange-500';
+    return 'bg-red-500';
+  };
+
+  const getOvrStars = (ovr: number) => {
+    if (ovr >= 39) return '⭐⭐⭐⭐⭐';
+    if (ovr >= 33) return '⭐⭐⭐⭐';
+    if (ovr >= 27) return '⭐⭐⭐';
+    if (ovr >= 21) return '⭐⭐';
+    return '⭐';
   };
 
   if (loading) {
@@ -341,6 +524,12 @@ export default function DevelopmentSquadPage() {
             </div>
           )}
 
+          {canPromote && patienceLevel > 0 && (
+            <div className="bg-green-500/20 border border-green-500 text-green-400 p-3 rounded mb-4">
+              🍀 Patience bonus active! +{Math.min(20, patienceLevel * 5)}% chance of HIGH/ELITE potential
+            </div>
+          )}
+
           {players.length >= 22 && canPromote && (
             <div className="bg-blue-500/20 border border-blue-500 text-blue-400 p-3 rounded mb-4">
               📋 Squad full (22 players). You'll need to release someone to make room.
@@ -378,7 +567,7 @@ export default function DevelopmentSquadPage() {
           </div>
 
           <div className="mt-4 text-gray-500 text-sm">
-            💡 Youth quality is random. Rare gems (2%) can have 70+ overall!
+            💡 Youth quality is random. Waiting longer between promotions increases your chances of finding a gem!
           </div>
         </div>
 
@@ -415,12 +604,19 @@ export default function DevelopmentSquadPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`text-lg font-bold ${getOverallColor(player.overall)}`}>{player.overall}</div>
+                      <div className={`${getOvrColor(player.overall)} text-white text-sm font-bold px-2 py-1 rounded`}>
+                        {player.overall}
+                      </div>
                       <div>
                         <p className="text-white">{player.first_name} {player.last_name}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(player.position)}`}>
-                          {player.position}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(player.position)}`}>
+                            {player.position}
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            {player.nationality}{player.state ? `, ${player.state}` : ''}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div className="text-gray-400 text-sm">Age {player.age}</div>
@@ -466,19 +662,26 @@ export default function DevelopmentSquadPage() {
             <h3 className="text-2xl font-bold text-white mb-2">New Player!</h3>
             
             <div className="bg-gray-700 rounded-lg p-4 mb-4">
-              <div className={`text-4xl font-bold ${getOverallColor(newPlayer.overall)} mb-2`}>
-                {newPlayer.overall}
+              <div className="flex justify-center items-center gap-3 mb-2">
+                <span className={`${getOvrColor(newPlayer.overall)} text-white text-2xl font-bold px-3 py-1 rounded`}>
+                  {newPlayer.overall}
+                </span>
               </div>
-              <p className="text-white text-xl font-bold">{newPlayer.first_name} {newPlayer.last_name}</p>
+              <p className="text-yellow-500 text-sm mb-2">{getOvrStars(newPlayer.overall)}</p>
+              <p className="text-gray-300 text-lg font-semibold">{newPlayer.first_name}</p>
+              <p className="text-white text-2xl font-bold">{newPlayer.last_name}</p>
+              <p className="text-gray-500 text-sm">
+                {newPlayer.nationality}{newPlayer.state ? `, ${newPlayer.state}` : ''}
+              </p>
               <span className={`inline-block text-sm px-3 py-1 rounded text-white mt-2 ${getPositionColor(newPlayer.position)}`}>
                 {newPlayer.position}
               </span>
               <p className="text-gray-400 mt-2">Age {newPlayer.age}</p>
             </div>
 
-            {newPlayer.overall >= 70 && (
+            {newPlayer.overall >= 30 && (
               <div className="bg-green-500/20 border border-green-500 text-green-400 p-2 rounded mb-4">
-                ⭐ Rare talent! This one could be special!
+                ⭐ Great find! This one could be special!
               </div>
             )}
 
