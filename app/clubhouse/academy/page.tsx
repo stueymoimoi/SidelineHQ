@@ -18,13 +18,6 @@ interface Team {
   secondary_color: string;
 }
 
-interface Academy {
-  id: string;
-  team_id: string;
-  position_type: string;
-  rounds_cooking: number;
-}
-
 interface Player {
   id: string;
   first_name: string;
@@ -34,35 +27,23 @@ interface Player {
   age: number;
 }
 
-interface FreeAgent {
-  id: string;
-  player_id: string;
-  available_round: number;
-  claimed: boolean;
-  players: Player;
-}
-
 interface Coach {
   id: string;
   team_id: string;
   last_academy_pull_round: number;
 }
 
-export default function AcademyPage() {
+export default function DevelopmentSquadPage() {
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
   const [coach, setCoach] = useState<Coach | null>(null);
-  const [academy, setAcademy] = useState<Academy | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [freeAgents, setFreeAgents] = useState<FreeAgent[]>([]);
   const [currentRound, setCurrentRound] = useState(1);
-  const [ladderPosition, setLadderPosition] = useState(1);
   const [showReleaseModal, setShowReleaseModal] = useState(false);
-  const [showClaimModal, setShowClaimModal] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  const [selectedFreeAgent, setSelectedFreeAgent] = useState<FreeAgent | null>(null);
-  const [actionType, setActionType] = useState<'pull' | 'claim' | null>(null);
+  const [selectedPositionType, setSelectedPositionType] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [newPlayer, setNewPlayer] = useState<Player | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -98,15 +79,6 @@ export default function AcademyPage() {
 
       setTeam(teamData);
 
-      // Get academy status
-      const { data: academyData } = await supabase
-        .from('academy')
-        .select('*')
-        .eq('team_id', coachData.team_id)
-        .single();
-
-      setAcademy(academyData);
-
       // Get squad
       const { data: playersData } = await supabase
         .from('players')
@@ -127,32 +99,6 @@ export default function AcademyPage() {
       const round = fixtures && fixtures.length > 0 ? fixtures[0].round : 1;
       setCurrentRound(round);
 
-      // Get ladder position
-      const { data: allTeams } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('division', 1);
-
-      if (allTeams) {
-        const sorted = allTeams.sort((a, b) => {
-          const aPoints = (a.wins * 2) + a.draws;
-          const bPoints = (b.wins * 2) + b.draws;
-          if (bPoints !== aPoints) return bPoints - aPoints;
-          return (b.points_for - b.points_against) - (a.points_for - a.points_against);
-        });
-        const pos = sorted.findIndex(t => t.id === coachData.team_id) + 1;
-        setLadderPosition(pos);
-      }
-
-      // Get available free agents
-      const { data: freeAgentsData } = await supabase
-        .from('free_agents')
-        .select('*, players(*)')
-        .eq('claimed', false)
-        .lte('available_round', round);
-
-      setFreeAgents(freeAgentsData || []);
-
     } catch (err) {
       console.error('Error:', err);
     } finally {
@@ -160,156 +106,139 @@ export default function AcademyPage() {
     }
   };
 
-  const startCooking = async (positionType: string) => {
-    if (!team) return;
-    setProcessing(true);
-
-    // Generate hidden player
-    const positions: Record<string, string[]> = {
-      forward: ['Prop', 'Second Row', 'Lock'],
-      back: ['Fullback', 'Winger', 'Centre'],
-      half: ['Halfback', 'Five-Eighth']
-    };
-
-    const posOptions = positions[positionType];
-    const position = posOptions[Math.floor(Math.random() * posOptions.length)];
-
-    // Random Aussie names
-    const firstNames = ['Jack', 'Liam', 'Noah', 'Oliver', 'James', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Alex', 'Ryan', 'Cooper', 'Riley', 'Harrison', 'Jordan', 'Kai', 'Tyler', 'Blake', 'Mitchell', 'Cameron'];
-    const lastNames = ['Smith', 'Jones', 'Williams', 'Brown', 'Wilson', 'Taylor', 'Johnson', 'White', 'Martin', 'Thompson', 'Anderson', 'Walker', 'Harris', 'Clark', 'Lewis', 'Robinson', 'Young', 'King', 'Scott', 'Mitchell'];
-
-    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-
-    // Base stats for youth (will improve with cooking)
-    const baseOverall = 45 + Math.floor(Math.random() * 15); // 45-59
-    const potential = 65 + Math.floor(Math.random() * 30); // 65-94
-    
-    // Generate stats around base
-    const variance = () => Math.floor(Math.random() * 10) - 5;
-    const speed = Math.max(40, Math.min(70, baseOverall + variance()));
-    const strength = Math.max(40, Math.min(70, baseOverall + variance()));
-    const skill = Math.max(40, Math.min(70, baseOverall + variance()));
-    const stamina = Math.max(40, Math.min(70, baseOverall + variance()));
-    const defense = Math.max(40, Math.min(70, baseOverall + variance()));
-    
-    // Kicking based on position
-    let kicking = 30 + Math.floor(Math.random() * 20);
-    if (position === 'Halfback' || position === 'Fullback') kicking = 50 + Math.floor(Math.random() * 25);
-    if (position === 'Five-Eighth') kicking = 45 + Math.floor(Math.random() * 25);
-
-    const { error } = await supabase
-      .from('academy')
-      .insert({
-        team_id: team.id,
-        position_type: positionType,
-        hidden_position: position,
-        hidden_first_name: firstName,
-        hidden_last_name: lastName,
-        hidden_overall: baseOverall,
-        hidden_potential: potential,
-        hidden_speed: speed,
-        hidden_strength: strength,
-        hidden_skill: skill,
-        hidden_stamina: stamina,
-        hidden_defense: defense,
-        hidden_kicking: kicking,
-        rounds_cooking: 0
-      });
-
-    if (!error) {
-      loadData();
+  const handlePromote = (positionType: string) => {
+    setSelectedPositionType(positionType);
+    if (players.length >= 20) {
+      setShowReleaseModal(true);
+    } else {
+      generateAndAddPlayer(positionType, null);
     }
-    setProcessing(false);
   };
 
-  const openReleaseModal = (type: 'pull' | 'claim', freeAgent?: FreeAgent) => {
-    setActionType(type);
-    if (freeAgent) setSelectedFreeAgent(freeAgent);
-    setShowReleaseModal(true);
-  };
-
-  const releaseAndComplete = async () => {
-    if (!selectedPlayer || !team || !coach) return;
+  const generateAndAddPlayer = async (positionType: string, releasePlayerId: string | null) => {
+    if (!team || !coach) return;
     setProcessing(true);
 
-    if (actionType === 'pull' && academy) {
-      // Release selected player to free agents
-      await supabase.from('free_agents').insert({
-        player_id: selectedPlayer.id,
-        released_by_team_id: team.id,
-        available_round: currentRound + 1
-      });
-
-      // Remove player from team
-      await supabase.from('players').delete().eq('id', selectedPlayer.id);
-
-      // Create new player from academy
-      const { data: academyFull } = await supabase
-        .from('academy')
-        .select('*')
-        .eq('team_id', team.id)
-        .single();
-
-      if (academyFull) {
-        // Calculate improved stats based on rounds cooking
-        const bonus = Math.min(academyFull.rounds_cooking * 2, 25); // Max +25 from cooking
-        const potentialBonus = Math.floor((academyFull.hidden_potential - 60) / 10); // Bonus from potential
-        
-        const improveBy = bonus + potentialBonus + Math.floor(Math.random() * 5);
-        
-        await supabase.from('players').insert({
-          team_id: team.id,
-          first_name: academyFull.hidden_first_name,
-          last_name: academyFull.hidden_last_name,
-          position: academyFull.hidden_position,
-          age: 18,
-          overall: Math.min(85, academyFull.hidden_overall + improveBy),
-          potential: academyFull.hidden_potential,
-          speed: Math.min(90, academyFull.hidden_speed + Math.floor(improveBy * 0.8) + Math.floor(Math.random() * 5)),
-          strength: Math.min(90, academyFull.hidden_strength + Math.floor(improveBy * 0.8) + Math.floor(Math.random() * 5)),
-          skill: Math.min(90, academyFull.hidden_skill + Math.floor(improveBy * 0.8) + Math.floor(Math.random() * 5)),
-          stamina: Math.min(90, academyFull.hidden_stamina + Math.floor(improveBy * 0.8) + Math.floor(Math.random() * 5)),
-          defense: Math.min(90, academyFull.hidden_defense + Math.floor(improveBy * 0.8) + Math.floor(Math.random() * 5)),
-          kicking: Math.min(90, academyFull.hidden_kicking + Math.floor(Math.random() * 10)),
-          fatigue: 0,
-          is_u21: false
+    try {
+      // Release player if needed
+      if (releasePlayerId) {
+        // Move to free agents
+        await supabase.from('free_agents').insert({
+          player_id: releasePlayerId,
+          released_by_team_id: team.id,
+          available_round: currentRound + 1
         });
 
-        // Delete academy entry
-        await supabase.from('academy').delete().eq('team_id', team.id);
-
-        // Update coach last pull round
-        await supabase.from('coaches').update({ last_academy_pull_round: currentRound }).eq('id', coach.id);
+        // Remove from team
+        await supabase.from('players').delete().eq('id', releasePlayerId);
       }
-    } else if (actionType === 'claim' && selectedFreeAgent) {
-      // Release selected player to free agents
-      await supabase.from('free_agents').insert({
-        player_id: selectedPlayer.id,
-        released_by_team_id: team.id,
-        available_round: currentRound + 1
-      });
 
-      // Remove player from team
-      await supabase.from('players').delete().eq('id', selectedPlayer.id);
+      // Position groups
+      const positions: Record<string, string[]> = {
+        forward: ['Prop', 'Second Row', 'Lock'],
+        back: ['Fullback', 'Winger', 'Centre'],
+        half: ['Halfback', 'Five-Eighth', 'Hooker']
+      };
 
-      // Move free agent player to this team
-      await supabase.from('players').update({ team_id: team.id }).eq('id', selectedFreeAgent.player_id);
+      const posOptions = positions[positionType];
+      const position = posOptions[Math.floor(Math.random() * posOptions.length)];
 
-      // Mark free agent as claimed
-      await supabase.from('free_agents').update({ claimed: true }).eq('id', selectedFreeAgent.id);
+      // Random Aussie names
+      const firstNames = ['Jack', 'Liam', 'Noah', 'Oliver', 'James', 'Ethan', 'Lucas', 'Mason', 'Logan', 'Alex', 'Ryan', 'Cooper', 'Riley', 'Harrison', 'Jordan', 'Kai', 'Tyler', 'Blake', 'Mitchell', 'Cameron', 'Dylan', 'Hunter', 'Ashton', 'Bailey', 'Caleb', 'Daniel', 'Flynn', 'Hamish', 'Isaac', 'Jesse'];
+      const lastNames = ['Smith', 'Jones', 'Williams', 'Brown', 'Wilson', 'Taylor', 'Johnson', 'White', 'Martin', 'Thompson', 'Anderson', 'Walker', 'Harris', 'Clark', 'Lewis', 'Robinson', 'Young', 'King', 'Scott', 'Mitchell', 'Campbell', 'Edwards', 'Murphy', 'Collins', 'Stewart', 'Morris', 'Rogers', 'Reed', 'Cook', 'Morgan'];
+
+      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+
+      // Generate quality based on luck
+      // Base: 55-70, with rare chance for gems
+      const luck = Math.random() * 100;
+      let baseOverall: number;
+      let potential: number;
+
+      if (luck < 2) {
+        // 2% - Generational talent
+        baseOverall = 70 + Math.floor(Math.random() * 10); // 70-79
+        potential = 90 + Math.floor(Math.random() * 5); // 90-94
+      } else if (luck < 10) {
+        // 8% - Gun prospect
+        baseOverall = 65 + Math.floor(Math.random() * 10); // 65-74
+        potential = 82 + Math.floor(Math.random() * 8); // 82-89
+      } else if (luck < 40) {
+        // 30% - Solid prospect
+        baseOverall = 58 + Math.floor(Math.random() * 10); // 58-67
+        potential = 72 + Math.floor(Math.random() * 10); // 72-81
+      } else {
+        // 60% - Average youth
+        baseOverall = 50 + Math.floor(Math.random() * 12); // 50-61
+        potential = 62 + Math.floor(Math.random() * 10); // 62-71
+      }
+
+      // Generate stats around base overall
+      const variance = () => Math.floor(Math.random() * 12) - 6;
+      const speed = Math.max(45, Math.min(85, baseOverall + variance()));
+      const strength = Math.max(45, Math.min(85, baseOverall + variance()));
+      const skill = Math.max(45, Math.min(85, baseOverall + variance()));
+      const stamina = Math.max(45, Math.min(85, baseOverall + variance()));
+      const defense = Math.max(45, Math.min(85, baseOverall + variance()));
+
+      // Calculate actual overall from stats
+      const actualOverall = Math.round((speed + strength + skill + stamina + defense) / 5);
+
+      // Kicking based on position
+      let kicking = 30 + Math.floor(Math.random() * 20);
+      if (position === 'Halfback' || position === 'Fullback') kicking = 50 + Math.floor(Math.random() * 25);
+      if (position === 'Five-Eighth' || position === 'Hooker') kicking = 45 + Math.floor(Math.random() * 20);
+
+      // Insert new player
+      const { data: newPlayerData, error } = await supabase
+        .from('players')
+        .insert({
+          team_id: team.id,
+          first_name: firstName,
+          last_name: lastName,
+          position: position,
+          age: 18,
+          overall: actualOverall,
+          potential: potential,
+          speed: speed,
+          strength: strength,
+          skill: skill,
+          stamina: stamina,
+          defense: defense,
+          kicking: kicking,
+          fatigue: 0,
+          is_u21: false
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update coach last pull round
+      await supabase
+        .from('coaches')
+        .update({ last_academy_pull_round: currentRound })
+        .eq('id', coach.id);
+
+      // Show the new player
+      setNewPlayer(newPlayerData);
+
+      // Reload data
+      await loadData();
+
+    } catch (err) {
+      console.error('Error promoting player:', err);
+    } finally {
+      setProcessing(false);
+      setShowReleaseModal(false);
+      setSelectedPlayer(null);
+      setSelectedPositionType(null);
     }
-
-    setShowReleaseModal(false);
-    setSelectedPlayer(null);
-    setSelectedFreeAgent(null);
-    setActionType(null);
-    setProcessing(false);
-    loadData();
   };
 
-  const canPull = coach && (currentRound - (coach.last_academy_pull_round || 0)) >= 6;
-  const roundsUntilPull = coach ? Math.max(0, 6 - (currentRound - (coach.last_academy_pull_round || 0))) : 6;
+  const canPromote = coach && (currentRound - (coach.last_academy_pull_round || 0)) >= 6;
+  const roundsUntilPromote = coach ? Math.max(0, 6 - (currentRound - (coach.last_academy_pull_round || 0))) : 6;
 
   const getPositionColor = (position: string) => {
     const colors: Record<string, string> = {
@@ -324,6 +253,13 @@ export default function AcademyPage() {
       'Lock': 'bg-red-700',
     };
     return colors[position] || 'bg-gray-600';
+  };
+
+  const getOverallColor = (overall: number) => {
+    if (overall >= 75) return 'text-green-400';
+    if (overall >= 65) return 'text-yellow-400';
+    if (overall >= 55) return 'text-orange-400';
+    return 'text-red-400';
   };
 
   if (loading) {
@@ -347,158 +283,86 @@ export default function AcademyPage() {
           <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
             ← Back to Clubhouse
           </Link>
-          <h1 className="text-3xl font-bold text-white">🎓 Development Academy</h1>
-          <p className="text-white/70 mt-1">Develop youth talent for your squad</p>
+          <h1 className="text-3xl font-bold text-white">🎓 Development Squad</h1>
+          <p className="text-white/70 mt-1">Promote youth talent to your senior squad</p>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
         
-        {/* Academy Oven */}
+        {/* Promote Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-bold text-white mb-4">🍳 The Oven</h2>
-          
-          {!academy ? (
-            <div>
-              <p className="text-gray-400 mb-4">Select a position type to start developing a youth player:</p>
-              <div className="grid grid-cols-3 gap-4">
-                <button
-                  onClick={() => startCooking('forward')}
-                  disabled={processing}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg transition disabled:opacity-50"
-                >
-                  <div className="text-2xl mb-1">💪</div>
-                  Forward
-                  <div className="text-xs text-white/70 mt-1">Prop, 2nd Row, Lock</div>
-                </button>
-                <button
-                  onClick={() => startCooking('back')}
-                  disabled={processing}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition disabled:opacity-50"
-                >
-                  <div className="text-2xl mb-1">⚡</div>
-                  Back
-                  <div className="text-xs text-white/70 mt-1">FB, Winger, Centre</div>
-                </button>
-                <button
-                  onClick={() => startCooking('half')}
-                  disabled={processing}
-                  className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-4 px-6 rounded-lg transition disabled:opacity-50"
-                >
-                  <div className="text-2xl mb-1">🧠</div>
-                  Half
-                  <div className="text-xs text-white/70 mt-1">Halfback, Five-Eighth</div>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-4xl">👤</div>
-                    <div>
-                      <p className="text-white font-bold text-lg">
-                        {academy.position_type === 'forward' ? '💪 Forward' : 
-                         academy.position_type === 'back' ? '⚡ Back' : '🧠 Half'} 
-                        <span className="text-gray-400 font-normal ml-2">developing...</span>
-                      </p>
-                      <p className="text-gray-500 text-sm">Identity hidden until pulled</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-3xl font-bold text-yellow-400">{academy.rounds_cooking}</div>
-                  <div className="text-gray-400 text-sm">rounds cooking</div>
-                </div>
-              </div>
-              
-              {/* Progress indicator */}
-              <div className="bg-gray-700 rounded-full h-3 mb-4">
-                <div 
-                  className="bg-gradient-to-r from-yellow-500 to-green-500 h-3 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, (academy.rounds_cooking / 12) * 100)}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-xs text-gray-500 mb-4">
-                <span>Raw</span>
-                <span>Developing</span>
-                <span>Ready</span>
-                <span>Prime 🌟</span>
-              </div>
+          <h2 className="text-xl font-bold text-white mb-2">Promote a Youth Player</h2>
+          <p className="text-gray-400 mb-4">
+            Select a position group to promote a random youth player to your senior squad.
+            Quality varies - you might get a future star or a squad filler!
+          </p>
 
-              {players.length >= 20 ? (
-                <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-400 p-3 rounded mb-4">
-                  ⚠️ Squad full (20 players). You must release a player to pull from academy.
-                </div>
-              ) : null}
-
-              {!canPull ? (
-                <div className="bg-gray-700 text-gray-400 p-3 rounded mb-4">
-                  ⏳ Can pull in {roundsUntilPull} more round{roundsUntilPull !== 1 ? 's' : ''}
-                </div>
-              ) : null}
-
-              <button
-                onClick={() => openReleaseModal('pull')}
-                disabled={!canPull || processing}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-lg transition"
-              >
-                {canPull ? '🎓 Pull Player from Academy' : `⏳ Wait ${roundsUntilPull} more rounds`}
-              </button>
+          {!canPromote && (
+            <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-400 p-3 rounded mb-4">
+              ⏳ You can promote again in <strong>{roundsUntilPromote}</strong> round{roundsUntilPromote !== 1 ? 's' : ''}
             </div>
           )}
+
+          {players.length >= 20 && canPromote && (
+            <div className="bg-blue-500/20 border border-blue-500 text-blue-400 p-3 rounded mb-4">
+              📋 Squad full (20 players). You'll need to release someone to make room.
+            </div>
+          )}
+          
+          <div className="grid grid-cols-3 gap-4">
+            <button
+              onClick={() => handlePromote('forward')}
+              disabled={!canPromote || processing}
+              className="bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-6 px-4 rounded-lg transition"
+            >
+              <div className="text-3xl mb-2">💪</div>
+              <div className="text-lg">Forward</div>
+              <div className="text-xs text-white/70 mt-1">Prop, 2nd Row, Lock</div>
+            </button>
+            <button
+              onClick={() => handlePromote('back')}
+              disabled={!canPromote || processing}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-6 px-4 rounded-lg transition"
+            >
+              <div className="text-3xl mb-2">⚡</div>
+              <div className="text-lg">Back</div>
+              <div className="text-xs text-white/70 mt-1">FB, Winger, Centre</div>
+            </button>
+            <button
+              onClick={() => handlePromote('half')}
+              disabled={!canPromote || processing}
+              className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-6 px-4 rounded-lg transition"
+            >
+              <div className="text-3xl mb-2">🧠</div>
+              <div className="text-lg">Half</div>
+              <div className="text-xs text-white/70 mt-1">HB, Five-Eighth, Hooker</div>
+            </button>
+          </div>
+
+          <div className="mt-4 text-gray-500 text-sm">
+            💡 Youth quality is random. Rare gems (2%) can have 70+ overall!
+          </div>
         </div>
 
-        {/* Free Agents */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-white mb-4">🏪 Free Agents</h2>
-          
-          {freeAgents.length === 0 ? (
-            <p className="text-gray-400">No free agents available. Released players appear here after 1 round.</p>
-          ) : (
-            <div className="space-y-3">
-              {freeAgents.map(fa => (
-                <div key={fa.id} className="bg-gray-700 rounded-lg p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="text-2xl font-bold text-white">{fa.players.overall}</div>
-                    <div>
-                      <p className="text-white font-bold">{fa.players.first_name} {fa.players.last_name}</p>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(fa.players.position)}`}>
-                          {fa.players.position}
-                        </span>
-                        <span className="text-gray-400 text-sm">Age {fa.players.age}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => openReleaseModal('claim', fa)}
-                    disabled={players.length < 20 ? false : true}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded transition"
-                  >
-                    Claim
-                  </button>
-                </div>
-              ))}
-              
-              <div className="text-gray-500 text-sm mt-4">
-                💡 Priority goes to teams lower on the ladder. Your position: {ladderPosition}/10
-              </div>
-            </div>
-          )}
+        {/* Squad Count */}
+        <div className="bg-gray-800 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-400">Current Squad Size</span>
+            <span className={`text-xl font-bold ${players.length >= 20 ? 'text-red-400' : 'text-green-400'}`}>
+              {players.length}/20
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Release Modal */}
-      {showReleaseModal && (
+      {showReleaseModal && selectedPositionType && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-2">
-              {actionType === 'pull' ? '🎓 Pull from Academy' : '🏪 Claim Free Agent'}
-            </h3>
+            <h3 className="text-xl font-bold text-white mb-2">Release a Player</h3>
             <p className="text-gray-400 mb-4">
-              Select a player to release to make room:
+              Squad is full. Select a player to release to make room:
             </p>
 
             <div className="space-y-2 mb-4">
@@ -514,7 +378,7 @@ export default function AcademyPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="text-lg font-bold text-white">{player.overall}</div>
+                      <div className={`text-lg font-bold ${getOverallColor(player.overall)}`}>{player.overall}</div>
                       <div>
                         <p className="text-white">{player.first_name} {player.last_name}</p>
                         <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(player.position)}`}>
@@ -539,20 +403,54 @@ export default function AcademyPage() {
                 onClick={() => {
                   setShowReleaseModal(false);
                   setSelectedPlayer(null);
-                  setActionType(null);
+                  setSelectedPositionType(null);
                 }}
                 className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
               >
                 Cancel
               </button>
               <button
-                onClick={releaseAndComplete}
+                onClick={() => generateAndAddPlayer(selectedPositionType, selectedPlayer?.id || null)}
                 disabled={!selectedPlayer || processing}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-lg transition"
               >
                 {processing ? 'Processing...' : 'Confirm'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Player Reveal Modal */}
+      {newPlayer && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full text-center">
+            <div className="text-5xl mb-4">🎉</div>
+            <h3 className="text-2xl font-bold text-white mb-2">New Player!</h3>
+            
+            <div className="bg-gray-700 rounded-lg p-4 mb-4">
+              <div className={`text-4xl font-bold ${getOverallColor(newPlayer.overall)} mb-2`}>
+                {newPlayer.overall}
+              </div>
+              <p className="text-white text-xl font-bold">{newPlayer.first_name} {newPlayer.last_name}</p>
+              <span className={`inline-block text-sm px-3 py-1 rounded text-white mt-2 ${getPositionColor(newPlayer.position)}`}>
+                {newPlayer.position}
+              </span>
+              <p className="text-gray-400 mt-2">Age {newPlayer.age}</p>
+            </div>
+
+            {newPlayer.overall >= 70 && (
+              <div className="bg-green-500/20 border border-green-500 text-green-400 p-2 rounded mb-4">
+                ⭐ Rare talent! This one could be special!
+              </div>
+            )}
+
+            <button
+              onClick={() => setNewPlayer(null)}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition"
+            >
+              Awesome!
+            </button>
           </div>
         </div>
       )}
