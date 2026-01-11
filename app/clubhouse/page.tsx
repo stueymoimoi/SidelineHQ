@@ -14,10 +14,8 @@ interface Team {
   id: string;
   name: string;
   city: string;
-  state: string;
   primary_color: string;
   secondary_color: string;
-  division: number;
   wins: number;
   draws: number;
   losses: number;
@@ -33,23 +31,53 @@ interface Coach {
   level: number;
 }
 
-interface Player {
+interface Fixture {
   id: string;
-  first_name: string;
-  last_name: string;
-  position: string;
-  overall: number;
-  age: number;
-  fatigue: number;
+  home_team_id: string;
+  away_team_id: string;
+  round: number;
+  played: boolean;
+}
+
+// Season 0 schedule
+const SEASON_0_START = new Date('2026-01-13T07:00:00Z');
+
+function getRoundDates(): Date[] {
+  const dates: Date[] = [];
+  let current = new Date(SEASON_0_START);
+  
+  for (let round = 1; round <= 18; round++) {
+    dates.push(new Date(current));
+    const day = current.getDay();
+    if (day === 2) current.setDate(current.getDate() + 2);
+    else if (day === 4) current.setDate(current.getDate() + 3);
+    else current.setDate(current.getDate() + 2);
+  }
+  return dates;
+}
+
+const ROUND_DATES = getRoundDates();
+
+function getNextUpdateInfo(): { date: Date; round: number; dayName: string } {
+  const now = new Date();
+  for (let i = 0; i < ROUND_DATES.length; i++) {
+    if (now < ROUND_DATES[i]) {
+      return { 
+        date: ROUND_DATES[i], 
+        round: i + 1,
+        dayName: ROUND_DATES[i].toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Sydney' })
+      };
+    }
+  }
+  return { date: ROUND_DATES[17], round: 18, dayName: 'Complete' };
 }
 
 export default function ClubhousePage() {
-  const [coach, setCoach] = useState<Coach | null>(null);
-  const [team, setTeam] = useState<Team | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ladderPosition, setLadderPosition] = useState<number>(0);
-  
+  const [team, setTeam] = useState<Team | null>(null);
+  const [coach, setCoach] = useState<Coach | null>(null);
+  const [ladderPosition, setLadderPosition] = useState(1);
+  const [nextMatch, setNextMatch] = useState<{ opponent: Team; isHome: boolean; round: number } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -58,14 +86,12 @@ export default function ClubhousePage() {
 
   const loadData = async () => {
     try {
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/auth');
         return;
       }
 
-      // Get coach profile
       const { data: coachData } = await supabase
         .from('coaches')
         .select('*')
@@ -79,7 +105,6 @@ export default function ClubhousePage() {
 
       setCoach(coachData);
 
-      // Get team
       const { data: teamData } = await supabase
         .from('teams')
         .select('*')
@@ -88,188 +113,201 @@ export default function ClubhousePage() {
 
       setTeam(teamData);
 
-      // Get players
-      const { data: playersData } = await supabase
-        .from('players')
-        .select('*')
-        .eq('team_id', coachData.team_id)
-        .eq('is_u21', false)
-        .order('overall', { ascending: false });
-
-      setPlayers(playersData || []);
-
-      // Get ladder position
+      // Calculate ladder position
       const { data: allTeams } = await supabase
         .from('teams')
-        .select('id, wins, points_for, points_against')
-        .eq('division', teamData?.division || 1)
-        .order('wins', { ascending: false });
+        .select('*')
+        .eq('division', 1);
 
       if (allTeams) {
         const sorted = allTeams.sort((a, b) => {
-          if (b.wins !== a.wins) return b.wins - a.wins;
-          return (b.points_for - b.points_against) - (a.points_for - a.points_against);
+          const aPoints = (a.wins * 2) + a.draws;
+          const bPoints = (b.wins * 2) + b.draws;
+          if (bPoints !== aPoints) return bPoints - aPoints;
+          const aDiff = a.points_for - a.points_against;
+          const bDiff = b.points_for - b.points_against;
+          return bDiff - aDiff;
         });
         const pos = sorted.findIndex(t => t.id === coachData.team_id) + 1;
         setLadderPosition(pos);
+
+        // Get next match
+        const { data: fixtures } = await supabase
+          .from('fixtures')
+          .select('*')
+          .eq('season', 0)
+          .eq('played', false)
+          .or(`home_team_id.eq.${coachData.team_id},away_team_id.eq.${coachData.team_id}`)
+          .order('round', { ascending: true })
+          .limit(1);
+
+        if (fixtures && fixtures.length > 0) {
+          const fixture = fixtures[0];
+          const isHome = fixture.home_team_id === coachData.team_id;
+          const opponentId = isHome ? fixture.away_team_id : fixture.home_team_id;
+          const opponent = allTeams.find(t => t.id === opponentId);
+          if (opponent) {
+            setNextMatch({ opponent, isHome, round: fixture.round });
+          }
+        }
       }
 
     } catch (err) {
-      console.error('Error loading data:', err);
+      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const getOrdinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  const pointDiff = team ? team.points_for - team.points_against : 0;
+  const nextUpdate = getNextUpdateInfo();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading clubhouse...</div>
+        <div className="text-white text-xl">Loading...</div>
       </div>
     );
   }
-
-  if (!team || !coach) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Team not found</div>
-      </div>
-    );
-  }
-
-  const fatigued = players.filter(p => (p.fatigue || 0) >= 60).length;
-  const topPlayer = players[0];
-  const avgOvr = players.length > 0 
-    ? Math.round(players.reduce((sum, p) => sum + p.overall, 0) / players.length)
-    : 0;
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header Banner */}
+      {/* Team Banner */}
       <div 
-        className="p-8"
+        className="p-6 pb-8"
         style={{
-          background: `linear-gradient(135deg, ${team.primary_color} 0%, ${team.secondary_color} 100%)`
+          background: `linear-gradient(135deg, ${team?.primary_color} 0%, ${team?.secondary_color} 100%)`
         }}
       >
         <div className="max-w-6xl mx-auto">
-          <p className="text-white/70 mb-1">Welcome back, Coach {coach.coach_name}</p>
-          <h1 className="text-4xl font-bold text-white">{team.name}</h1>
-          <p className="text-white/80 mt-1">{team.city}, {team.state}</p>
-          
-          <div className="flex gap-4 mt-4">
-            <span className="bg-black/30 px-4 py-2 rounded-lg text-white">
-              Division {team.division}
-            </span>
-            <span className="bg-black/30 px-4 py-2 rounded-lg text-white">
-              {avgOvr} OVR
-            </span>
-            <span className="bg-black/30 px-4 py-2 rounded-lg text-white">
-              {team.wins}W - {team.draws}D - {team.losses}L
-            </span>
-          </div>
+          <p className="text-white/70 text-sm mb-1">Welcome back, Coach</p>
+          <h1 className="text-4xl font-bold text-white mb-1">
+            {team?.city} {team?.name}
+          </h1>
+          <p className="text-white/80">
+            {getOrdinal(ladderPosition)} Place • {team?.wins}-{team?.draws}-{team?.losses}
+          </p>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6 -mt-4">
         
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-800 rounded-lg p-6">
-            <p className="text-gray-400 text-sm">Ladder Position</p>
-            <p className="text-3xl font-bold text-white">{ladderPosition}{ladderPosition === 1 ? 'st' : ladderPosition === 2 ? 'nd' : ladderPosition === 3 ? 'rd' : 'th'}</p>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-6">
-            <p className="text-gray-400 text-sm">Point Difference</p>
-            <p className={`text-3xl font-bold ${(team.points_for - team.points_against) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {(team.points_for - team.points_against) >= 0 ? '+' : ''}{team.points_for - team.points_against}
-            </p>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-6">
-            <p className="text-gray-400 text-sm">Coach XP</p>
-            <p className="text-3xl font-bold text-yellow-500">{coach.xp} XP</p>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-6">
-            <p className="text-gray-400 text-sm">Coach Level</p>
-            <p className="text-3xl font-bold text-purple-500">Level {coach.level}</p>
-          </div>
-        </div>
-
-        {/* Alerts */}
-        {fatigued > 0 && (
-          <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-400 px-4 py-3 rounded-lg mb-6">
-            ⚠️ <strong>{fatigued} players</strong> are fatigued (60%+) and need rest!
-          </div>
-        )}
-
-        {/* Top Player */}
-        {topPlayer && (
-          <div className="bg-gray-800 rounded-lg p-6 mb-8">
-            <p className="text-gray-400 text-sm mb-2">⭐ Best Player</p>
+        {/* Next Match Card */}
+        {nextMatch && (
+          <div className="bg-gray-800 rounded-lg p-4 mb-6 border-l-4 border-green-500">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xl font-bold text-white">{topPlayer.first_name} {topPlayer.last_name}</p>
-                <p className="text-gray-400">{topPlayer.position} • Age {topPlayer.age}</p>
+                <p className="text-gray-400 text-sm">NEXT MATCH • Round {nextMatch.round}</p>
+                <p className="text-white text-xl font-bold mt-1">
+                  {nextMatch.isHome ? 'vs' : '@'} {nextMatch.opponent.city} {nextMatch.opponent.name}
+                </p>
+                <p className="text-gray-500 text-sm">{nextMatch.isHome ? 'Home' : 'Away'}</p>
               </div>
-              <div className="bg-green-600 text-white px-4 py-2 rounded-lg text-2xl font-bold">
-                {topPlayer.overall}
+              <div className="text-right">
+                <p className="text-gray-400 text-sm">{nextUpdate.dayName} 6pm</p>
+                <div 
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold mt-1"
+                  style={{ 
+                    backgroundColor: nextMatch.opponent.primary_color,
+                    color: nextMatch.opponent.secondary_color 
+                  }}
+                >
+                  {nextMatch.opponent.city.substring(0, 3).toUpperCase()}
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Navigation Menu */}
-        <h2 className="text-xl font-bold text-white mb-4">Manage Team</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link href="/clubhouse/squad" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs">Ladder</p>
+            <p className="text-white text-2xl font-bold">{getOrdinal(ladderPosition)}</p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs">Point Diff</p>
+            <p className={`text-2xl font-bold ${pointDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {pointDiff >= 0 ? '+' : ''}{pointDiff}
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs">Coach XP</p>
+            <p className="text-yellow-400 text-2xl font-bold">{coach?.xp || 0}</p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs">Level</p>
+            <p className="text-green-400 text-2xl font-bold">{coach?.level || 1}</p>
+          </div>
+        </div>
+
+        {/* Main Navigation - Primary */}
+        <h2 className="text-white font-bold mb-3">Manage Team</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Link href="/clubhouse/squad" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">👥</div>
-            <p className="text-white font-semibold">Squad</p>
-            <p className="text-gray-400 text-sm">View players</p>
+            <p className="text-white font-bold">Squad</p>
+            <p className="text-gray-500 text-sm">View players</p>
           </Link>
-          
-          <Link href="/clubhouse/tactics" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
+          <Link href="/clubhouse/tactics" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">📋</div>
-            <p className="text-white font-semibold">Tactics</p>
-            <p className="text-gray-400 text-sm">Set lineup</p>
+            <p className="text-white font-bold">Tactics</p>
+            <p className="text-gray-500 text-sm">Set lineup</p>
           </Link>
-          
-          <Link href="/clubhouse/training" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
+          <Link href="/clubhouse/training" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">💪</div>
-            <p className="text-white font-semibold">Training</p>
-            <p className="text-gray-400 text-sm">Develop players</p>
+            <p className="text-white font-bold">Training</p>
+            <p className="text-gray-500 text-sm">Develop players</p>
           </Link>
-          
-          <Link href="/clubhouse/fixtures" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
+          <Link href="/clubhouse/fixtures" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">📅</div>
-            <p className="text-white font-semibold">Fixtures</p>
-            <p className="text-gray-400 text-sm">Match schedule</p>
-          </Link>
-          
-          <Link href="/clubhouse/ladder" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
-            <div className="text-4xl mb-2">🏆</div>
-            <p className="text-white font-semibold">Ladder</p>
-            <p className="text-gray-400 text-sm">Standings</p>
-          </Link>
-          
-          <Link href="/clubhouse/finances" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
-            <div className="text-4xl mb-2">💰</div>
-            <p className="text-white font-semibold">Finances</p>
-            <p className="text-gray-400 text-sm">Money & wages</p>
-          </Link>
-          
-          <Link href="/clubhouse/history" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
-            <div className="text-4xl mb-2">📜</div>
-            <p className="text-white font-semibold">History</p>
-            <p className="text-gray-400 text-sm">Club records</p>
-          </Link>
-          
-          <Link href="/clubhouse/rivals" className="bg-gray-800 hover:bg-gray-700 rounded-lg p-6 text-center transition">
-            <div className="text-4xl mb-2">👀</div>
-            <p className="text-white font-semibold">Scout</p>
-            <p className="text-gray-400 text-sm">View other teams</p>
+            <p className="text-white font-bold">Fixtures</p>
+            <p className="text-gray-500 text-sm">Match schedule</p>
           </Link>
         </div>
+
+        {/* Secondary Navigation */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link href="/clubhouse/ladder" className="bg-gray-800 rounded-lg p-4 text-center hover:bg-gray-700 transition">
+            <div className="text-2xl mb-1">🏆</div>
+            <p className="text-white font-medium text-sm">Ladder</p>
+          </Link>
+          <div className="bg-gray-800/50 rounded-lg p-4 text-center relative">
+            <div className="text-2xl mb-1 opacity-50">💰</div>
+            <p className="text-gray-500 font-medium text-sm">Finances</p>
+            <span className="absolute top-2 right-2 text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">Soon</span>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-4 text-center relative">
+            <div className="text-2xl mb-1 opacity-50">📜</div>
+            <p className="text-gray-500 font-medium text-sm">History</p>
+            <span className="absolute top-2 right-2 text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">Soon</span>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-4 text-center relative">
+            <div className="text-2xl mb-1 opacity-50">🔍</div>
+            <p className="text-gray-500 font-medium text-sm">Scout</p>
+            <span className="absolute top-2 right-2 text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">Soon</span>
+          </div>
+        </div>
+
+        {/* Sign Out */}
+        <div className="mt-8 text-center">
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push('/auth');
+            }}
+            className="text-gray-500 hover:text-gray-300 text-sm"
+          >
+            Sign Out
+          </button>
+        </div>
+
       </div>
     </div>
   );
