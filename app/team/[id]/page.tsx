@@ -169,7 +169,7 @@ export default function TeamPage() {
           {seniorPlayers.map(player => (
             <div 
               key={player.id}
-              className="bg-gray-800 rounded-lg p-4 flex items-center gap-4 hover:bg-gray-750 transition"
+              className="bg-gray-800 rounded-lg p-4 flex items-center gap-4"
             >
               <div className={`text-2xl font-bold ${getOverallColor(player.overall)}`}>
                 {player.overall}
