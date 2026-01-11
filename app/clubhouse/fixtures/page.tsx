@@ -48,28 +48,55 @@ interface FixtureWithTeams extends Fixture {
 }
 
 // Season 0 schedule: Tues, Thurs, Sun at 6pm AEST
-const SEASON_0_START = new Date('2025-01-14T18:00:00+11:00'); // Tuesday 14th Jan 6pm AEST
-const UPDATE_DAYS = [2, 4, 0]; // Tuesday, Thursday, Sunday
+// Round 1: Tue 14 Jan, Round 2: Thu 16 Jan, Round 3: Sun 19 Jan, etc.
+const SEASON_0_START = new Date('2025-01-14T07:00:00Z'); // Tuesday 14th Jan 6pm AEST = 7am UTC
 
-function getNextUpdateTime(): Date {
+// Pre-calculate all 18 round dates
+function getRoundDates(): Date[] {
+  const dates: Date[] = [];
+  const start = new Date(SEASON_0_START);
+  let current = new Date(start);
+  
+  for (let round = 1; round <= 18; round++) {
+    dates.push(new Date(current));
+    
+    // Move to next update day: Tue -> Thu (+2), Thu -> Sun (+3), Sun -> Tue (+2)
+    const day = current.getDay();
+    if (day === 2) current.setDate(current.getDate() + 2);      // Tue -> Thu
+    else if (day === 4) current.setDate(current.getDate() + 3); // Thu -> Sun
+    else current.setDate(current.getDate() + 2);                // Sun -> Tue
+  }
+  
+  return dates;
+}
+
+const ROUND_DATES = getRoundDates();
+
+function getCurrentRoundFromSchedule(): number {
   const now = new Date();
-  const aestNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
   
-  // Find next update day
-  let nextUpdate = new Date(aestNow);
-  nextUpdate.setHours(18, 0, 0, 0);
-  
-  // If today's update has passed, start from tomorrow
-  if (aestNow.getHours() >= 18) {
-    nextUpdate.setDate(nextUpdate.getDate() + 1);
+  // Find which round we're up to based on dates
+  for (let i = ROUND_DATES.length - 1; i >= 0; i--) {
+    if (now >= ROUND_DATES[i]) {
+      return i + 1; // Round numbers are 1-indexed
+    }
   }
   
-  // Find next Tues/Thurs/Sun
-  while (!UPDATE_DAYS.includes(nextUpdate.getDay())) {
-    nextUpdate.setDate(nextUpdate.getDate() + 1);
+  return 0; // Season hasn't started yet
+}
+
+function getNextUpdateTime(): { date: Date; round: number } {
+  const now = new Date();
+  
+  // Find next round that hasn't happened yet
+  for (let i = 0; i < ROUND_DATES.length; i++) {
+    if (now < ROUND_DATES[i]) {
+      return { date: ROUND_DATES[i], round: i + 1 };
+    }
   }
   
-  return nextUpdate;
+  // All rounds done
+  return { date: ROUND_DATES[ROUND_DATES.length - 1], round: 18 };
 }
 
 function formatCountdown(targetDate: Date): string {
@@ -99,7 +126,8 @@ export default function FixturesPage() {
   const [currentRound, setCurrentRound] = useState(1);
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [countdown, setCountdown] = useState('');
-  const [nextUpdateDate, setNextUpdateDate] = useState<Date | null>(null);
+  const [nextUpdate, setNextUpdate] = useState<{ date: Date; round: number } | null>(null);
+  const [seasonStarted, setSeasonStarted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -109,9 +137,12 @@ export default function FixturesPage() {
   // Countdown timer
   useEffect(() => {
     const updateCountdown = () => {
+      const scheduleRound = getCurrentRoundFromSchedule();
+      setSeasonStarted(scheduleRound > 0);
+      
       const next = getNextUpdateTime();
-      setNextUpdateDate(next);
-      setCountdown(formatCountdown(next));
+      setNextUpdate(next);
+      setCountdown(formatCountdown(next.date));
     };
     
     updateCountdown();
@@ -179,11 +210,12 @@ export default function FixturesPage() {
 
       setFixtures(fixturesWithTeams);
 
-      // Find current round (first unplayed round)
-      const unplayedRounds = fixturesWithTeams.filter(f => !f.played).map(f => f.round);
-      const current = unplayedRounds.length > 0 ? Math.min(...unplayedRounds) : 18;
-      setCurrentRound(current);
-      setSelectedRound(current);
+      // Set current round based on schedule, not played status
+      const scheduleRound = getCurrentRoundFromSchedule();
+      const displayRound = scheduleRound > 0 ? scheduleRound : 1;
+      setCurrentRound(displayRound);
+      setSelectedRound(displayRound);
+      setSeasonStarted(scheduleRound > 0);
 
     } catch (err) {
       console.error('Error:', err);
@@ -254,7 +286,9 @@ export default function FixturesPage() {
             ← Back to Clubhouse
           </Link>
           <h1 className="text-3xl font-bold text-white">📅 Fixtures</h1>
-          <p className="text-white/80 mt-1">Season 0 • Round {currentRound} of 18</p>
+          <p className="text-white/80 mt-1">
+            Season 0 • {seasonStarted ? `Round ${currentRound} of 18` : 'Pre-Season'}
+          </p>
         </div>
       </div>
 
@@ -264,9 +298,11 @@ export default function FixturesPage() {
         <div className="bg-gray-800 rounded-lg p-4 border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm">Next Round Simulates</p>
+              <p className="text-gray-400 text-sm">
+                {seasonStarted ? `Round ${nextUpdate?.round} Simulates` : 'Season Kicks Off'}
+              </p>
               <p className="text-white font-bold text-lg">
-                {nextUpdateDate && getDayName(nextUpdateDate)} 6:00 PM AEST
+                {nextUpdate && getDayName(nextUpdate.date)} 6:00 PM AEST
               </p>
             </div>
             <div className="text-right">
@@ -488,17 +524,41 @@ export default function FixturesPage() {
         {/* Season Progress */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h2 className="text-white font-bold mb-3">Season Progress</h2>
-          <div className="w-full bg-gray-700 rounded-full h-4">
-            <div 
-              className="bg-green-500 h-4 rounded-full transition-all duration-500"
-              style={{ width: `${((currentRound - 1) / 18) * 100}%` }}
-            ></div>
-          </div>
-          <div className="flex justify-between text-sm text-gray-500 mt-2">
-            <span>Round 1</span>
-            <span>{currentRound - 1} of 18 rounds completed</span>
-            <span>Finals</span>
-          </div>
+          {(() => {
+            // Count rounds where ALL fixtures are played
+            const completedRounds = new Set<number>();
+            const roundCounts: Record<number, { total: number; played: number }> = {};
+            
+            fixtures.forEach(f => {
+              if (!roundCounts[f.round]) roundCounts[f.round] = { total: 0, played: 0 };
+              roundCounts[f.round].total++;
+              if (f.played) roundCounts[f.round].played++;
+            });
+            
+            Object.entries(roundCounts).forEach(([round, counts]) => {
+              if (counts.played === counts.total && counts.total > 0) {
+                completedRounds.add(Number(round));
+              }
+            });
+            
+            const completed = completedRounds.size;
+            
+            return (
+              <>
+                <div className="w-full bg-gray-700 rounded-full h-4">
+                  <div 
+                    className="bg-green-500 h-4 rounded-full transition-all duration-500"
+                    style={{ width: `${(completed / 18) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-sm text-gray-500 mt-2">
+                  <span>Round 1</span>
+                  <span>{completed} of 18 rounds completed</span>
+                  <span>Finals</span>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
       </div>
