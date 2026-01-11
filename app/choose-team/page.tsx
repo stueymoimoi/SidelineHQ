@@ -30,6 +30,8 @@ export default function ChooseTeamPage() {
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
+  const [coachName, setCoachName] = useState('');
+  const [showNameInput, setShowNameInput] = useState(false);
   
   const router = useRouter();
 
@@ -38,6 +40,7 @@ export default function ChooseTeamPage() {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const { data: teamsData } = await supabase
         .from('teams')
@@ -52,13 +55,13 @@ export default function ChooseTeamPage() {
 
       const taken = coaches?.map(c => c.team_id) || [];
       
+      // Calculate avg OVR for each team
       const teamsWithOvr = await Promise.all(
         (teamsData || []).map(async (team) => {
           const { data: players } = await supabase
             .from('players')
             .select('overall')
             .eq('team_id', team.id)
-            .eq('is_u21', false)
             .order('overall', { ascending: false })
             .limit(13);
           
@@ -82,11 +85,21 @@ export default function ChooseTeamPage() {
   const handleSelectTeam = (team: Team) => {
     if (takenTeamIds.includes(team.id)) return;
     setSelectedTeam(team);
+    setShowNameInput(true);
+  };
+
+  const handleNameSubmit = () => {
+    if (!coachName.trim()) {
+      setError('Please enter your coach name');
+      return;
+    }
+    setError('');
+    setShowNameInput(false);
     setShowConfirm(true);
   };
 
   const handleConfirm = async () => {
-    if (!selectedTeam) return;
+    if (!selectedTeam || !coachName.trim()) return;
     setConfirming(true);
     setError('');
 
@@ -94,19 +107,41 @@ export default function ChooseTeamPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in');
 
-      // Get coach name for notification
-      const { data: coachData } = await supabase
+      // Check if coach record already exists
+      const { data: existingCoach } = await supabase
         .from('coaches')
-        .select('name')
+        .select('id')
         .eq('user_id', user.id)
         .single();
 
-      const { error: updateError } = await supabase
-        .from('coaches')
-        .update({ team_id: selectedTeam.id })
-        .eq('user_id', user.id);
+      if (existingCoach) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('coaches')
+          .update({ 
+            team_id: selectedTeam.id,
+            coach_name: coachName.trim(),
+            approved: false
+          })
+          .eq('user_id', user.id);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      } else {
+        // Create new coach record
+        const { error: insertError } = await supabase
+          .from('coaches')
+          .insert({
+            user_id: user.id,
+            team_id: selectedTeam.id,
+            coach_name: coachName.trim(),
+            approved: false,
+            xp: 0,
+            level: 1,
+            last_academy_pull_round: 0
+          });
+
+        if (insertError) throw insertError;
+      }
 
       // Create notification for admin
       const { data: adminCoach } = await supabase
@@ -120,13 +155,14 @@ export default function ChooseTeamPage() {
           team_id: adminCoach.team_id,
           type: 'new_signup',
           title: '🆕 New Signup',
-          message: `${coachData?.name || 'Someone'} wants to join ${selectedTeam.city} ${selectedTeam.name}`,
+          message: `${coachName.trim()} wants to join ${selectedTeam.name}`,
           read: false
         });
       }
 
       router.push('/pending');
     } catch (err: any) {
+      console.error('Error:', err);
       setError(err.message || 'Something went wrong');
       setConfirming(false);
     }
@@ -142,7 +178,7 @@ export default function ChooseTeamPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <h1 className="text-4xl font-bold text-green-500">🏉 Choose Your Team</h1>
         <p className="text-gray-400 mt-2">Select a Division 1 team to manage</p>
       </div>
@@ -172,7 +208,7 @@ export default function ChooseTeamPage() {
               <p className="text-gray-400">{team.city}</p>
               
               <div className="mt-4 flex items-center justify-between">
-                <span className="text-gray-500">Team OVR</span>
+                <span className="text-gray-500">Avg OVR</span>
                 <span className="bg-green-600 text-white px-3 py-1 rounded-full font-bold">
                   {team.overall}
                 </span>
@@ -188,6 +224,67 @@ export default function ChooseTeamPage() {
         })}
       </div>
 
+      {/* Coach Name Input Modal */}
+      {showNameInput && selectedTeam && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full">
+            <div 
+              className="h-3 rounded-full mb-6"
+              style={{ 
+                background: `linear-gradient(to right, ${selectedTeam.primary_color}, ${selectedTeam.secondary_color})`
+              }}
+            />
+            
+            <h2 className="text-2xl font-bold text-white text-center mb-2">
+              {selectedTeam.name}
+            </h2>
+            
+            <p className="text-gray-400 text-center mb-6">
+              {selectedTeam.city} • Division 1
+            </p>
+
+            <div className="mb-6">
+              <label className="block text-gray-400 text-sm mb-2">Your Coach Name</label>
+              <input
+                type="text"
+                value={coachName}
+                onChange={(e) => setCoachName(e.target.value)}
+                placeholder="Enter your name"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500"
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <div className="bg-red-500/20 border border-red-500 text-red-400 px-4 py-2 rounded mb-4">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setShowNameInput(false);
+                  setSelectedTeam(null);
+                  setCoachName('');
+                  setError('');
+                }}
+                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleNameSubmit}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
       {showConfirm && selectedTeam && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full">
@@ -202,12 +299,16 @@ export default function ChooseTeamPage() {
               Manage {selectedTeam.name}?
             </h2>
             
-            <p className="text-gray-400 text-center mb-6">
-              {selectedTeam.city} • OVR {selectedTeam.overall}
+            <p className="text-gray-400 text-center mb-2">
+              {selectedTeam.city} • Division 1 • OVR {selectedTeam.overall}
+            </p>
+            
+            <p className="text-green-400 text-center mb-6">
+              Coach: {coachName}
             </p>
 
             <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-400 px-4 py-3 rounded mb-6">
-              ⚠️ <strong>Warning:</strong> This cannot be undone until the end of the season!
+              ⚠️ <strong>Note:</strong> An admin will need to approve your request before you can start managing.
             </div>
 
             {error && (
@@ -218,7 +319,10 @@ export default function ChooseTeamPage() {
 
             <div className="flex gap-4">
               <button
-                onClick={() => setShowConfirm(false)}
+                onClick={() => {
+                  setShowConfirm(false);
+                  setShowNameInput(true);
+                }}
                 className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
               >
                 Go Back
