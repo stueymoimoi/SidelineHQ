@@ -156,7 +156,8 @@ export default function SquadPage() {
             >
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <p className="text-white font-bold">{player.first_name} {player.last_name}</p>
+                  <p className="text-gray-400 text-xs">{player.first_name}</p>
+                  <p className="text-white font-bold text-lg">{player.last_name}</p>
                   <div className="flex gap-2 mt-1">
                     <span className={`${getPositionColor(player.position)} text-white text-xs px-2 py-1 rounded`}>
                       {player.position}
@@ -190,9 +191,8 @@ export default function SquadPage() {
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-2xl font-bold text-white">
-                  {selectedPlayer.first_name} {selectedPlayer.last_name}
-                </h2>
+                <p className="text-gray-400 text-sm">{selectedPlayer.first_name}</p>
+                <h2 className="text-2xl font-bold text-white">{selectedPlayer.last_name}</h2>
                 <div className="flex gap-2 mt-2">
                   <span className={`${getPositionColor(selectedPlayer.position)} text-white text-sm px-3 py-1 rounded`}>
                     {selectedPlayer.position}
