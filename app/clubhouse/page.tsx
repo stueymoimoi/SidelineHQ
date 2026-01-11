@@ -108,6 +108,12 @@ export default function ClubhousePage() {
         return;
       }
 
+      // Check if approved
+      if (!coachData.approved) {
+        router.push('/pending');
+        return;
+      }
+
       setCoach(coachData);
 
       const { data: teamData } = await supabase
@@ -322,7 +328,14 @@ export default function ClubhousePage() {
         </div>
 
         {/* Sign Out */}
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-2">
+          {coach?.coach_name === 'Stu' && (
+            <div>
+              <Link href="/admin" className="text-yellow-500 hover:text-yellow-400 text-sm">
+                🔐 Admin Panel
+              </Link>
+            </div>
+          )}
           <button
             onClick={async () => {
               await supabase.auth.signOut();
