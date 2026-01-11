@@ -15,9 +15,12 @@ interface Player {
   first_name: string;
   last_name: string;
   position: string;
-  secondary_position: string | null;
   overall: number;
   kicking: number;
+  goal_kick_attempts: number;
+  goal_kick_successes: number;
+  nationality: string;
+  state: string | null;
 }
 
 interface Team {
@@ -59,6 +62,7 @@ export default function TacticsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  const [showKickerModal, setShowKickerModal] = useState(false);
   
   const router = useRouter();
 
@@ -95,7 +99,7 @@ export default function TacticsPage() {
 
       const { data: playersData } = await supabase
         .from('players')
-        .select('id, first_name, last_name, position, secondary_position, overall, kicking')
+        .select('id, first_name, last_name, position, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state')
         .eq('team_id', coach.team_id)
         .order('overall', { ascending: false });
 
@@ -134,7 +138,6 @@ export default function TacticsPage() {
   const getPositionStatus = (player: Player | null, naturalPosition: string) => {
     if (!player) return 'empty';
     if (player.position === naturalPosition) return 'natural';
-    if (player.secondary_position === naturalPosition) return 'secondary';
     return 'wrong';
   };
 
@@ -185,6 +188,32 @@ export default function TacticsPage() {
     }
   };
 
+  // Get conversion rate display
+  const getConversionDisplay = (player: Player) => {
+    const attempts = player.goal_kick_attempts || 0;
+    const successes = player.goal_kick_successes || 0;
+    
+    if (attempts === 0) {
+      return { rate: '—', color: 'text-gray-500', label: 'No attempts' };
+    }
+    
+    const percentage = Math.round((successes / attempts) * 100);
+    let color = 'text-red-400';
+    if (percentage >= 75) color = 'text-green-400';
+    else if (percentage >= 60) color = 'text-yellow-400';
+    else if (percentage >= 45) color = 'text-orange-400';
+    
+    // Sample size indicator
+    let sampleIndicator = '';
+    if (attempts < 5) sampleIndicator = '*';
+    
+    return { 
+      rate: `${successes}/${attempts} (${percentage}%)${sampleIndicator}`, 
+      color,
+      label: attempts >= 15 ? 'Reliable sample' : attempts >= 5 ? 'Small sample' : 'Very small sample'
+    };
+  };
+
   const PositionSlot = ({ posKey, label, number, natural }: { posKey: string; label: string; number: number; natural: string }) => {
     const player = getPlayerById((tactics as any)?.[posKey]);
     const status = getPositionStatus(player, natural);
@@ -192,7 +221,6 @@ export default function TacticsPage() {
     const isCaptain = tactics?.captain === player?.id;
     
     const borderColor = status === 'wrong' ? 'border-red-500' : 
-                        status === 'secondary' ? 'border-yellow-500' : 
                         status === 'natural' ? 'border-green-500' : 'border-gray-600';
     
     return (
@@ -209,8 +237,7 @@ export default function TacticsPage() {
             </div>
             <div className="flex justify-center items-center gap-1">
               <span className={`text-xs font-bold ${
-                status === 'wrong' ? 'text-red-400' : 
-                status === 'secondary' ? 'text-yellow-400' : 'text-green-400'
+                status === 'wrong' ? 'text-red-400' : 'text-green-400'
               }`}>
                 {player.overall}
               </span>
@@ -218,11 +245,28 @@ export default function TacticsPage() {
             </div>
           </>
         ) : (
-          <div className="text-gray-900 text-sm font-semibold">Empty</div>
+          <div className="text-gray-500 text-sm font-semibold">Empty</div>
         )}
       </div>
     );
   };
+
+  // Get current goal kicker
+  const currentKicker = getPlayerById(tactics?.goal_kicker || null);
+  const currentKickerStats = currentKicker ? getConversionDisplay(currentKicker) : null;
+
+  // Get other potential kickers (sorted by attempts, then position relevance)
+  const otherKickers = players
+    .filter(p => p.id !== tactics?.goal_kicker)
+    .sort((a, b) => {
+      // Prioritize those with attempts
+      if ((b.goal_kick_attempts || 0) !== (a.goal_kick_attempts || 0)) {
+        return (b.goal_kick_attempts || 0) - (a.goal_kick_attempts || 0);
+      }
+      // Then by kicking stat
+      return b.kicking - a.kicking;
+    })
+    .slice(0, 5);
 
   if (loading) {
     return (
@@ -261,11 +305,8 @@ export default function TacticsPage() {
         >
           {/* Top Goalpost - Capital H shape */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2">
-            {/* Left upright */}
             <div className="absolute -left-10 top-0 w-2 h-20 bg-white shadow-lg"></div>
-            {/* Right upright */}
             <div className="absolute left-8 top-0 w-2 h-20 bg-white shadow-lg"></div>
-            {/* Crossbar - in the middle of the H */}
             <div className="absolute -left-10 top-10 w-[76px] h-2 bg-white shadow-lg"></div>
           </div>
           
@@ -292,13 +333,10 @@ export default function TacticsPage() {
           {/* Bottom Try Line */}
           <div className="absolute bottom-24 inset-x-0 border-t-4 border-white"></div>
           
-          {/* Bottom Goalpost - Capital H shape (upside down) */}
+          {/* Bottom Goalpost */}
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
-            {/* Left upright */}
             <div className="absolute -left-10 bottom-0 w-2 h-20 bg-white shadow-lg"></div>
-            {/* Right upright */}
             <div className="absolute left-8 bottom-0 w-2 h-20 bg-white shadow-lg"></div>
-            {/* Crossbar - in the middle of the H */}
             <div className="absolute -left-10 bottom-10 w-[76px] h-2 bg-white shadow-lg"></div>
           </div>
 
@@ -363,46 +401,84 @@ export default function TacticsPage() {
           </div>
         </div>
 
-        {/* Special Roles */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-gray-800 rounded-lg p-4">
-            <span className="text-gray-400 text-sm">🎯 Goal Kicker</span>
-            <select
-              value={tactics?.goal_kicker || ''}
-              onChange={(e) => setTactics({ ...tactics!, goal_kicker: e.target.value || null })}
-              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-green-500 mt-2"
-            >
-              <option value="">-- Select --</option>
-              {players
-                .sort((a, b) => b.kicking - a.kicking)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.first_name} {p.last_name} ({p.kicking} kick)
-                  </option>
-                ))}
-            </select>
-          </div>
-          <div className="bg-gray-800 rounded-lg p-4">
-            <span className="text-gray-400 text-sm">👑 Captain</span>
-            <select
-              value={tactics?.captain || ''}
-              onChange={(e) => setTactics({ ...tactics!, captain: e.target.value || null })}
-              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-green-500 mt-2"
-            >
-              <option value="">-- Select --</option>
-              {players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.first_name} {p.last_name} ({p.overall} OVR)
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Goal Kicker Section - NEW */}
+        <div className="bg-gray-800 rounded-xl p-4 mb-6">
+          <h3 className="text-white font-bold mb-3">🎯 Goal Kicker</h3>
+          
+          {currentKicker ? (
+            <div className="bg-gray-700 rounded-lg p-4 mb-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-gray-400 text-xs">Current Kicker</p>
+                  <p className="text-white font-bold text-lg">
+                    {currentKicker.first_name} {currentKicker.last_name}
+                  </p>
+                  <p className="text-gray-500 text-sm">{currentKicker.position}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`text-2xl font-bold ${currentKickerStats?.color}`}>
+                    {currentKickerStats?.rate}
+                  </p>
+                  <p className="text-gray-500 text-xs">{currentKickerStats?.label}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-700/50 rounded-lg p-4 mb-4 text-center">
+              <p className="text-gray-500">No goal kicker selected</p>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowKickerModal(true)}
+            className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg transition mb-4"
+          >
+            Change Goal Kicker
+          </button>
+
+          {/* Other Options Preview */}
+          {otherKickers.length > 0 && (
+            <div>
+              <p className="text-gray-500 text-xs mb-2">Other Options:</p>
+              <div className="space-y-1">
+                {otherKickers.slice(0, 3).map(p => {
+                  const stats = getConversionDisplay(p);
+                  return (
+                    <div key={p.id} className="flex justify-between text-sm">
+                      <span className="text-gray-400">{p.first_name} {p.last_name}</span>
+                      <span className={stats.color}>{stats.rate}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          
+          <p className="text-gray-600 text-xs mt-3">
+            * Small sample size • Conversion rates update after matches
+          </p>
+        </div>
+
+        {/* Captain Section */}
+        <div className="bg-gray-800 rounded-xl p-4 mb-6">
+          <h3 className="text-white font-bold mb-3">👑 Captain</h3>
+          <select
+            value={tactics?.captain || ''}
+            onChange={(e) => setTactics({ ...tactics!, captain: e.target.value || null })}
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-3 text-white focus:outline-none focus:border-green-500"
+          >
+            <option value="">-- Select Captain --</option>
+            {players.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.first_name} {p.last_name} ({p.position}, {p.overall} OVR)
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Legend */}
         <div className="flex justify-center gap-6 text-sm mb-6">
-          <span className="text-green-400">● Natural</span>
-          <span className="text-yellow-400">● Secondary</span>
+          <span className="text-green-400">● Natural Position</span>
           <span className="text-red-400">● Wrong Position</span>
         </div>
 
@@ -452,7 +528,9 @@ export default function TacticsPage() {
                   >
                     <div>
                       <div className="font-bold">{p.first_name} {p.last_name}</div>
-                      <div className="text-sm text-gray-400">{p.position}{p.secondary_position ? ` / ${p.secondary_position}` : ''}</div>
+                      <div className="text-sm text-gray-400">
+                        {p.position} • {p.nationality}{p.state ? `, ${p.state}` : ''}
+                      </div>
                     </div>
                     <span className="text-green-500 font-bold">{p.overall}</span>
                   </button>
@@ -462,6 +540,69 @@ export default function TacticsPage() {
 
             <button
               onClick={() => setSelectedPosition(null)}
+              className="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Goal Kicker Selection Modal */}
+      {showKickerModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-white mb-2">Select Goal Kicker</h3>
+            <p className="text-gray-400 text-sm mb-4">
+              Choose who takes conversions and penalties. Test different players to discover hidden talent!
+            </p>
+            
+            <div className="space-y-2">
+              {players
+                .sort((a, b) => {
+                  // Sort by attempts (more tested first), then by success rate
+                  const aAttempts = a.goal_kick_attempts || 0;
+                  const bAttempts = b.goal_kick_attempts || 0;
+                  if (bAttempts !== aAttempts) return bAttempts - aAttempts;
+                  
+                  const aRate = aAttempts > 0 ? (a.goal_kick_successes || 0) / aAttempts : 0;
+                  const bRate = bAttempts > 0 ? (b.goal_kick_successes || 0) / bAttempts : 0;
+                  return bRate - aRate;
+                })
+                .map((p) => {
+                  const stats = getConversionDisplay(p);
+                  const isCurrentKicker = tactics?.goal_kicker === p.id;
+                  
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setTactics({ ...tactics!, goal_kicker: p.id });
+                        setShowKickerModal(false);
+                      }}
+                      className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
+                        isCurrentKicker
+                          ? 'bg-green-600/30 border-2 border-green-500'
+                          : 'bg-gray-700 hover:bg-gray-600'
+                      }`}
+                    >
+                      <div>
+                        <div className="text-white font-bold">
+                          {p.first_name} {p.last_name}
+                          {isCurrentKicker && <span className="text-green-400 ml-2">✓</span>}
+                        </div>
+                        <div className="text-sm text-gray-400">{p.position}</div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-bold ${stats.color}`}>{stats.rate}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+
+            <button
+              onClick={() => setShowKickerModal(false)}
               className="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg"
             >
               Cancel
