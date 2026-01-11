@@ -21,6 +21,7 @@ interface Team {
   losses: number;
   points_for: number;
   points_against: number;
+  division: number;
 }
 
 interface Coach {
@@ -31,12 +32,10 @@ interface Coach {
   level: number;
 }
 
-interface Fixture {
+interface Player {
   id: string;
-  home_team_id: string;
-  away_team_id: string;
-  round: number;
-  played: boolean;
+  age: number;
+  overall: number;
 }
 
 // Season 0 schedule
@@ -76,6 +75,7 @@ export default function ClubhousePage() {
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
   const [coach, setCoach] = useState<Coach | null>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [ladderPosition, setLadderPosition] = useState(1);
   const [nextMatch, setNextMatch] = useState<{ opponent: Team; isHome: boolean; round: number } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -127,11 +127,19 @@ export default function ClubhousePage() {
 
       setTeam(teamData);
 
-      // Calculate ladder position
+      // Get players for avg calculations
+      const { data: playersData } = await supabase
+        .from('players')
+        .select('id, age, overall')
+        .eq('team_id', coachData.team_id);
+
+      setPlayers(playersData || []);
+
+      // Calculate ladder position within division
       const { data: allTeams } = await supabase
         .from('teams')
         .select('*')
-        .eq('division', 1);
+        .eq('division', teamData?.division || 1);
 
       if (allTeams) {
         const sorted = allTeams.sort((a, b) => {
@@ -188,7 +196,15 @@ export default function ClubhousePage() {
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   };
 
-  const pointDiff = team ? team.points_for - team.points_against : 0;
+  // Calculate averages
+  const avgOvr = players.length > 0 
+    ? Math.round(players.reduce((sum, p) => sum + p.overall, 0) / players.length) 
+    : 0;
+  
+  const avgAge = players.length > 0 
+    ? (players.reduce((sum, p) => sum + p.age, 0) / players.length).toFixed(1)
+    : '0';
+
   const nextUpdate = getNextUpdateInfo();
 
   if (loading) {
@@ -216,7 +232,7 @@ export default function ClubhousePage() {
                 {team?.name}
               </h1>
               <p className="text-white/80">
-                {getOrdinal(ladderPosition)} Place • {team?.wins}-{team?.draws}-{team?.losses}
+                Division {team?.division} • {getOrdinal(ladderPosition)} Place • {team?.wins}-{team?.draws}-{team?.losses}
               </p>
             </div>
             <Link href="/clubhouse/notifications" className="relative">
@@ -267,14 +283,12 @@ export default function ClubhousePage() {
             <p className="text-white text-2xl font-bold">{getOrdinal(ladderPosition)}</p>
           </div>
           <div className="bg-gray-800 rounded-lg p-4">
-            <p className="text-gray-400 text-xs">Point Diff</p>
-            <p className={`text-2xl font-bold ${pointDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {pointDiff >= 0 ? '+' : ''}{pointDiff}
-            </p>
+            <p className="text-gray-400 text-xs">Avg OVR</p>
+            <p className="text-blue-400 text-2xl font-bold">{avgOvr}</p>
           </div>
           <div className="bg-gray-800 rounded-lg p-4">
-            <p className="text-gray-400 text-xs">Coach XP</p>
-            <p className="text-yellow-400 text-2xl font-bold">{coach?.xp || 0}</p>
+            <p className="text-gray-400 text-xs">Avg Age</p>
+            <p className="text-yellow-400 text-2xl font-bold">{avgAge}</p>
           </div>
           <div className="bg-gray-800 rounded-lg p-4">
             <p className="text-gray-400 text-xs">Level</p>
@@ -307,23 +321,27 @@ export default function ClubhousePage() {
           </Link>
         </div>
 
-        {/* Secondary Navigation */}
+        {/* Secondary Navigation - Same Size */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link href="/clubhouse/ladder" className="bg-gray-800 rounded-lg p-4 text-center hover:bg-gray-700 transition">
-            <div className="text-2xl mb-1">🏆</div>
-            <p className="text-white font-medium text-sm">Ladder</p>
+          <Link href="/clubhouse/ladder" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
+            <div className="text-4xl mb-2">🏆</div>
+            <p className="text-white font-bold">Ladder</p>
+            <p className="text-gray-500 text-sm">Standings</p>
           </Link>
-          <Link href="/clubhouse/academy" className="bg-gray-800 rounded-lg p-4 text-center hover:bg-gray-700 transition">
-            <div className="text-2xl mb-1">🎓</div>
-            <p className="text-white font-medium text-sm">Development Squad</p>
+          <Link href="/clubhouse/academy" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
+            <div className="text-4xl mb-2">🎓</div>
+            <p className="text-white font-bold">Dev Squad</p>
+            <p className="text-gray-500 text-sm">Youth players</p>
           </Link>
-          <Link href="/clubhouse/free-agents" className="bg-gray-800 rounded-lg p-4 text-center hover:bg-gray-700 transition">
-            <div className="text-2xl mb-1">🏪</div>
-            <p className="text-white font-medium text-sm">Free Agents</p>
+          <Link href="/clubhouse/free-agents" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
+            <div className="text-4xl mb-2">🏪</div>
+            <p className="text-white font-bold">Free Agents</p>
+            <p className="text-gray-500 text-sm">Sign players</p>
           </Link>
-          <div className="bg-gray-800/50 rounded-lg p-4 text-center relative">
-            <div className="text-2xl mb-1 opacity-50">📜</div>
-            <p className="text-gray-500 font-medium text-sm">History</p>
+          <div className="bg-gray-800/50 rounded-lg p-6 text-center relative">
+            <div className="text-4xl mb-2 opacity-50">📜</div>
+            <p className="text-gray-500 font-bold">History</p>
+            <p className="text-gray-600 text-sm">Coming soon</p>
             <span className="absolute top-2 right-2 text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">Soon</span>
           </div>
         </div>
