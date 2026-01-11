@@ -131,6 +131,7 @@ export default function NotificationsPage() {
       case 'match_draw': return '🤝';
       case 'player_improvement': return '⭐';
       case 'position_learned': return '🎉';
+      case 'new_signup': return '🆕';
       default: return '📢';
     }
   };
@@ -142,6 +143,7 @@ export default function NotificationsPage() {
       case 'match_draw': return 'border-yellow-500';
       case 'player_improvement': return 'border-blue-500';
       case 'position_learned': return 'border-purple-500';
+      case 'new_signup': return 'border-purple-500';
       default: return 'border-gray-500';
     }
   };
@@ -240,6 +242,14 @@ export default function NotificationsPage() {
                           className="text-sm bg-gray-700 hover:bg-gray-600 text-green-400 px-3 py-1 rounded transition"
                         >
                           View Match
+                        </Link>
+                      )}
+                      {notif.type === 'new_signup' && (
+                        <Link
+                          href="/admin"
+                          className="text-sm bg-gray-700 hover:bg-gray-600 text-purple-400 px-3 py-1 rounded transition"
+                        >
+                          Review in Admin
                         </Link>
                       )}
                     </div>
