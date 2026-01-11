@@ -358,6 +358,16 @@ export async function GET() {
           
           // Remove from team
           await supabase.from('players').delete().eq('id', winner.release_player_id);
+          
+          // Notify ALL teams about the release
+          for (const t of teams || []) {
+            await supabase.from('notifications').insert({
+              team_id: t.id,
+              type: 'league_news',
+              title: '🏪 Player Released to Free Agents',
+              message: `${winnerTeam?.name} released ${releasedPlayer.first_name} ${releasedPlayer.last_name} (${releasedPlayer.position}, ${releasedPlayer.overall} OVR, Age ${releasedPlayer.age}). Available next round.`
+            });
+          }
         }
       }
       
@@ -385,6 +395,18 @@ export async function GET() {
           message: `${freeAgent.players.first_name} ${freeAgent.players.last_name} signed with ${winnerTeam?.name || 'another team'} instead.`,
           player_id: freeAgent.player_id
         });
+      }
+      
+      // Notify ALL teams about the signing (league news)
+      for (const t of teams || []) {
+        if (t.id !== winner.team_id) { // Winner already got a notification
+          await supabase.from('notifications').insert({
+            team_id: t.id,
+            type: 'league_news',
+            title: '📰 Free Agent Signed',
+            message: `${winnerTeam?.name} signed ${freeAgent.players.first_name} ${freeAgent.players.last_name} (${freeAgent.players.position}, ${freeAgent.players.overall} OVR, Age ${freeAgent.players.age}) from free agency.`
+          });
+        }
       }
       
       // Delete all claims for this free agent

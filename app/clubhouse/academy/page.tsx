@@ -221,6 +221,42 @@ export default function DevelopmentSquadPage() {
         .update({ last_academy_pull_round: currentRound })
         .eq('id', coach.id);
 
+      // Notify ALL teams about the new player
+      const { data: allTeams } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('division', 1);
+
+      for (const t of allTeams || []) {
+        await supabase.from('notifications').insert({
+          team_id: t.id,
+          type: 'league_news',
+          title: '📰 Development Squad Promotion',
+          message: `${team.name} promoted ${firstName} ${lastName} (${position}, ${actualOverall} OVR, Age 18) from their development squad.`
+        });
+      }
+
+      // If a player was released, notify everyone
+      if (releasePlayerId) {
+        const { data: releasedPlayer } = await supabase
+          .from('players')
+          .select('*')
+          .eq('id', releasePlayerId)
+          .single();
+
+        // Player already deleted, use selectedPlayer info
+        if (selectedPlayer) {
+          for (const t of allTeams || []) {
+            await supabase.from('notifications').insert({
+              team_id: t.id,
+              type: 'league_news',
+              title: '🏪 Player Released to Free Agents',
+              message: `${team.name} released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR, Age ${selectedPlayer.age}). Available next round.`
+            });
+          }
+        }
+      }
+
       // Show the new player
       setNewPlayer(newPlayerData);
 
