@@ -137,7 +137,7 @@ export default function FreeAgentsPage() {
 
   const openClaimModal = (freeAgent: FreeAgent) => {
     setSelectedFreeAgent(freeAgent);
-    if (players.length >= 20) {
+    if (players.length >= 22) {
       setShowClaimModal(true);
     } else {
       claimPlayer(freeAgent, null);
@@ -236,8 +236,8 @@ export default function FreeAgentsPage() {
             </div>
             <div className="text-right">
               <p className="text-gray-400 text-sm">Squad size</p>
-              <p className={`text-xl font-bold ${players.length >= 20 ? 'text-red-400' : 'text-green-400'}`}>
-                {players.length}/20
+              <p className={`text-xl font-bold ${players.length >= 22 ? 'text-red-400' : 'text-green-400'}`}>
+                {players.length}/22
               </p>
             </div>
           </div>

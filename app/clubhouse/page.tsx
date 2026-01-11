@@ -315,7 +315,7 @@ export default function ClubhousePage() {
           </Link>
           <Link href="/clubhouse/academy" className="bg-gray-800 rounded-lg p-4 text-center hover:bg-gray-700 transition">
             <div className="text-2xl mb-1">🎓</div>
-            <p className="text-white font-medium text-sm">Dev Squad</p>
+            <p className="text-white font-medium text-sm">Development Squad</p>
           </Link>
           <Link href="/clubhouse/free-agents" className="bg-gray-800 rounded-lg p-4 text-center hover:bg-gray-700 transition">
             <div className="text-2xl mb-1">🏪</div>

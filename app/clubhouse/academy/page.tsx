@@ -108,7 +108,7 @@ export default function DevelopmentSquadPage() {
 
   const handlePromote = (positionType: string) => {
     setSelectedPositionType(positionType);
-    if (players.length >= 20) {
+    if (players.length >= 22) {
       setShowReleaseModal(true);
     } else {
       generateAndAddPlayer(positionType, null);
@@ -304,9 +304,9 @@ export default function DevelopmentSquadPage() {
             </div>
           )}
 
-          {players.length >= 20 && canPromote && (
+          {players.length >= 22 && canPromote && (
             <div className="bg-blue-500/20 border border-blue-500 text-blue-400 p-3 rounded mb-4">
-              📋 Squad full (20 players). You'll need to release someone to make room.
+              📋 Squad full (22 players). You'll need to release someone to make room.
             </div>
           )}
           
@@ -349,8 +349,8 @@ export default function DevelopmentSquadPage() {
         <div className="bg-gray-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <span className="text-gray-400">Current Squad Size</span>
-            <span className={`text-xl font-bold ${players.length >= 20 ? 'text-red-400' : 'text-green-400'}`}>
-              {players.length}/20
+            <span className={`text-xl font-bold ${players.length >= 22 ? 'text-red-400' : 'text-green-400'}`}>
+              {players.length}/22
             </span>
           </div>
         </div>
