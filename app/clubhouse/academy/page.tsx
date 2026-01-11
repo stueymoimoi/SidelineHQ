@@ -237,8 +237,9 @@ export default function DevelopmentSquadPage() {
     }
   };
 
-  const canPromote = coach && (currentRound - (coach.last_academy_pull_round || 0)) >= 6;
-  const roundsUntilPromote = coach ? Math.max(0, 6 - (currentRound - (coach.last_academy_pull_round || 0))) : 6;
+  const hasPromotedBefore = coach && coach.last_academy_pull_round > 0;
+  const canPromote = coach && (!hasPromotedBefore || (currentRound - coach.last_academy_pull_round) >= 6);
+  const roundsUntilPromote = hasPromotedBefore ? Math.max(0, 6 - (currentRound - (coach?.last_academy_pull_round || 0))) : 0;
 
   const getPositionColor = (position: string) => {
     const colors: Record<string, string> = {
@@ -298,7 +299,7 @@ export default function DevelopmentSquadPage() {
             Quality varies - you might get a future star or a squad filler!
           </p>
 
-          {!canPromote && (
+          {!canPromote && hasPromotedBefore && (
             <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-400 p-3 rounded mb-4">
               ⏳ You can promote again in <strong>{roundsUntilPromote}</strong> round{roundsUntilPromote !== 1 ? 's' : ''}
             </div>
