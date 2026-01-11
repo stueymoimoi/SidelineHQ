@@ -272,11 +272,61 @@ export async function GET() {
     
     logs.push(`Training: ${improvements} players improved`);
     
+    // Process academy cooking
+    const { data: academyPlayers } = await supabase
+      .from('academy')
+      .select('*');
+    
+    let academyCooked = 0;
+    
+    for (const academy of academyPlayers || []) {
+      // Increment rounds cooking
+      const newRoundsCooking = (academy.rounds_cooking || 0) + 1;
+      
+      // Improve hidden stats slightly each round (diminishing returns after round 10)
+      const improvementChance = newRoundsCooking <= 10 ? 70 : 40;
+      const statImprovement = newRoundsCooking <= 10 ? 2 : 1;
+      
+      const updates: Record<string, any> = {
+        rounds_cooking: newRoundsCooking
+      };
+      
+      // Randomly improve 1-2 stats per round
+      const statsToImprove = ['hidden_speed', 'hidden_strength', 'hidden_skill', 'hidden_stamina', 'hidden_defense'];
+      
+      for (const stat of statsToImprove) {
+        if (rollChance(improvementChance)) {
+          const current = academy[stat] || 50;
+          const maxStat = Math.min(90, 50 + (academy.hidden_potential - 60)); // Potential limits max
+          if (current < maxStat) {
+            updates[stat] = Math.min(maxStat, current + statImprovement);
+          }
+        }
+      }
+      
+      // Update hidden overall
+      const newOverall = Math.round((
+        (updates.hidden_speed ?? academy.hidden_speed) +
+        (updates.hidden_strength ?? academy.hidden_strength) +
+        (updates.hidden_skill ?? academy.hidden_skill) +
+        (updates.hidden_stamina ?? academy.hidden_stamina) +
+        (updates.hidden_defense ?? academy.hidden_defense)
+      ) / 5);
+      
+      updates.hidden_overall = newOverall;
+      
+      await supabase.from('academy').update(updates).eq('id', academy.id);
+      academyCooked++;
+    }
+    
+    logs.push(`Academy: ${academyCooked} players developing`);
+    
     return NextResponse.json({
       success: true,
       round: currentRound,
       matches: logs,
-      improvements
+      improvements,
+      academyCooked
     });
     
   } catch (error) {
