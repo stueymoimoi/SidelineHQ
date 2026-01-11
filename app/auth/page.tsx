@@ -37,11 +37,11 @@ export default function AuthPage() {
           .from('coaches')
           .insert({
             user_id: authData.user.id,
-            coach_name: coachName,
+            name: coachName,
           });
 
         if (coachError) throw coachError;
-        router.push('/choose-team');
+        router.push('/home');
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -62,18 +62,7 @@ export default function AuthPage() {
       });
 
       if (authError) throw authError;
-
-      const { data: coach } = await supabase
-        .from('coaches')
-        .select('team_id')
-        .eq('user_id', data.user?.id)
-        .single();
-
-      if (coach?.team_id) {
-        router.push('/clubhouse');
-      } else {
-        router.push('/choose-team');
-      }
+      router.push('/home');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
     } finally {
@@ -85,8 +74,8 @@ export default function AuthPage() {
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-green-500">🏉 SidelineHQ</h1>
-          <p className="text-gray-400 mt-2">Rugby League Manager</p>
+          <h1 className="text-4xl font-bold text-green-500">🏆 SidelineHQ</h1>
+          <p className="text-gray-400 mt-2">Sports Management Sim</p>
         </div>
 
         <div className="flex mb-6 bg-gray-700 rounded-lg p-1">
