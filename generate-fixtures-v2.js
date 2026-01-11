@@ -1,14 +1,14 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: '.env.local' });
 
-// Your Supabase credentials - UPDATE THE KEY!
-const supabaseUrl = 'https://souktfzlcdpzwebwfeqd.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvdWt0ZnpsY2RwendlYndmZXFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwODM0MTUsImV4cCI6MjA4MzY1OTQxNX0.-gXuE4CGRG_TsAw4oMlqGV55-B6-jar5vaBFIAj193A';
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 async function generateFixtures() {
-  console.log('🏉 SidelineHQ Season 0 Fixture Generator v2');
-  console.log('============================================');
+  console.log('🏉 SidelineHQ Season 0 Fixture Generator');
+  console.log('=========================================');
   console.log('📅 18 Rounds - Home & Away\n');
   
   // Get Division 1 teams
@@ -88,8 +88,8 @@ async function generateFixtures() {
       
       // REVERSE from first half - swap home/away
       const fixture = firstHalfRound % 2 === 1 
-        ? { home: team2, away: team1 }  // Swapped!
-        : { home: team1, away: team2 }; // Swapped!
+        ? { home: team2, away: team1 }
+        : { home: team1, away: team2 };
       
       roundFixtures.push(fixture);
       console.log(`  ${teamNames[fixture.home]} vs ${teamNames[fixture.away]}`);
@@ -106,36 +106,46 @@ async function generateFixtures() {
     console.log('');
   }
   
+  // Clear existing fixtures for season 0
+  console.log('🗑️  Clearing any existing Season 0 fixtures...');
+  await supabase
+    .from('fixtures')
+    .delete()
+    .eq('season', 0);
+  
   // Save fixtures to database
   console.log('💾 Saving fixtures to database...\n');
+  
+  let savedCount = 0;
   
   for (const round of fixtures) {
     for (const match of round.matches) {
       const { error: insertError } = await supabase
-        .from('match_results')
+        .from('fixtures')
         .insert({
           season: 0,
           round: round.round,
           home_team_id: match.home,
           away_team_id: match.away,
-          status: 'scheduled'
+          played: false
         });
       
       if (insertError) {
         console.error(`Error saving fixture:`, insertError);
+      } else {
+        savedCount++;
       }
     }
     console.log(`✅ Round ${round.round} fixtures saved`);
   }
   
-  console.log('\n============================================');
+  console.log('\n=========================================');
   console.log('🎉 Season 0 fixtures generated!');
-  console.log(`📊 ${totalRounds} rounds, ${totalRounds * (n/2)} total matches`);
-  console.log('\n📅 SEASON SCHEDULE:');
-  console.log('  Weeks 1-9:  Regular Season (2 rounds/week)');
-  console.log('  Week 10:    Semi Finals (1st v 4th, 2nd v 3rd)');
-  console.log('  Week 11:    Grand Final 🏆');
-  console.log('  Week 12:    Off-Season (Rest & Age Up)');
+  console.log(`📊 ${totalRounds} rounds, ${savedCount} total matches`);
+  console.log('\n📅 SEASON 0 SCHEDULE:');
+  console.log('  Tue/Thu/Sun at 6pm AEST (3 rounds/week)');
+  console.log('  ~6 weeks for regular season');
+  console.log('  Then Finals + Grand Final 🏆');
 }
 
 generateFixtures();
