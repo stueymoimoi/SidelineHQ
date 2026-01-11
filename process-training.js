@@ -1,193 +1,302 @@
+/**
+ * process-training.js
+ * 
+ * Run this script during each update (Tues/Thurs/Sun 6pm) to:
+ * 1. Advance training progress based on potential
+ * 2. Roll for stat improvements based on progress level
+ * 3. Reduce fatigue for players on Rest
+ * 4. Handle position learning
+ * 
+ * Usage: node process-training.js
+ */
+
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: '.env.local' });
 
-// Your Supabase credentials - UPDATE THE KEY!
-const supabaseUrl = 'https://souktfzlcdpzwebwfeqd.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvdWt0ZnpsY2RwendlYndmZXFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwODM0MTUsImV4cCI6MjA4MzY1OTQxNX0.-gXuE4CGRG_TsAw4oMlqGV55-B6-jar5vaBFIAj193A';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Progress stages in order
+const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
 
-const PROGRESS_LEVELS = ['POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
+// Base chance of advancing to next progress stage (modified by potential)
+const PROGRESS_ADVANCE_BASE_CHANCE = 60; // 60% base chance to advance
 
-const TRAINING_TYPES = {
-  'Speed Drills': 'speed',
-  'Gym': 'strength', 
-  'Ball Skills': 'skill',
-  'Conditioning': 'stamina',
-  'Defense Drills': 'defense',
-  'Position Training': 'position',
-  'Rest': 'rest'
+// Base chance of stat improvement at each progress level (DOUBLED from original)
+const STAT_IMPROVEMENT_CHANCES = {
+  'NONE': 0,
+  'POOR': 15,
+  'FAIR': 35,
+  'GOOD': 55,
+  'VERY GOOD': 75,
+  'EXCELLENT': 90
 };
 
-function randomBetween(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+// Stat training types
+const STAT_TRAINING = ['Speed', 'Strength', 'Skill', 'Stamina', 'Defense'];
+
+// Position to related stats mapping (for training primary position)
+const POSITION_STATS = {
+  'Fullback': ['speed', 'skill', 'defense'],
+  'Winger': ['speed', 'skill'],
+  'Centre': ['speed', 'strength', 'defense'],
+  'Five-Eighth': ['skill', 'speed'],
+  'Halfback': ['skill', 'speed', 'stamina'],
+  'Prop': ['strength', 'defense', 'stamina'],
+  'Hooker': ['skill', 'defense', 'stamina'],
+  'Second Row': ['strength', 'defense', 'stamina'],
+  'Lock': ['strength', 'defense', 'stamina']
+};
+
+// Fatigue reduction when resting
+const REST_FATIGUE_REDUCTION = 25;
+
+// How much fatigue increases from training (non-rest)
+const TRAINING_FATIGUE_INCREASE = 5;
+
+/**
+ * Calculate potential bonus for chances
+ * Potential 60 = +0%, Potential 95 = +17.5%
+ */
+function getPotentialBonus(potential) {
+  return (potential - 60) / 2;
 }
 
-function getProgressChance(potential, age) {
-  // Higher potential = faster progress
-  let baseChance = 0.5;
-  
-  if (potential >= 91) baseChance = 0.75;
-  else if (potential >= 86) baseChance = 0.65;
-  else if (potential >= 81) baseChance = 0.60;
-  else if (potential >= 71) baseChance = 0.50;
-  else baseChance = 0.40;
-  
-  // Younger = faster progress
-  if (age <= 21) baseChance += 0.10;
-  else if (age <= 24) baseChance += 0.05;
-  else if (age >= 30) baseChance -= 0.10;
-  else if (age >= 33) baseChance -= 0.20;
-  
-  return Math.min(0.85, Math.max(0.25, baseChance));
+/**
+ * Roll a percentage chance
+ */
+function rollChance(percentage) {
+  return Math.random() * 100 < percentage;
 }
 
-function getStatGainChance(progressLevel) {
-  // Chance of +1 stat at each progress level
-  switch (progressLevel) {
-    case 'POOR': return 0;
-    case 'FAIR': return 0.05;
-    case 'GOOD': return 0.15;
-    case 'VERY GOOD': return 0.30;
-    case 'EXCELLENT': return 0.60;
-    default: return 0;
+/**
+ * Get next progress stage
+ */
+function getNextStage(currentStage) {
+  const currentIndex = PROGRESS_STAGES.indexOf(currentStage || 'NONE');
+  if (currentIndex === -1 || currentIndex >= PROGRESS_STAGES.length - 1) {
+    return currentStage || 'NONE'; // Already at EXCELLENT or invalid
   }
+  return PROGRESS_STAGES[currentIndex + 1];
 }
 
-async function processTraining() {
-  console.log('💪 Processing Training Updates');
-  console.log('==============================\n');
+/**
+ * Process a single player's training
+ */
+async function processPlayerTraining(player) {
+  const updates = {};
+  const logs = [];
   
-  // Get all players with active training
+  const training = player.current_training;
+  const progress = player.training_progress || 'NONE';
+  const potential = player.potential || 70;
+  
+  if (!training) {
+    logs.push(`${player.first_name} ${player.last_name}: No training assigned`);
+    return { updates, logs };
+  }
+  
+  // Handle REST
+  if (training === 'Rest') {
+    const newFatigue = Math.max(0, player.fatigue - REST_FATIGUE_REDUCTION);
+    updates.fatigue = newFatigue;
+    logs.push(`${player.first_name} ${player.last_name}: Rested, fatigue ${player.fatigue}% → ${newFatigue}%`);
+    return { updates, logs };
+  }
+  
+  // Non-rest training increases fatigue slightly
+  updates.fatigue = Math.min(100, player.fatigue + TRAINING_FATIGUE_INCREASE);
+  
+  // Check for progress advancement (if not already at EXCELLENT)
+  if (progress !== 'EXCELLENT') {
+    const advanceChance = PROGRESS_ADVANCE_BASE_CHANCE + getPotentialBonus(potential);
+    if (rollChance(advanceChance)) {
+      const newProgress = getNextStage(progress);
+      updates.training_progress = newProgress;
+      logs.push(`${player.first_name} ${player.last_name}: Progress ${progress} → ${newProgress} (${advanceChance.toFixed(0)}% chance)`);
+    } else {
+      logs.push(`${player.first_name} ${player.last_name}: Progress stayed at ${progress}`);
+    }
+  }
+  
+  // Roll for stat improvement
+  const effectiveProgress = updates.training_progress || progress;
+  const baseChance = STAT_IMPROVEMENT_CHANCES[effectiveProgress] || 0;
+  const totalChance = baseChance + getPotentialBonus(potential);
+  
+  if (baseChance > 0 && rollChance(totalChance)) {
+    // Stat improvement success!
+    
+    if (STAT_TRAINING.includes(training)) {
+      // Direct stat training
+      const statKey = training.toLowerCase();
+      const currentStat = player[statKey];
+      
+      // Cap stats at 99
+      if (currentStat < 99) {
+        // Roll for improvement amount: 50% +1, 35% +2, 15% +3
+        const roll = Math.random() * 100;
+        let improvement;
+        if (roll < 50) improvement = 1;
+        else if (roll < 85) improvement = 2;
+        else improvement = 3;
+        
+        const newStat = Math.min(99, currentStat + improvement);
+        updates[statKey] = newStat;
+        
+        // Recalculate overall
+        const newOverall = calculateOverall({
+          ...player,
+          [statKey]: newStat
+        });
+        updates.overall = newOverall;
+        
+        logs.push(`${player.first_name} ${player.last_name}: ⭐ ${training} improved ${currentStat} → ${newStat} (+${improvement})! Overall now ${newOverall}`);
+      }
+      
+    } else if (POSITION_STATS[training]) {
+      // Position training
+      
+      if (training === player.position) {
+        // Training primary position - improve a related stat
+        const relatedStats = POSITION_STATS[training];
+        const statToImprove = relatedStats[Math.floor(Math.random() * relatedStats.length)];
+        const currentStat = player[statToImprove];
+        
+        if (currentStat < 99) {
+          // Roll for improvement amount: 50% +1, 35% +2, 15% +3
+          const roll = Math.random() * 100;
+          let improvement;
+          if (roll < 50) improvement = 1;
+          else if (roll < 85) improvement = 2;
+          else improvement = 3;
+          
+          const newStat = Math.min(99, currentStat + improvement);
+          updates[statToImprove] = newStat;
+          
+          const newOverall = calculateOverall({
+            ...player,
+            [statToImprove]: newStat
+          });
+          updates.overall = newOverall;
+          
+          logs.push(`${player.first_name} ${player.last_name}: ⭐ ${training} mastery improved ${statToImprove} ${currentStat} → ${newStat}! Overall now ${newOverall}`);
+        }
+        
+      } else if (training === player.secondary_position) {
+        // Training secondary position - improve proficiency (simulate with skill improvement)
+        const currentSkill = player.skill;
+        if (currentSkill < 99) {
+          // Roll for improvement amount: 50% +1, 35% +2, 15% +3
+          const roll = Math.random() * 100;
+          let improvement;
+          if (roll < 50) improvement = 1;
+          else if (roll < 85) improvement = 2;
+          else improvement = 3;
+          
+          const newSkill = Math.min(99, currentSkill + improvement);
+          updates.skill = newSkill;
+          
+          const newOverall = calculateOverall({
+            ...player,
+            skill: newSkill
+          });
+          updates.overall = newOverall;
+          
+          logs.push(`${player.first_name} ${player.last_name}: ⭐ ${training} proficiency improved! Skill ${currentSkill} → ${newSkill}`);
+        }
+        
+      } else {
+        // Learning new position - after enough progress, it becomes secondary
+        if (effectiveProgress === 'EXCELLENT' && !player.secondary_position) {
+          updates.secondary_position = training;
+          logs.push(`${player.first_name} ${player.last_name}: 🎉 LEARNED NEW POSITION: ${training} is now a secondary position!`);
+        } else if (effectiveProgress === 'EXCELLENT' && player.secondary_position && player.secondary_position !== training) {
+          // Already has a secondary, this replaces it
+          updates.secondary_position = training;
+          logs.push(`${player.first_name} ${player.last_name}: 🔄 REPLACED SECONDARY: ${player.secondary_position} → ${training}`);
+        } else {
+          logs.push(`${player.first_name} ${player.last_name}: Learning ${training}... (progress: ${effectiveProgress})`);
+        }
+      }
+    }
+  } else if (baseChance > 0) {
+    logs.push(`${player.first_name} ${player.last_name}: Training ${training} at ${effectiveProgress} - no improvement this week (${totalChance.toFixed(0)}% chance)`);
+  }
+  
+  return { updates, logs };
+}
+
+/**
+ * Calculate overall rating from stats
+ */
+function calculateOverall(player) {
+  const stats = [player.speed, player.strength, player.skill, player.stamina, player.defense];
+  const sum = stats.reduce((a, b) => a + b, 0);
+  return Math.round(sum / 5);
+}
+
+/**
+ * Main function
+ */
+async function main() {
+  console.log('==========================================');
+  console.log('🏋️  PROCESSING TRAINING');
+  console.log('==========================================\n');
+  
+  // Get all players with training assigned
   const { data: players, error } = await supabase
     .from('players')
-    .select('*, teams(name)')
-    .not('current_training', 'is', null)
-    .neq('current_training', '');
+    .select('*')
+    .not('current_training', 'is', null);
   
   if (error) {
     console.error('Error fetching players:', error);
     return;
   }
   
-  if (players.length === 0) {
-    console.log('❌ No players currently training.');
-    console.log('   Assign training first using assign-training.js');
-    return;
-  }
+  console.log(`Found ${players.length} players with training assigned\n`);
   
-  console.log(`Found ${players.length} players in training\n`);
-  
-  let progressedCount = 0;
-  let stuckCount = 0;
-  let statGainCount = 0;
-  let restedCount = 0;
-  const highlights = [];
+  let totalImprovements = 0;
+  let totalProgressions = 0;
+  let newPositionsLearned = 0;
   
   for (const player of players) {
-    const training = player.current_training;
-    const currentProgress = player.training_progress || 'POOR';
-    const currentIndex = PROGRESS_LEVELS.indexOf(currentProgress);
+    const { updates, logs } = await processPlayerTraining(player);
     
-    // Handle Rest separately
-    if (training === 'Rest') {
-      const newFatigue = Math.max(0, (player.fatigue || 0) - 20);
-      await supabase
+    // Log all messages
+    logs.forEach(log => console.log(log));
+    
+    // Track stats
+    if (updates.overall && updates.overall > player.overall) totalImprovements++;
+    if (updates.training_progress) totalProgressions++;
+    if (updates.secondary_position && updates.secondary_position !== player.secondary_position) newPositionsLearned++;
+    
+    // Apply updates if any
+    if (Object.keys(updates).length > 0) {
+      const { error: updateError } = await supabase
         .from('players')
-        .update({ fatigue: newFatigue })
+        .update(updates)
         .eq('id', player.id);
-      restedCount++;
-      continue;
-    }
-    
-    // Calculate progress chance
-    const progressChance = getProgressChance(player.potential, player.age);
-    const progressed = Math.random() < progressChance;
-    
-    let newProgress = currentProgress;
-    let newIndex = currentIndex;
-    
-    if (progressed && currentIndex < PROGRESS_LEVELS.length - 1) {
-      // Move up one level
-      newIndex = currentIndex + 1;
-      newProgress = PROGRESS_LEVELS[newIndex];
-      progressedCount++;
-    } else {
-      stuckCount++;
-    }
-    
-    // Check for stat gain
-    const statGainChance = getStatGainChance(newProgress);
-    const gainedStat = Math.random() < statGainChance;
-    
-    let updates = { training_progress: newProgress };
-    let statGained = null;
-    
-    if (gainedStat) {
-      const stat = TRAINING_TYPES[training];
       
-      if (stat === 'position') {
-        // Position training - improve secondary position rating
-        if (player.secondary_position && player.position_ratings) {
-          const ratings = player.position_ratings;
-          const secPos = player.secondary_position;
-          const currentRating = ratings[secPos] || 70;
-          const newRating = Math.min(100, currentRating + randomBetween(1, 3));
-          ratings[secPos] = newRating;
-          updates.position_ratings = ratings;
-          statGained = `${secPos} rating ${currentRating} → ${newRating}`;
-          
-          // If rating hits 95+, they become truly dual-position
-          if (newRating >= 95) {
-            highlights.push(`🌟 ${player.first_name} ${player.last_name} mastered ${secPos}!`);
-          }
-        }
-      } else if (stat && stat !== 'rest') {
-        // Regular stat training
-        const currentStat = player[stat] || 70;
-        const newStat = Math.min(99, currentStat + 1);
-        updates[stat] = newStat;
-        statGained = `${stat} ${currentStat} → ${newStat}`;
-        
-        // Recalculate overall (average of 5 stats)
-        const newOverall = Math.round(
-          ((stat === 'speed' ? newStat : player.speed) +
-           (stat === 'strength' ? newStat : player.strength) +
-           (stat === 'skill' ? newStat : player.skill) +
-           (stat === 'stamina' ? newStat : player.stamina) +
-           (stat === 'defense' ? newStat : player.defense)) / 5
-        );
-        updates.overall = newOverall;
+      if (updateError) {
+        console.error(`Error updating ${player.first_name} ${player.last_name}:`, updateError);
       }
-      
-      // Reset progress after stat gain
-      updates.training_progress = 'POOR';
-      statGainCount++;
-      
-      highlights.push(`📈 ${player.first_name} ${player.last_name} (${player.teams?.name}): +1 ${statGained}`);
     }
     
-    // Add fatigue from training
-    updates.fatigue = Math.min(100, (player.fatigue || 0) + randomBetween(3, 8));
-    
-    await supabase
-      .from('players')
-      .update(updates)
-      .eq('id', player.id);
+    console.log(''); // Blank line between players
   }
   
-  console.log('==============================');
-  console.log('📊 TRAINING RESULTS:\n');
-  console.log(`⬆️  Progressed: ${progressedCount}`);
-  console.log(`➡️  Stuck: ${stuckCount}`);
-  console.log(`💪 Stat gains: ${statGainCount}`);
-  console.log(`😴 Rested: ${restedCount}`);
-  
-  if (highlights.length > 0) {
-    console.log('\n🌟 HIGHLIGHTS:\n');
-    highlights.forEach(h => console.log(h));
-  }
-  
-  console.log('\n✅ Training update complete!');
+  console.log('==========================================');
+  console.log('📊 TRAINING SUMMARY');
+  console.log('==========================================');
+  console.log(`Players trained: ${players.length}`);
+  console.log(`Progress advancements: ${totalProgressions}`);
+  console.log(`Stat improvements: ${totalImprovements}`);
+  console.log(`New positions learned: ${newPositionsLearned}`);
+  console.log('==========================================\n');
 }
 
-processTraining();
+main();
