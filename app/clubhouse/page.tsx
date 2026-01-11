@@ -329,7 +329,7 @@ export default function ClubhousePage() {
 
         {/* Sign Out */}
         <div className="mt-8 text-center space-y-2">
-          {coach?.coach_name === 'Stu' && (
+          {coach?.coach_name === 'Stuart' && (
             <div>
               <Link href="/admin" className="text-yellow-500 hover:text-yellow-400 text-sm">
                 🔐 Admin Panel
