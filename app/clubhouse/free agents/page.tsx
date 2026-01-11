@@ -35,15 +35,24 @@ interface FreeAgent {
   players: Player;
 }
 
+interface Claim {
+  id: string;
+  free_agent_id: string;
+  team_id: string;
+  release_player_id: string | null;
+}
+
 export default function FreeAgentsPage() {
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
   const [teamId, setTeamId] = useState<string | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [freeAgents, setFreeAgents] = useState<FreeAgent[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [claimCounts, setClaimCounts] = useState<Record<string, number>>({});
   const [currentRound, setCurrentRound] = useState(1);
   const [ladderPosition, setLadderPosition] = useState(1);
-  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedFreeAgent, setSelectedFreeAgent] = useState<FreeAgent | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -128,6 +137,27 @@ export default function FreeAgentsPage() {
 
       setFreeAgents(freeAgentsData || []);
 
+      // Get my claims
+      const { data: myClaims } = await supabase
+        .from('free_agent_claims')
+        .select('*')
+        .eq('team_id', coach.team_id);
+
+      setClaims(myClaims || []);
+
+      // Get claim counts for each free agent
+      if (freeAgentsData && freeAgentsData.length > 0) {
+        const counts: Record<string, number> = {};
+        for (const fa of freeAgentsData) {
+          const { count } = await supabase
+            .from('free_agent_claims')
+            .select('*', { count: 'exact', head: true })
+            .eq('free_agent_id', fa.id);
+          counts[fa.id] = count || 0;
+        }
+        setClaimCounts(counts);
+      }
+
     } catch (err) {
       console.error('Error:', err);
     } finally {
@@ -135,46 +165,58 @@ export default function FreeAgentsPage() {
     }
   };
 
-  const openClaimModal = (freeAgent: FreeAgent) => {
+  const openRequestModal = (freeAgent: FreeAgent) => {
     setSelectedFreeAgent(freeAgent);
     if (players.length >= 22) {
-      setShowClaimModal(true);
+      setShowRequestModal(true);
     } else {
-      claimPlayer(freeAgent, null);
+      submitRequest(freeAgent, null);
     }
   };
 
-  const claimPlayer = async (freeAgent: FreeAgent, releasePlayerId: string | null) => {
+  const submitRequest = async (freeAgent: FreeAgent, releasePlayerId: string | null) => {
     if (!teamId) return;
     setProcessing(true);
 
     try {
-      // Release player if needed
-      if (releasePlayerId) {
-        await supabase.from('free_agents').insert({
-          player_id: releasePlayerId,
-          released_by_team_id: teamId,
-          available_round: currentRound + 1
-        });
-
-        await supabase.from('players').delete().eq('id', releasePlayerId);
-      }
-
-      // Move free agent player to this team
-      await supabase.from('players').update({ team_id: teamId }).eq('id', freeAgent.player_id);
-
-      // Mark free agent as claimed
-      await supabase.from('free_agents').update({ claimed: true }).eq('id', freeAgent.id);
+      await supabase.from('free_agent_claims').insert({
+        free_agent_id: freeAgent.id,
+        team_id: teamId,
+        release_player_id: releasePlayerId
+      });
 
       await loadData();
     } catch (err) {
-      console.error('Error claiming player:', err);
+      console.error('Error submitting request:', err);
     } finally {
       setProcessing(false);
-      setShowClaimModal(false);
+      setShowRequestModal(false);
       setSelectedFreeAgent(null);
       setSelectedPlayer(null);
     }
+  };
+
+  const cancelRequest = async (freeAgentId: string) => {
+    if (!teamId) return;
+    setProcessing(true);
+
+    try {
+      await supabase
+        .from('free_agent_claims')
+        .delete()
+        .eq('free_agent_id', freeAgentId)
+        .eq('team_id', teamId);
+
+      await loadData();
+    } catch (err) {
+      console.error('Error cancelling request:', err);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const hasClaimed = (freeAgentId: string) => {
+    return claims.some(c => c.free_agent_id === freeAgentId);
   };
 
   const getPositionColor = (position: string) => {
@@ -221,7 +263,7 @@ export default function FreeAgentsPage() {
             ← Back to Clubhouse
           </Link>
           <h1 className="text-3xl font-bold text-white">🏪 Free Agents</h1>
-          <p className="text-white/70 mt-1">Sign released players to your squad</p>
+          <p className="text-white/70 mt-1">Request released players for your squad</p>
         </div>
       </div>
 
@@ -229,7 +271,7 @@ export default function FreeAgentsPage() {
         
         {/* Info Box */}
         <div className="bg-gray-800 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-gray-400 text-sm">Your ladder position</p>
               <p className="text-white text-xl font-bold">{ladderPosition}/10</p>
@@ -241,9 +283,13 @@ export default function FreeAgentsPage() {
               </p>
             </div>
           </div>
-          <p className="text-gray-500 text-sm mt-3">
-            💡 Lower ladder position = higher priority for claiming free agents
-          </p>
+          <div className="bg-blue-500/20 border border-blue-500 rounded p-3">
+            <p className="text-blue-400 text-sm">
+              <strong>How it works:</strong> Request players you want. During game updates (Tue/Thu/Sun 6pm), 
+              the system assigns players based on ladder position, squad needs, and squad size. 
+              Lower ladder position = higher priority!
+            </p>
+          </div>
         </div>
 
         {/* Free Agents List */}
@@ -258,43 +304,68 @@ export default function FreeAgentsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {freeAgents.map(fa => (
-                <div key={fa.id} className="bg-gray-700 rounded-lg p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`text-2xl font-bold ${getOverallColor(fa.players.overall)}`}>
-                      {fa.players.overall}
-                    </div>
-                    <div>
-                      <p className="text-white font-bold">{fa.players.first_name} {fa.players.last_name}</p>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(fa.players.position)}`}>
-                          {fa.players.position}
-                        </span>
-                        <span className="text-gray-400 text-sm">Age {fa.players.age}</span>
+              {freeAgents.map(fa => {
+                const claimed = hasClaimed(fa.id);
+                const interestCount = claimCounts[fa.id] || 0;
+                
+                return (
+                  <div key={fa.id} className="bg-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className={`text-2xl font-bold ${getOverallColor(fa.players.overall)}`}>
+                          {fa.players.overall}
+                        </div>
+                        <div>
+                          <p className="text-white font-bold">{fa.players.first_name} {fa.players.last_name}</p>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(fa.players.position)}`}>
+                              {fa.players.position}
+                            </span>
+                            <span className="text-gray-400 text-sm">Age {fa.players.age}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {interestCount > 0 && (
+                          <span className="text-gray-400 text-sm">
+                            {interestCount} team{interestCount !== 1 ? 's' : ''} interested
+                          </span>
+                        )}
+                        {claimed ? (
+                          <button
+                            onClick={() => cancelRequest(fa.id)}
+                            disabled={processing}
+                            className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded transition"
+                          >
+                            📋 Requested
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openRequestModal(fa)}
+                            disabled={processing}
+                            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded transition"
+                          >
+                            Request
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => openClaimModal(fa)}
-                    disabled={processing}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded transition"
-                  >
-                    Claim
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      {/* Claim Modal (release required) */}
-      {showClaimModal && selectedFreeAgent && (
+      {/* Request Modal (release required) */}
+      {showRequestModal && selectedFreeAgent && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-2">Release a Player</h3>
+            <h3 className="text-xl font-bold text-white mb-2">Select Player to Release</h3>
             <p className="text-gray-400 mb-4">
-              Squad is full. Select a player to release to claim <strong className="text-white">{selectedFreeAgent.players.first_name} {selectedFreeAgent.players.last_name}</strong>:
+              If you win <strong className="text-white">{selectedFreeAgent.players.first_name} {selectedFreeAgent.players.last_name}</strong>, 
+              who would you release to make room?
             </p>
 
             <div className="space-y-2 mb-4">
@@ -325,15 +396,15 @@ export default function FreeAgentsPage() {
             </div>
 
             {selectedPlayer && (
-              <div className="bg-red-500/20 border border-red-500 text-red-400 p-3 rounded mb-4">
-                ⚠️ <strong>{selectedPlayer.first_name} {selectedPlayer.last_name}</strong> will be released.
+              <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-400 p-3 rounded mb-4">
+                ⚠️ If your request is successful, <strong>{selectedPlayer.first_name} {selectedPlayer.last_name}</strong> will be released.
               </div>
             )}
 
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setShowClaimModal(false);
+                  setShowRequestModal(false);
                   setSelectedFreeAgent(null);
                   setSelectedPlayer(null);
                 }}
@@ -342,11 +413,11 @@ export default function FreeAgentsPage() {
                 Cancel
               </button>
               <button
-                onClick={() => claimPlayer(selectedFreeAgent, selectedPlayer?.id || null)}
+                onClick={() => submitRequest(selectedFreeAgent, selectedPlayer?.id || null)}
                 disabled={!selectedPlayer || processing}
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-lg transition"
               >
-                {processing ? 'Processing...' : 'Confirm'}
+                {processing ? 'Processing...' : 'Submit Request'}
               </button>
             </div>
           </div>

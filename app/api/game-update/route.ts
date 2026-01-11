@@ -41,6 +41,16 @@ export async function GET() {
     const teamsMap: Record<string, any> = {};
     teams?.forEach((t: any) => { teamsMap[t.id] = t; });
     
+    // Calculate ladder positions
+    const sortedTeams = [...(teams || [])].sort((a, b) => {
+      const aPoints = (a.wins * 2) + a.draws;
+      const bPoints = (b.wins * 2) + b.draws;
+      if (bPoints !== aPoints) return bPoints - aPoints;
+      return (b.points_for - b.points_against) - (a.points_for - a.points_against);
+    });
+    const ladderPositions: Record<string, number> = {};
+    sortedTeams.forEach((t, i) => { ladderPositions[t.id] = i + 1; });
+    
     // Simulate each match
     for (const fixture of roundFixtures) {
       const homeTeam = teamsMap[fixture.home_team_id];
@@ -272,11 +282,126 @@ export async function GET() {
     
     logs.push(`Training: ${improvements} players improved`);
     
+    // Process free agent claims
+    let freeAgentMoves = 0;
+    
+    // Get all free agents with claims
+    const { data: freeAgents } = await supabase
+      .from('free_agents')
+      .select('*, players(*)')
+      .eq('claimed', false)
+      .lte('available_round', currentRound);
+    
+    for (const freeAgent of freeAgents || []) {
+      // Get all claims for this free agent
+      const { data: claims } = await supabase
+        .from('free_agent_claims')
+        .select('*')
+        .eq('free_agent_id', freeAgent.id);
+      
+      if (!claims || claims.length === 0) continue;
+      
+      // Score each claim
+      const scoredClaims = [];
+      
+      for (const claim of claims) {
+        // Get team's squad
+        const { data: squadPlayers } = await supabase
+          .from('players')
+          .select('position')
+          .eq('team_id', claim.team_id);
+        
+        const squadSize = squadPlayers?.length || 0;
+        const samePositionCount = squadPlayers?.filter(p => p.position === freeAgent.players.position).length || 0;
+        const ladderPos = ladderPositions[claim.team_id] || 5;
+        
+        // Calculate priority score (higher = better chance)
+        // Lower ladder position = higher priority (10th place gets 10 points, 1st gets 1)
+        const ladderScore = ladderPos;
+        // Smaller squad = higher priority
+        const squadScore = (22 - squadSize);
+        // Fewer of same position = higher priority
+        const needScore = Math.max(0, 4 - samePositionCount) * 2;
+        
+        const totalScore = ladderScore + squadScore + needScore + Math.random() * 2; // Small random factor
+        
+        scoredClaims.push({
+          ...claim,
+          score: totalScore,
+          teamName: teamsMap[claim.team_id]?.name || 'Unknown'
+        });
+      }
+      
+      // Sort by score (highest first)
+      scoredClaims.sort((a, b) => b.score - a.score);
+      
+      const winner = scoredClaims[0];
+      const winnerTeam = teamsMap[winner.team_id];
+      
+      // Process the winner
+      // If they nominated a player to release, do it
+      if (winner.release_player_id) {
+        // Get the player being released
+        const { data: releasedPlayer } = await supabase
+          .from('players')
+          .select('*')
+          .eq('id', winner.release_player_id)
+          .single();
+        
+        if (releasedPlayer) {
+          // Add to free agents
+          await supabase.from('free_agents').insert({
+            player_id: winner.release_player_id,
+            released_by_team_id: winner.team_id,
+            available_round: currentRound + 1
+          });
+          
+          // Remove from team
+          await supabase.from('players').delete().eq('id', winner.release_player_id);
+        }
+      }
+      
+      // Move free agent player to winning team
+      await supabase.from('players').update({ team_id: winner.team_id }).eq('id', freeAgent.player_id);
+      
+      // Mark free agent as claimed
+      await supabase.from('free_agents').update({ claimed: true }).eq('id', freeAgent.id);
+      
+      // Notify winner
+      await supabase.from('notifications').insert({
+        team_id: winner.team_id,
+        type: 'free_agent_won',
+        title: '✅ Free Agent Signed!',
+        message: `You successfully signed ${freeAgent.players.first_name} ${freeAgent.players.last_name} (${freeAgent.players.position}, ${freeAgent.players.overall} OVR)!`,
+        player_id: freeAgent.player_id
+      });
+      
+      // Notify losers
+      for (const loser of scoredClaims.slice(1)) {
+        await supabase.from('notifications').insert({
+          team_id: loser.team_id,
+          type: 'free_agent_lost',
+          title: '❌ Free Agent Request Failed',
+          message: `${freeAgent.players.first_name} ${freeAgent.players.last_name} signed with ${winnerTeam?.name || 'another team'} instead.`,
+          player_id: freeAgent.player_id
+        });
+      }
+      
+      // Delete all claims for this free agent
+      await supabase.from('free_agent_claims').delete().eq('free_agent_id', freeAgent.id);
+      
+      freeAgentMoves++;
+      logs.push(`Free Agent: ${freeAgent.players.last_name} → ${winnerTeam?.city || 'Unknown'}`);
+    }
+    
+    logs.push(`Free Agents: ${freeAgentMoves} players moved`);
+    
     return NextResponse.json({
       success: true,
       round: currentRound,
       matches: logs,
-      improvements
+      improvements,
+      freeAgentMoves
     });
     
   } catch (error) {
