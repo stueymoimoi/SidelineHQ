@@ -79,6 +79,7 @@ export default function ClubhousePage() {
   const [ladderPosition, setLadderPosition] = useState(1);
   const [nextMatch, setNextMatch] = useState<{ opponent: Team; isHome: boolean; round: number } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -96,6 +97,8 @@ export default function ClubhousePage() {
         router.push('/auth');
         return;
       }
+
+      setUserId(user.id);
 
       const { data: coachData } = await supabase
         .from('coaches')
@@ -329,7 +332,7 @@ export default function ClubhousePage() {
 
         {/* Sign Out */}
         <div className="mt-8 text-center space-y-2">
-          {coach?.coach_name === 'Stuart' && (
+          {userId === 'b0c4c970-ac17-4be8-9b35-68d321a166ad' && (
             <div>
               <Link href="/admin" className="text-yellow-500 hover:text-yellow-400 text-sm">
                 🔐 Admin Panel

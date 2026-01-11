@@ -42,15 +42,10 @@ export default function AdminPage() {
       return;
     }
 
-    // Check if current user is admin (Stuart)
-    const { data: coach } = await supabase
-      .from('coaches')
-      .select('coach_name')
-      .eq('user_id', user.id)
-      .single();
-
-    // Only allow "Stuart" to access admin
-    if (coach?.coach_name !== 'Stuart') {
+    // Check if current user is admin (Stuart's user_id)
+    const ADMIN_USER_ID = 'b0c4c970-ac17-4be8-9b35-68d321a166ad';
+    
+    if (user.id !== ADMIN_USER_ID) {
       router.push('/clubhouse');
       return;
     }
