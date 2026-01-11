@@ -204,7 +204,7 @@ export default function TacticsPage() {
         {player ? (
           <>
             <div className="text-center truncate">
-              <p className="text-gray-400 text-xs">{isCaptain && '👑 '}{player.first_name}</p>
+              <p className="text-white/70 text-xs">{isCaptain && '👑 '}{player.first_name}</p>
               <p className="text-white font-bold text-sm">{player.last_name}</p>
             </div>
             <div className="flex justify-center items-center gap-1">
