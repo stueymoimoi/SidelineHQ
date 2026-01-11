@@ -313,6 +313,10 @@ export default function ClubhousePage() {
             <div className="text-2xl mb-1">🏆</div>
             <p className="text-white font-medium text-sm">Ladder</p>
           </Link>
+          <Link href="/clubhouse/academy" className="bg-gray-800 rounded-lg p-4 text-center hover:bg-gray-700 transition">
+            <div className="text-2xl mb-1">🎓</div>
+            <p className="text-white font-medium text-sm">Academy</p>
+          </Link>
           <div className="bg-gray-800/50 rounded-lg p-4 text-center relative">
             <div className="text-2xl mb-1 opacity-50">💰</div>
             <p className="text-gray-500 font-medium text-sm">Finances</p>
@@ -321,11 +325,6 @@ export default function ClubhousePage() {
           <div className="bg-gray-800/50 rounded-lg p-4 text-center relative">
             <div className="text-2xl mb-1 opacity-50">📜</div>
             <p className="text-gray-500 font-medium text-sm">History</p>
-            <span className="absolute top-2 right-2 text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">Soon</span>
-          </div>
-          <div className="bg-gray-800/50 rounded-lg p-4 text-center relative">
-            <div className="text-2xl mb-1 opacity-50">🔍</div>
-            <p className="text-gray-500 font-medium text-sm">Scout</p>
             <span className="absolute top-2 right-2 text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">Soon</span>
           </div>
         </div>
