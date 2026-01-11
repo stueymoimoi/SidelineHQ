@@ -161,6 +161,41 @@ export async function GET() {
       }
       
       logs.push(`${homeTeam.city} ${homeScore} - ${awayScore} ${awayTeam.city}`);
+      
+      // Create notifications for both teams
+      const homeResult = homeWin ? 'win' : awayWin ? 'loss' : 'draw';
+      const awayResult = awayWin ? 'win' : homeWin ? 'loss' : 'draw';
+      
+      const homeTitle = homeWin ? '🏆 Victory!' : awayWin ? '😢 Defeat' : '🤝 Draw';
+      const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
+      
+      const homeMsg = homeWin 
+        ? `Congratulations! ${homeTeam.city} ${homeTeam.name} defeated ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`
+        : awayWin
+        ? `${homeTeam.city} ${homeTeam.name} lost to ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`
+        : `${homeTeam.city} ${homeTeam.name} drew with ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`;
+      
+      const awayMsg = awayWin
+        ? `Congratulations! ${awayTeam.city} ${awayTeam.name} defeated ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`
+        : homeWin
+        ? `${awayTeam.city} ${awayTeam.name} lost to ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`
+        : `${awayTeam.city} ${awayTeam.name} drew with ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`;
+      
+      await supabase.from('notifications').insert({
+        team_id: homeTeam.id,
+        type: `match_${homeResult}`,
+        title: homeTitle,
+        message: homeMsg,
+        fixture_id: fixture.id
+      });
+      
+      await supabase.from('notifications').insert({
+        team_id: awayTeam.id,
+        type: `match_${awayResult}`,
+        title: awayTitle,
+        message: awayMsg,
+        fixture_id: fixture.id
+      });
     }
     
     // Process training
@@ -204,15 +239,28 @@ export async function GET() {
           if (current < 99) {
             const roll = Math.random() * 100;
             const gain = roll < 50 ? 1 : roll < 85 ? 2 : 3;
-            updates[statKey] = Math.min(99, current + gain);
-            updates.overall = Math.round((
+            const newStat = Math.min(99, current + gain);
+            updates[statKey] = newStat;
+            const newOverall = Math.round((
               (updates.speed ?? player.speed) +
               (updates.strength ?? player.strength) +
               (updates.skill ?? player.skill) +
               (updates.stamina ?? player.stamina) +
               (updates.defense ?? player.defense)
             ) / 5);
+            updates.overall = newOverall;
             improvements++;
+            
+            // Create notification for player improvement
+            if (newOverall > player.overall) {
+              await supabase.from('notifications').insert({
+                team_id: player.team_id,
+                type: 'player_improvement',
+                title: '⭐ Player Improved!',
+                message: `${player.first_name} ${player.last_name} increased ${training} from ${current} to ${newStat}! Overall now ${newOverall} (was ${player.overall})`,
+                player_id: player.id
+              });
+            }
           }
         }
       }
