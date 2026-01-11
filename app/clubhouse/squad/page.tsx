@@ -54,15 +54,6 @@ const TIER_NAMES: Record<number, string> = {
   8: 'World Class'
 };
 
-// Potential labels
-const POTENTIAL_LABELS: Record<number, string> = {
-  1: 'POOR',
-  2: 'LOW',
-  3: 'AVG',
-  4: 'HIGH',
-  5: 'ELITE'
-};
-
 // Position stat importance
 const POSITION_STATS: Record<string, { primary: string[], secondary: string[], minor: string[], negligible: string[] }> = {
   'Prop': {
@@ -209,19 +200,11 @@ export default function SquadPage() {
     return colors[position] || 'bg-gray-600';
   };
 
-  const getFatigueColor = (fatigue: number) => {
-    if (fatigue >= 60) return 'text-red-500';
-    if (fatigue >= 40) return 'text-yellow-500';
-    return 'text-green-500';
-  };
-
-  // Get potential color
-  const getPotentialColor = (potential: number) => {
-    if (potential >= 5) return 'text-purple-400';
-    if (potential >= 4) return 'text-green-400';
-    if (potential >= 3) return 'text-yellow-400';
-    if (potential >= 2) return 'text-orange-400';
-    return 'text-red-400';
+  // Get fitness color (inverted from fatigue)
+  const getFitnessColor = (fitness: number) => {
+    if (fitness >= 70) return 'text-green-500';
+    if (fitness >= 40) return 'text-yellow-500';
+    return 'text-red-500';
   };
 
   // Get tier name from value
@@ -366,14 +349,11 @@ export default function SquadPage() {
                 </div>
               </div>
               
-              {/* Bottom Row: Age, Potential, Fatigue */}
+              {/* Bottom Row: Age, Fitness */}
               <div className="flex justify-between text-sm text-gray-400 mt-3 pt-2 border-t border-gray-700">
                 <span>Age: {player.age}</span>
-                <span className={getPotentialColor(player.potential)}>
-                  Potential: {POTENTIAL_LABELS[player.potential] || 'AVG'}
-                </span>
-                <span className={getFatigueColor(player.fatigue || 0)}>
-                  {player.fatigue || 0}% Fatigue
+                <span className={getFitnessColor(100 - (player.fatigue || 0))}>
+                  {100 - (player.fatigue || 0)}% Fit
                 </span>
               </div>
             </div>
@@ -410,21 +390,15 @@ export default function SquadPage() {
             </div>
 
             {/* Info Grid */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-gray-700 rounded p-3 text-center">
                 <p className="text-gray-400 text-xs">Age</p>
                 <p className="text-white text-xl font-bold">{selectedPlayer.age}</p>
               </div>
               <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">Potential</p>
-                <p className={`text-lg font-bold ${getPotentialColor(selectedPlayer.potential)}`}>
-                  {POTENTIAL_LABELS[selectedPlayer.potential] || 'AVG'}
-                </p>
-              </div>
-              <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">Fatigue</p>
-                <p className={`text-xl font-bold ${getFatigueColor(selectedPlayer.fatigue || 0)}`}>
-                  {selectedPlayer.fatigue || 0}%
+                <p className="text-gray-400 text-xs">Fitness</p>
+                <p className={`text-xl font-bold ${getFitnessColor(100 - (selectedPlayer.fatigue || 0))}`}>
+                  {100 - (selectedPlayer.fatigue || 0)}%
                 </p>
               </div>
             </div>
