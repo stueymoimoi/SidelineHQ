@@ -49,7 +49,7 @@ interface FixtureWithTeams extends Fixture {
 
 // Season 0 schedule: Tues, Thurs, Sun at 6pm AEST
 // Round 1: Tue 14 Jan, Round 2: Thu 16 Jan, Round 3: Sun 19 Jan, etc.
-const SEASON_0_START = new Date('2025-01-14T07:00:00Z'); // Tuesday 14th Jan 6pm AEST = 7am UTC
+const SEASON_0_START = new Date('2026-01-13T07:00:00Z'); // Tuesday 13th Jan 6pm AEST = 7am UTC
 
 // Pre-calculate all 18 round dates
 function getRoundDates(): Date[] {
