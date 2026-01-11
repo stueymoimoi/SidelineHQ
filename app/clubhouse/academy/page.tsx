@@ -327,7 +327,7 @@ export default function DevelopmentSquadPage() {
             >
               <div className="text-3xl mb-2">⚡</div>
               <div className="text-lg">Back</div>
-              <div className="text-xs text-white/70 mt-1">FB, Winger, Centre</div>
+              <div className="text-xs text-white/70 mt-1">Fullback, Winger, Centre</div>
             </button>
             <button
               onClick={() => handlePromote('half')}
@@ -336,7 +336,7 @@ export default function DevelopmentSquadPage() {
             >
               <div className="text-3xl mb-2">🧠</div>
               <div className="text-lg">Half</div>
-              <div className="text-xs text-white/70 mt-1">HB, Five-Eighth, Hooker</div>
+              <div className="text-xs text-white/70 mt-1">Halfback, Five-Eighth, Hooker</div>
             </button>
           </div>
 
