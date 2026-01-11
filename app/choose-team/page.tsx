@@ -9,6 +9,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+const ADMIN_USER_ID = 'b0c4c970-ac17-4be8-9b35-68d321a166ad';
+
 interface Team {
   id: string;
   name: string;
@@ -92,13 +94,38 @@ export default function ChooseTeamPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in');
 
+      // Get coach name for notification
+      const { data: coachData } = await supabase
+        .from('coaches')
+        .select('name')
+        .eq('user_id', user.id)
+        .single();
+
       const { error: updateError } = await supabase
         .from('coaches')
         .update({ team_id: selectedTeam.id })
         .eq('user_id', user.id);
 
       if (updateError) throw updateError;
-      router.push('/clubhouse');
+
+      // Create notification for admin
+      const { data: adminCoach } = await supabase
+        .from('coaches')
+        .select('team_id')
+        .eq('user_id', ADMIN_USER_ID)
+        .single();
+
+      if (adminCoach?.team_id) {
+        await supabase.from('notifications').insert({
+          team_id: adminCoach.team_id,
+          type: 'new_signup',
+          title: '🆕 New Signup',
+          message: `${coachData?.name || 'Someone'} wants to join ${selectedTeam.city} ${selectedTeam.name}`,
+          read: false
+        });
+      }
+
+      router.push('/pending');
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
       setConfirming(false);
