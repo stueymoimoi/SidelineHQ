@@ -203,8 +203,9 @@ export default function TacticsPage() {
         <div className="text-xs text-gray-400">#{number} {label}</div>
         {player ? (
           <>
-            <div className="text-white font-bold text-sm truncate">
-              {isCaptain && '👑 '}{player.first_name.charAt(0)}. {player.last_name}
+            <div className="text-center truncate">
+              <p className="text-gray-400 text-xs">{isCaptain && '👑 '}{player.first_name}</p>
+              <p className="text-white font-bold text-sm">{player.last_name}</p>
             </div>
             <div className="flex justify-center items-center gap-1">
               <span className={`text-xs font-bold ${
