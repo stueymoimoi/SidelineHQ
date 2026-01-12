@@ -39,6 +39,110 @@ interface Team {
 }
 
 // ============================================================================
+// JERSEY COMPONENT
+// ============================================================================
+
+type JerseyPattern = 'solid' | 'hoops' | 'vstripes' | 'chevron' | 'diagonal';
+
+interface JerseyProps {
+  primaryColor: string;
+  secondaryColor: string;
+  pattern?: JerseyPattern;
+  isAway?: boolean;
+  size?: number;
+}
+
+const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = false, size = 120 }: JerseyProps) => {
+  // Swap colors for away jersey
+  const mainColor = isAway ? secondaryColor : primaryColor;
+  const trimColor = isAway ? primaryColor : secondaryColor;
+  
+  const patternId = `pattern-${isAway ? 'away' : 'home'}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  const renderPattern = () => {
+    switch (pattern) {
+      case 'hoops':
+        return (
+          <pattern id={patternId} patternUnits="userSpaceOnUse" width="100" height="16">
+            <rect width="100" height="8" fill={mainColor} />
+            <rect y="8" width="100" height="8" fill={trimColor} />
+          </pattern>
+        );
+      case 'vstripes':
+        return (
+          <pattern id={patternId} patternUnits="userSpaceOnUse" width="16" height="100">
+            <rect width="8" height="100" fill={mainColor} />
+            <rect x="8" width="8" height="100" fill={trimColor} />
+          </pattern>
+        );
+      case 'chevron':
+        return (
+          <pattern id={patternId} patternUnits="userSpaceOnUse" width="100" height="50">
+            <rect width="100" height="50" fill={mainColor} />
+            <polygon points="50,0 100,25 50,50 0,25" fill={trimColor} />
+          </pattern>
+        );
+      case 'diagonal':
+        return (
+          <pattern id={patternId} patternUnits="userSpaceOnUse" width="20" height="20" patternTransform="rotate(45)">
+            <rect width="10" height="20" fill={mainColor} />
+            <rect x="10" width="10" height="20" fill={trimColor} />
+          </pattern>
+        );
+      default: // solid
+        return null;
+    }
+  };
+
+  const jerseyFill = pattern === 'solid' ? mainColor : `url(#${patternId})`;
+
+  return (
+    <svg width={size} height={size * 1.2} viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        {renderPattern()}
+      </defs>
+      
+      {/* Head */}
+      <circle cx="50" cy="15" r="12" fill="#E8D4C4" />
+      
+      {/* Jersey Body */}
+      <path 
+        d="M30 30 L20 35 L15 70 L25 72 L25 95 L75 95 L75 72 L85 70 L80 35 L70 30 L65 28 L60 32 L50 35 L40 32 L35 28 L30 30Z" 
+        fill={jerseyFill}
+        stroke={trimColor}
+        strokeWidth="2"
+      />
+      
+      {/* Collar */}
+      <path 
+        d="M40 30 Q50 38 60 30" 
+        fill="none" 
+        stroke={trimColor} 
+        strokeWidth="3"
+      />
+      
+      {/* Left Sleeve Trim */}
+      <path d="M15 45 L25 47" stroke={trimColor} strokeWidth="3" />
+      
+      {/* Right Sleeve Trim */}
+      <path d="M85 45 L75 47" stroke={trimColor} strokeWidth="3" />
+      
+      {/* Shorts */}
+      <path 
+        d="M30 95 L28 115 L45 115 L50 100 L55 115 L72 115 L70 95 Z" 
+        fill={trimColor}
+        stroke={mainColor}
+        strokeWidth="1"
+      />
+      
+      {/* Socks */}
+      <rect x="30" y="115" width="12" height="5" fill={mainColor} />
+      <rect x="58" y="115" width="12" height="5" fill={mainColor} />
+    </svg>
+  );
+};
+
+// ============================================================================
 // CONSTANTS
 // ============================================================================
 
@@ -296,19 +400,50 @@ export default function SquadPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header */}
+      {/* Header with Jerseys */}
       <div 
-        className="p-6"
+        className="p-6 relative overflow-hidden"
         style={{
-          background: `linear-gradient(135deg, ${team?.primary_color} 0%, ${team?.secondary_color} 100%)`
+          background: `linear-gradient(135deg, ${team?.primary_color}dd 0%, ${team?.secondary_color}dd 100%)`
         }}
       >
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto relative z-10">
           <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
             ← Back to Clubhouse
           </Link>
-          <h1 className="text-3xl font-bold text-white">👥 Squad</h1>
-          <p className="text-white/80">{team?.name} • {players.length} Players</p>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-white">{team?.name}</h1>
+              <p className="text-white/80 text-lg">👥 Squad • {players.length} Players</p>
+            </div>
+            
+            {/* Jerseys Display */}
+            {team && (
+              <div className="flex items-center gap-2">
+                <div className="text-center">
+                  <Jersey 
+                    primaryColor={team.primary_color} 
+                    secondaryColor={team.secondary_color}
+                    pattern="solid"
+                    isAway={false}
+                    size={80}
+                  />
+                  <p className="text-white/70 text-xs mt-1">Home</p>
+                </div>
+                <div className="text-center">
+                  <Jersey 
+                    primaryColor={team.primary_color} 
+                    secondaryColor={team.secondary_color}
+                    pattern="solid"
+                    isAway={true}
+                    size={80}
+                  />
+                  <p className="text-white/70 text-xs mt-1">Away</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
