@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -58,17 +58,18 @@ interface Tactics {
 }
 
 const ATTACK_OPTIONS = [
-  { value: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'Spread attack evenly across the field' },
-  { value: 'left', label: 'Left Edge', emoji: '⬅️', desc: 'Focus attack through left winger & centre' },
-  { value: 'middle', label: 'Middle', emoji: '⬆️', desc: 'Attack through forwards up the guts' },
-  { value: 'right', label: 'Right Edge', emoji: '➡️', desc: 'Focus attack through right winger & centre' },
+  { value: 'structured', label: 'Structured', emoji: '📋', desc: 'Run set plays, balanced attack' },
+  { value: 'raid_left', label: 'Raid Left', emoji: '⬅️', desc: 'Target left edge with your backs' },
+  { value: 'up_the_guts', label: 'Up the Guts', emoji: '💪', desc: 'Punch through the middle with forwards' },
+  { value: 'raid_right', label: 'Raid Right', emoji: '➡️', desc: 'Target right edge with your backs' },
+  { value: 'off_the_cuff', label: 'Off the Cuff', emoji: '🎲', desc: 'High risk, high reward — play on instinct' },
 ];
 
 const DEFENSE_OPTIONS = [
-  { value: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'Defend evenly across the field' },
-  { value: 'left', label: 'Guard Left', emoji: '🛡️⬅️', desc: 'Extra cover on left edge' },
-  { value: 'middle', label: 'Pack Middle', emoji: '🛡️⬆️', desc: 'Clog the middle, stop forward runs' },
-  { value: 'right', label: 'Guard Right', emoji: '🛡️➡️', desc: 'Extra cover on right edge' },
+  { value: 'line_speed', label: 'Line Speed', emoji: '🏃', desc: 'Rush up and pressure the ball' },
+  { value: 'shift_left', label: 'Shift Left', emoji: '🛡️', desc: 'Overload left side coverage' },
+  { value: 'brick_wall', label: 'Brick Wall', emoji: '🧱', desc: 'Stack the middle, stop forward momentum' },
+  { value: 'shift_right', label: 'Shift Right', emoji: '🛡️', desc: 'Overload right side coverage' },
 ];
 
 export default function TacticsPage() {
@@ -76,12 +77,68 @@ export default function TacticsPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [tactics, setTactics] = useState<Tactics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
   const [showKickerModal, setShowKickerModal] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   
   const router = useRouter();
+
+  // Auto-save function
+  const saveToDatabase = useCallback(async (tacticsToSave: Tactics) => {
+    if (!tacticsToSave || !team) return;
+    
+    setSaveStatus('saving');
+    
+    try {
+      const { error } = await supabase
+        .from('team_tactics')
+        .update({
+          pos_fullback: tacticsToSave.pos_fullback,
+          pos_winger_l: tacticsToSave.pos_winger_l,
+          pos_winger_r: tacticsToSave.pos_winger_r,
+          pos_centre_l: tacticsToSave.pos_centre_l,
+          pos_centre_r: tacticsToSave.pos_centre_r,
+          pos_five_eighth: tacticsToSave.pos_five_eighth,
+          pos_halfback: tacticsToSave.pos_halfback,
+          pos_prop_l: tacticsToSave.pos_prop_l,
+          pos_prop_r: tacticsToSave.pos_prop_r,
+          pos_hooker: tacticsToSave.pos_hooker,
+          pos_second_row_l: tacticsToSave.pos_second_row_l,
+          pos_second_row_r: tacticsToSave.pos_second_row_r,
+          pos_lock: tacticsToSave.pos_lock,
+          bench_1: tacticsToSave.bench_1,
+          bench_2: tacticsToSave.bench_2,
+          bench_3: tacticsToSave.bench_3,
+          bench_4: tacticsToSave.bench_4,
+          goal_kicker: tacticsToSave.goal_kicker,
+          captain: tacticsToSave.captain,
+          attack_focus: tacticsToSave.attack_focus,
+          defense_focus: tacticsToSave.defense_focus,
+        })
+        .eq('team_id', team.id);
+
+      if (error) throw error;
+      
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err: any) {
+      console.error('Save error:', err);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [team]);
+
+  // Auto-save when tactics change (with debounce)
+  useEffect(() => {
+    if (initialLoad || !tactics) return;
+    
+    const timeout = setTimeout(() => {
+      saveToDatabase(tactics);
+    }, 500);
+    
+    return () => clearTimeout(timeout);
+  }, [tactics, saveToDatabase, initialLoad]);
 
   useEffect(() => {
     loadData();
@@ -128,12 +185,14 @@ export default function TacticsPage() {
         .eq('team_id', coach.team_id)
         .single();
 
-      // Set defaults if not present
       setTactics({
         ...tacticsData,
-        attack_focus: tacticsData?.attack_focus || 'balanced',
-        defense_focus: tacticsData?.defense_focus || 'balanced',
+        attack_focus: tacticsData?.attack_focus || 'structured',
+        defense_focus: tacticsData?.defense_focus || 'line_speed',
       });
+      
+      // Mark initial load complete after a short delay
+      setTimeout(() => setInitialLoad(false), 100);
 
     } catch (err) {
       console.error('Error:', err);
@@ -169,50 +228,6 @@ export default function TacticsPage() {
     setSelectedPosition(null);
   };
 
-  const handleSave = async () => {
-    if (!tactics || !team) return;
-    setSaving(true);
-    setMessage('');
-
-    try {
-      const { error } = await supabase
-        .from('team_tactics')
-        .update({
-          pos_fullback: tactics.pos_fullback,
-          pos_winger_l: tactics.pos_winger_l,
-          pos_winger_r: tactics.pos_winger_r,
-          pos_centre_l: tactics.pos_centre_l,
-          pos_centre_r: tactics.pos_centre_r,
-          pos_five_eighth: tactics.pos_five_eighth,
-          pos_halfback: tactics.pos_halfback,
-          pos_prop_l: tactics.pos_prop_l,
-          pos_prop_r: tactics.pos_prop_r,
-          pos_hooker: tactics.pos_hooker,
-          pos_second_row_l: tactics.pos_second_row_l,
-          pos_second_row_r: tactics.pos_second_row_r,
-          pos_lock: tactics.pos_lock,
-          bench_1: tactics.bench_1,
-          bench_2: tactics.bench_2,
-          bench_3: tactics.bench_3,
-          bench_4: tactics.bench_4,
-          goal_kicker: tactics.goal_kicker,
-          captain: tactics.captain,
-          attack_focus: tactics.attack_focus,
-          defense_focus: tactics.defense_focus,
-        })
-        .eq('team_id', team.id);
-
-      if (error) throw error;
-      setMessage('✅ Tactics saved!');
-    } catch (err: any) {
-      setMessage('❌ Error saving tactics');
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Get conversion rate display
   const getConversionDisplay = (player: Player) => {
     const attempts = player.goal_kick_attempts || 0;
     const successes = player.goal_kick_successes || 0;
@@ -274,11 +289,9 @@ export default function TacticsPage() {
     );
   };
 
-  // Get current goal kicker
   const currentKicker = getPlayerById(tactics?.goal_kicker || null);
   const currentKickerStats = currentKicker ? getConversionDisplay(currentKicker) : null;
 
-  // Get other potential kickers
   const otherKickers = players
     .filter(p => p.id !== tactics?.goal_kicker)
     .sort((a, b) => {
@@ -307,22 +320,42 @@ export default function TacticsPage() {
         }}
       >
         <div className="max-w-6xl mx-auto">
-          <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
-            ← Back to Clubhouse
-          </Link>
-          <h1 className="text-3xl font-bold text-white">📋 Tactics</h1>
-          <p className="text-white/80">{team?.name} • Set Your Lineup</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
+                ← Back to Clubhouse
+              </Link>
+              <h1 className="text-3xl font-bold text-white">📋 Tactics</h1>
+              <p className="text-white/80">{team?.name} • Set Your Lineup</p>
+            </div>
+            
+            {/* Auto-save indicator */}
+            <div className="text-right">
+              {saveStatus === 'saving' && (
+                <span className="text-yellow-400 text-sm animate-pulse">💾 Saving...</span>
+              )}
+              {saveStatus === 'saved' && (
+                <span className="text-green-400 text-sm">✅ Saved</span>
+              )}
+              {saveStatus === 'error' && (
+                <span className="text-red-400 text-sm">❌ Error saving</span>
+              )}
+              {saveStatus === 'idle' && (
+                <span className="text-white/50 text-sm">Auto-save on</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
 
-        {/* ATTACK & DEFENSE FOCUS - NEW SECTION */}
+        {/* ATTACK & DEFENSE FOCUS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* Attack Focus */}
           <div className="bg-gray-800 rounded-xl p-4">
-            <h3 className="text-white font-bold mb-3">⚔️ Attack Focus</h3>
-            <p className="text-gray-500 text-xs mb-3">Where will you focus your attacking plays?</p>
+            <h3 className="text-white font-bold mb-3">⚔️ Attack Style</h3>
+            <p className="text-gray-500 text-xs mb-3">How will you attack the opposition?</p>
             <div className="space-y-2">
               {ATTACK_OPTIONS.map(option => (
                 <button
@@ -348,8 +381,8 @@ export default function TacticsPage() {
 
           {/* Defense Focus */}
           <div className="bg-gray-800 rounded-xl p-4">
-            <h3 className="text-white font-bold mb-3">🛡️ Defense Focus</h3>
-            <p className="text-gray-500 text-xs mb-3">Where will you concentrate your defense?</p>
+            <h3 className="text-white font-bold mb-3">🛡️ Defense Style</h3>
+            <p className="text-gray-500 text-xs mb-3">How will you shut them down?</p>
             <div className="space-y-2">
               {DEFENSE_OPTIONS.map(option => (
                 <button
@@ -378,10 +411,11 @@ export default function TacticsPage() {
         <div className="bg-gray-800/50 rounded-lg p-4 mb-6 border border-gray-700">
           <h4 className="text-yellow-400 font-bold text-sm mb-2">💡 Tactical Tips</h4>
           <ul className="text-gray-400 text-xs space-y-1">
-            <li>• <strong>Counter your opponent:</strong> If they attack left, defend left to neutralize</li>
-            <li>• <strong>Mismatch advantage:</strong> Attacking where they're not defending gives ~10% boost</li>
-            <li>• <strong>Middle attack:</strong> Works best with strong Props, Hooker & Lock</li>
-            <li>• <strong>Edge attacks:</strong> Rely on quality Halves to unlock your outside backs</li>
+            <li>• <strong>Counter the opposition:</strong> Raid Left vs their Shift Right = you win the edge</li>
+            <li>• <strong>Up the Guts:</strong> Works best with strong Props, Hooker & Lock</li>
+            <li>• <strong>Raid edges:</strong> Need quality Halves to unlock your outside backs</li>
+            <li>• <strong>Off the Cuff:</strong> High risk! Can win you games or blow them open</li>
+            <li>• <strong>Brick Wall:</strong> Stops forward momentum, but leaves edges exposed</li>
           </ul>
         </div>
 
@@ -571,20 +605,6 @@ export default function TacticsPage() {
           <span className="text-red-400">● Wrong Position</span>
         </div>
 
-        {/* Save Button */}
-        {message && (
-          <div className={`mb-4 p-3 rounded-lg text-center ${message.includes('✅') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-            {message}
-          </div>
-        )}
-        
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-lg transition disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : '💾 Save Tactics'}
-        </button>
       </div>
 
       {/* Player Selection Modal */}
