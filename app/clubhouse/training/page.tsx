@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -41,7 +41,6 @@ interface Player {
 // All training options
 const STAT_TRAINING = ['Speed', 'Strength', 'Skill', 'Stamina', 'Defense'];
 const POSITIONS = ['Fullback', 'Winger', 'Centre', 'Five-Eighth', 'Halfback', 'Prop', 'Hooker', 'Second Row', 'Lock'];
-const ALL_TRAINING_OPTIONS = [...STAT_TRAINING, 'Rest', ...POSITIONS];
 
 // Progress stages in order
 const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
@@ -99,7 +98,6 @@ const getTrainingIcon = (training: string | null) => {
   if (training === 'Skill') return '🎯';
   if (training === 'Stamina') return '🫀';
   if (training === 'Defense') return '🛡️';
-  // Position training
   return '📍';
 };
 
@@ -108,7 +106,6 @@ const getTrainingDescription = (training: string | null, player: Player) => {
   if (training === 'Rest') return 'Recovering fitness';
   if (STAT_TRAINING.includes(training)) return `Training ${training.toLowerCase()}`;
   
-  // Position training
   if (training === player.position) {
     return `Mastering ${training} skills`;
   } else if (training === player.secondary_position) {
@@ -120,12 +117,55 @@ const getTrainingDescription = (training: string | null, player: Player) => {
 
 export default function TrainingPage() {
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  const [pendingChanges, setPendingChanges] = useState<Record<string, string | null>>({});
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveQueue, setSaveQueue] = useState<{playerId: string, training: string | null, resetProgress: boolean}[]>([]);
   const router = useRouter();
+
+  // Process save queue
+  const processSaveQueue = useCallback(async () => {
+    if (saveQueue.length === 0) return;
+    
+    setSaveStatus('saving');
+    
+    try {
+      for (const item of saveQueue) {
+        const updateData: Record<string, unknown> = {
+          current_training: item.training
+        };
+        
+        if (item.resetProgress) {
+          updateData.training_progress = 'NONE';
+        }
+        
+        await supabase
+          .from('players')
+          .update(updateData)
+          .eq('id', item.playerId);
+      }
+      
+      setSaveQueue([]);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Error saving:', err);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [saveQueue]);
+
+  // Debounced save
+  useEffect(() => {
+    if (saveQueue.length === 0) return;
+    
+    const timeout = setTimeout(() => {
+      processSaveQueue();
+    }, 500);
+    
+    return () => clearTimeout(timeout);
+  }, [saveQueue, processSaveQueue]);
 
   useEffect(() => {
     loadData();
@@ -174,96 +214,50 @@ export default function TrainingPage() {
   };
 
   const handleTrainingChange = (playerId: string, training: string | null) => {
-    setPendingChanges(prev => ({
-      ...prev,
-      [playerId]: training
-    }));
+    // Find current training to check if it changed
+    const player = players.find(p => p.id === playerId);
+    const currentTraining = player?.current_training;
+    const trainingChanged = currentTraining !== training;
     
-    // Update local state for immediate UI feedback
+    // Update local state immediately
     setPlayers(prev => prev.map(p => {
       if (p.id === playerId) {
-        // If changing training type, reset progress to NONE
-        const currentTraining = pendingChanges[playerId] !== undefined 
-          ? pendingChanges[playerId] 
-          : p.current_training;
-        const isNewTraining = currentTraining !== training;
-        
         return {
           ...p,
           current_training: training,
-          training_progress: isNewTraining ? 'NONE' : p.training_progress
+          training_progress: trainingChanged ? 'NONE' : p.training_progress
         };
       }
       return p;
     }));
     
+    // Add to save queue
+    setSaveQueue(prev => {
+      // Remove any existing entry for this player
+      const filtered = prev.filter(item => item.playerId !== playerId);
+      return [...filtered, { playerId, training, resetProgress: trainingChanged }];
+    });
+    
     setSelectedPlayer(null);
   };
 
-  const saveChanges = async () => {
-    if (Object.keys(pendingChanges).length === 0) return;
-    
-    setSaving(true);
-    try {
-      // Get original player data to check if training changed
-      const { data: originalPlayers } = await supabase
-        .from('players')
-        .select('id, current_training')
-        .eq('team_id', team?.id);
-      
-      const originalTrainingMap: Record<string, string | null> = {};
-      originalPlayers?.forEach(p => {
-        originalTrainingMap[p.id] = p.current_training;
-      });
-
-      // Update each player
-      for (const [playerId, newTraining] of Object.entries(pendingChanges)) {
-        const originalTraining = originalTrainingMap[playerId];
-        const trainingChanged = originalTraining !== newTraining;
-        
-        const updateData: Record<string, unknown> = {
-          current_training: newTraining
-        };
-        
-        // Reset progress if training type changed
-        if (trainingChanged) {
-          updateData.training_progress = 'NONE';
-        }
-        
-        await supabase
-          .from('players')
-          .update(updateData)
-          .eq('id', playerId);
-      }
-      
-      setPendingChanges({});
-      
-      // Reload to get fresh data
-      await loadData();
-      
-    } catch (err) {
-      console.error('Error saving:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const setAllTraining = (training: string) => {
-    const newChanges: Record<string, string | null> = {};
-    players.forEach(p => {
-      newChanges[p.id] = training;
-    });
-    setPendingChanges(newChanges);
+    // Update all players locally
+    const updates: {playerId: string, training: string | null, resetProgress: boolean}[] = [];
     
-    // Update local state
-    setPlayers(prev => prev.map(p => ({
-      ...p,
-      current_training: training,
-      training_progress: p.current_training !== training ? 'NONE' : p.training_progress
-    })));
+    setPlayers(prev => prev.map(p => {
+      const trainingChanged = p.current_training !== training;
+      updates.push({ playerId: p.id, training, resetProgress: trainingChanged });
+      return {
+        ...p,
+        current_training: training,
+        training_progress: trainingChanged ? 'NONE' : p.training_progress
+      };
+    }));
+    
+    // Add all to save queue
+    setSaveQueue(updates);
   };
-
-  const hasChanges = Object.keys(pendingChanges).length > 0;
 
   if (loading) {
     return (
@@ -283,11 +277,31 @@ export default function TrainingPage() {
         }}
       >
         <div className="max-w-6xl mx-auto">
-          <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
-            ← Back to Clubhouse
-          </Link>
-          <h1 className="text-3xl font-bold text-white">🏋️ Training</h1>
-          <p className="text-white/80 mt-1">Assign training to develop your players</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
+                ← Back to Clubhouse
+              </Link>
+              <h1 className="text-3xl font-bold text-white">🏋️ Training</h1>
+              <p className="text-white/80 mt-1">Assign training to develop your players</p>
+            </div>
+            
+            {/* Auto-save indicator */}
+            <div className="text-right">
+              {saveStatus === 'saving' && (
+                <span className="text-yellow-400 text-sm animate-pulse">💾 Saving...</span>
+              )}
+              {saveStatus === 'saved' && (
+                <span className="text-green-400 text-sm">✅ Saved</span>
+              )}
+              {saveStatus === 'error' && (
+                <span className="text-red-400 text-sm">❌ Error saving</span>
+              )}
+              {saveStatus === 'idle' && (
+                <span className="text-white/50 text-sm">Auto-save on</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -328,20 +342,11 @@ export default function TrainingPage() {
         {/* Players Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {players.map(player => {
-            const displayTraining = pendingChanges[player.id] !== undefined 
-              ? pendingChanges[player.id] 
-              : player.current_training;
-            const hasChange = pendingChanges[player.id] !== undefined;
-            
             return (
               <div
                 key={player.id}
                 onClick={() => setSelectedPlayer(player)}
-                className={`bg-gray-800 rounded-lg p-4 cursor-pointer transition border-2 ${
-                  hasChange 
-                    ? 'border-yellow-500 bg-gray-750' 
-                    : 'border-transparent hover:border-green-500'
-                }`}
+                className="bg-gray-800 rounded-lg p-4 cursor-pointer transition border-2 border-transparent hover:border-green-500"
               >
                 {/* Player Header */}
                 <div className="flex items-start justify-between mb-3">
@@ -371,59 +376,33 @@ export default function TrainingPage() {
                 {/* Current Training */}
                 <div className="bg-gray-900 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-2xl">{getTrainingIcon(displayTraining)}</span>
+                    <span className="text-2xl">{getTrainingIcon(player.current_training)}</span>
                     <span className="text-white font-medium">
-                      {displayTraining || 'None'}
+                      {player.current_training || 'None'}
                     </span>
                   </div>
                   <p className="text-gray-500 text-xs mb-2">
-                    {getTrainingDescription(displayTraining, player)}
+                    {getTrainingDescription(player.current_training, player)}
                   </p>
                   
                   {/* Progress Bar */}
-                  {displayTraining && displayTraining !== 'Rest' && (
+                  {player.current_training && player.current_training !== 'Rest' && (
                     <div className="w-full bg-gray-700 rounded-full h-2">
                       <div 
                         className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(player.training_progress)} ${getProgressWidth(player.training_progress)}`}
                       ></div>
                     </div>
                   )}
-                  {displayTraining && displayTraining !== 'Rest' && (
+                  {player.current_training && player.current_training !== 'Rest' && (
                     <p className="text-gray-500 text-xs mt-1 text-right">
                       {player.training_progress || 'NONE'}
                     </p>
                   )}
                 </div>
-
-                {hasChange && (
-                  <p className="text-yellow-500 text-xs mt-2 text-center">Unsaved changes</p>
-                )}
               </div>
             );
           })}
         </div>
-
-        {/* Save Button */}
-        {hasChanges && (
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2">
-            <button
-              onClick={saveChanges}
-              disabled={saving}
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  💾 Save Training ({Object.keys(pendingChanges).length} changes)
-                </>
-              )}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Training Selection Modal */}
@@ -471,13 +450,20 @@ export default function TrainingPage() {
             {/* Rest Option */}
             <button
               onClick={() => handleTrainingChange(selectedPlayer.id, 'Rest')}
-              className="w-full mb-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition flex items-center gap-3"
+              className={`w-full mb-2 p-3 rounded-lg text-left transition flex items-center gap-3 ${
+                selectedPlayer.current_training === 'Rest'
+                  ? 'bg-green-600/30 border-2 border-green-500'
+                  : 'bg-gray-700 hover:bg-gray-600'
+              }`}
             >
               <span className="text-2xl">😴</span>
               <div>
                 <p className="text-white font-medium">Rest</p>
                 <p className="text-gray-400 text-xs">Reduce fatigue, recover fitness</p>
               </div>
+              {selectedPlayer.current_training === 'Rest' && (
+                <span className="ml-auto text-green-400">✓</span>
+              )}
             </button>
 
             {/* Stat Training */}
@@ -487,7 +473,11 @@ export default function TrainingPage() {
                 <button
                   key={stat}
                   onClick={() => handleTrainingChange(selectedPlayer.id, stat)}
-                  className="p-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition flex items-center justify-between"
+                  className={`p-3 rounded-lg text-left transition flex items-center justify-between ${
+                    selectedPlayer.current_training === stat
+                      ? 'bg-green-600/30 border-2 border-green-500'
+                      : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{getTrainingIcon(stat)}</span>
@@ -496,6 +486,9 @@ export default function TrainingPage() {
                       <p className="text-gray-400 text-xs">Current: {selectedPlayer[stat.toLowerCase() as keyof Player]}</p>
                     </div>
                   </div>
+                  {selectedPlayer.current_training === stat && (
+                    <span className="text-green-400">✓</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -506,17 +499,20 @@ export default function TrainingPage() {
               {POSITIONS.map(pos => {
                 const isPrimary = pos === selectedPlayer.position;
                 const isSecondary = pos === selectedPlayer.secondary_position;
+                const isCurrentTraining = selectedPlayer.current_training === pos;
                 
                 return (
                   <button
                     key={pos}
                     onClick={() => handleTrainingChange(selectedPlayer.id, pos)}
                     className={`p-3 rounded-lg text-left transition flex items-center justify-between ${
-                      isPrimary 
-                        ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600' 
-                        : isSecondary
-                          ? 'bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-600'
-                          : 'bg-gray-700 hover:bg-gray-600'
+                      isCurrentTraining
+                        ? 'bg-green-600/30 border-2 border-green-500'
+                        : isPrimary 
+                          ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600' 
+                          : isSecondary
+                            ? 'bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-600'
+                            : 'bg-gray-700 hover:bg-gray-600'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -532,8 +528,11 @@ export default function TrainingPage() {
                         </p>
                       </div>
                     </div>
-                    {isPrimary && <span className="text-green-400 text-xs">PRIMARY</span>}
-                    {isSecondary && <span className="text-yellow-400 text-xs">SECONDARY</span>}
+                    <div className="flex items-center gap-2">
+                      {isPrimary && <span className="text-green-400 text-xs">PRIMARY</span>}
+                      {isSecondary && <span className="text-yellow-400 text-xs">SECONDARY</span>}
+                      {isCurrentTraining && <span className="text-green-400">✓</span>}
+                    </div>
                   </button>
                 );
               })}
