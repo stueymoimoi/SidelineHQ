@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'tips';
+type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'schedule' | 'tips';
 
 export default function GuidePage() {
   const [activeSection, setActiveSection] = useState<Section>('overview');
 
   const sections: { id: Section; title: string; icon: string }[] = [
     { id: 'overview', title: 'Getting Started', icon: '🏉' },
+    { id: 'schedule', title: 'Season Schedule', icon: '📅' },
     { id: 'stats', title: 'Player Stats', icon: '📊' },
     { id: 'tactics', title: 'Tactics & Lineup', icon: '📋' },
     { id: 'training', title: 'Training', icon: '💪' },
@@ -77,10 +78,10 @@ export default function GuidePage() {
 
                   <h3 className="text-xl text-white mt-6">How the Season Works</h3>
                   <ul className="text-gray-300 space-y-2">
-                    <li><strong>18 Rounds</strong> per season</li>
+                    <li><strong>18 Rounds</strong> of regular season matches</li>
+                    <li><strong>3 State of Origin</strong> weekends (rest weeks for clubs)</li>
                     <li><strong>Matches simulate</strong> on Tuesdays, Thursdays, and Sundays at 6pm AEST</li>
-                    <li><strong>Set your lineup</strong> before each match day</li>
-                    <li><strong>Top teams</strong> make the finals at the end of the season</li>
+                    <li><strong>Top 4 teams</strong> make the finals at the end of the season</li>
                   </ul>
 
                   <h3 className="text-xl text-white mt-6">Your Weekly Routine</h3>
@@ -111,6 +112,95 @@ export default function GuidePage() {
                       <p className="text-gray-400 text-sm m-0">Promote youth players</p>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Season Schedule */}
+              {activeSection === 'schedule' && (
+                <div className="prose prose-invert max-w-none">
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    📅 Season Schedule
+                  </h2>
+
+                  <p className="text-gray-300">
+                    Each season consists of 18 regular season rounds, 3 State of Origin weekends, and finals for the top 4 teams.
+                  </p>
+
+                  <h3 className="text-xl text-white mt-6">Match Days</h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-700 rounded p-3 text-center">
+                      <p className="text-white font-bold m-0">Tuesday</p>
+                      <p className="text-gray-400 text-sm m-0">6pm AEST</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-3 text-center">
+                      <p className="text-white font-bold m-0">Thursday</p>
+                      <p className="text-gray-400 text-sm m-0">6pm AEST</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-3 text-center">
+                      <p className="text-white font-bold m-0">Sunday</p>
+                      <p className="text-gray-400 text-sm m-0">6pm AEST</p>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Season 0 Structure</h3>
+                  <div className="bg-gray-700 rounded p-4 space-y-2">
+                    <div className="flex justify-between text-gray-300">
+                      <span>Rounds 1-5</span>
+                      <span className="text-white">Jan 13 - Jan 22</span>
+                    </div>
+                    <div className="flex justify-between text-yellow-400 font-bold">
+                      <span>🏆 STATE OF ORIGIN 1</span>
+                      <span>Sun Jan 25</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Rounds 6-10</span>
+                      <span className="text-white">Jan 27 - Feb 5</span>
+                    </div>
+                    <div className="flex justify-between text-yellow-400 font-bold">
+                      <span>🏆 STATE OF ORIGIN 2</span>
+                      <span>Sun Feb 8</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Rounds 11-15</span>
+                      <span className="text-white">Feb 10 - Feb 19</span>
+                    </div>
+                    <div className="flex justify-between text-yellow-400 font-bold">
+                      <span>🏆 STATE OF ORIGIN 3 (Decider)</span>
+                      <span>Sun Feb 22</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Rounds 16-18</span>
+                      <span className="text-white">Feb 24 - Mar 1</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Finals</h3>
+                  <div className="bg-gray-700 rounded p-4 space-y-2">
+                    <div className="flex justify-between text-gray-300">
+                      <span>Semi Finals (1st v 4th, 2nd v 3rd)</span>
+                      <span className="text-white">Tue Mar 3</span>
+                    </div>
+                    <div className="flex justify-between text-green-400 font-bold">
+                      <span>🏆 GRAND FINAL</span>
+                      <span>Thu Mar 5</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Off-Season</h3>
+                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
+                    <p className="text-blue-400 m-0">
+                      <strong>Sunday Mar 8:</strong> All players age +1 year, return to 100% fitness, and young players may develop improved stats!
+                    </p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">State of Origin Weekends</h3>
+                  <p className="text-gray-300">
+                    On Origin weekends, there are no club matches. Instead:
+                  </p>
+                  <ul className="text-gray-300 space-y-2">
+                    <li><strong>Players NOT in Origin</strong> — Get a fitness boost (rest week benefit)</li>
+                    <li><strong>Players IN Origin</strong> — Return more fatigued (but earn rep honours!)</li>
+                  </ul>
                 </div>
               )}
 
@@ -422,6 +512,12 @@ export default function GuidePage() {
                     Only Australian players born in NSW or QLD are eligible for Origin. Check your players' state in their profile!
                   </p>
 
+                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
+                    <p className="text-yellow-400 m-0">
+                      <strong>Origin Trade-off:</strong> Players selected for Origin earn prestige and badges, but return to their clubs more fatigued. Players NOT selected get a rest week fitness boost!
+                    </p>
+                  </div>
+
                   <h3 className="text-xl text-white mt-6">National Teams</h3>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="bg-gray-700 rounded p-2 text-center">
@@ -528,6 +624,13 @@ export default function GuidePage() {
                       <h4 className="text-white font-bold m-0 mb-2">🔄 Rotate Fatigued Players</h4>
                       <p className="text-gray-400 m-0">
                         Check player fitness before each match. A tired 40 OVR player might perform worse than a fresh 35 OVR player.
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-white font-bold m-0 mb-2">🏆 Origin Strategy</h4>
+                      <p className="text-gray-400 m-0">
+                        Having players make Origin is prestigious, but they return tired. Plan your lineup around Origin weekends — your non-Origin players will be extra fresh!
                       </p>
                     </div>
                   </div>
