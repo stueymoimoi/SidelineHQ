@@ -40,6 +40,72 @@ interface Team {
 }
 
 // ============================================================================
+// TEAM SHIELD COMPONENT
+// ============================================================================
+
+interface ShieldProps {
+  primaryColor: string;
+  secondaryColor: string;
+  tertiaryColor?: string;
+  teamAbbr: string;
+  size?: number;
+  customLogo?: string | null; // Future: URL to uploaded logo
+}
+
+const Shield = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', teamAbbr, size = 80, customLogo }: ShieldProps) => {
+  // If custom logo exists, show that instead
+  if (customLogo) {
+    return (
+      <div 
+        className="rounded-full overflow-hidden border-4"
+        style={{ 
+          width: size, 
+          height: size, 
+          borderColor: tertiaryColor 
+        }}
+      >
+        <img src={customLogo} alt="Team Logo" className="w-full h-full object-cover" />
+      </div>
+    );
+  }
+
+  // Default generated shield
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer ring */}
+      <circle cx="50" cy="50" r="48" fill={primaryColor} stroke={tertiaryColor} strokeWidth="4" />
+      
+      {/* Inner circle */}
+      <circle cx="50" cy="50" r="38" fill={secondaryColor} />
+      
+      {/* Center accent circle */}
+      <circle cx="50" cy="50" r="28" fill={primaryColor} />
+      
+      {/* Team abbreviation */}
+      <text 
+        x="50" 
+        y="50" 
+        textAnchor="middle" 
+        dominantBaseline="middle"
+        fill={tertiaryColor}
+        fontSize="22" 
+        fontWeight="bold"
+        fontFamily="Arial, sans-serif"
+        style={{ textShadow: `1px 1px 2px ${secondaryColor}` }}
+      >
+        {teamAbbr}
+      </text>
+      
+      {/* Decorative lines */}
+      <path d="M20 50 L30 50" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
+      <path d="M70 50 L80 50" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
+      <path d="M50 20 L50 30" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
+      <path d="M50 70 L50 80" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+};
+
+// ============================================================================
 // JERSEY COMPONENT
 // ============================================================================
 
@@ -506,6 +572,17 @@ export default function SquadPage() {
           </Link>
           
           <div className="flex items-center gap-8">
+            {/* Team Shield */}
+            {team && (
+              <Shield
+                primaryColor={team.primary_color}
+                secondaryColor={team.secondary_color}
+                tertiaryColor={team.tertiary_color || '#FFFFFF'}
+                teamAbbr={getTeamAbbr(team.name)}
+                size={85}
+              />
+            )}
+            
             {/* Team Info */}
             <div>
               <h1 className="text-4xl font-bold text-white">{team?.name}</h1>
