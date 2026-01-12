@@ -53,7 +53,23 @@ interface Tactics {
   bench_4: string | null;
   goal_kicker: string | null;
   captain: string | null;
+  attack_focus: string;
+  defense_focus: string;
 }
+
+const ATTACK_OPTIONS = [
+  { value: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'Spread attack evenly across the field' },
+  { value: 'left', label: 'Left Edge', emoji: '⬅️', desc: 'Focus attack through left winger & centre' },
+  { value: 'middle', label: 'Middle', emoji: '⬆️', desc: 'Attack through forwards up the guts' },
+  { value: 'right', label: 'Right Edge', emoji: '➡️', desc: 'Focus attack through right winger & centre' },
+];
+
+const DEFENSE_OPTIONS = [
+  { value: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'Defend evenly across the field' },
+  { value: 'left', label: 'Guard Left', emoji: '🛡️⬅️', desc: 'Extra cover on left edge' },
+  { value: 'middle', label: 'Pack Middle', emoji: '🛡️⬆️', desc: 'Clog the middle, stop forward runs' },
+  { value: 'right', label: 'Guard Right', emoji: '🛡️➡️', desc: 'Extra cover on right edge' },
+];
 
 export default function TacticsPage() {
   const [team, setTeam] = useState<Team | null>(null);
@@ -112,7 +128,12 @@ export default function TacticsPage() {
         .eq('team_id', coach.team_id)
         .single();
 
-      setTactics(tacticsData);
+      // Set defaults if not present
+      setTactics({
+        ...tacticsData,
+        attack_focus: tacticsData?.attack_focus || 'balanced',
+        defense_focus: tacticsData?.defense_focus || 'balanced',
+      });
 
     } catch (err) {
       console.error('Error:', err);
@@ -176,6 +197,8 @@ export default function TacticsPage() {
           bench_4: tactics.bench_4,
           goal_kicker: tactics.goal_kicker,
           captain: tactics.captain,
+          attack_focus: tactics.attack_focus,
+          defense_focus: tactics.defense_focus,
         })
         .eq('team_id', team.id);
 
@@ -204,7 +227,6 @@ export default function TacticsPage() {
     else if (percentage >= 60) color = 'text-yellow-400';
     else if (percentage >= 45) color = 'text-orange-400';
     
-    // Sample size indicator
     let sampleIndicator = '';
     if (attempts < 5) sampleIndicator = '*';
     
@@ -256,15 +278,13 @@ export default function TacticsPage() {
   const currentKicker = getPlayerById(tactics?.goal_kicker || null);
   const currentKickerStats = currentKicker ? getConversionDisplay(currentKicker) : null;
 
-  // Get other potential kickers (sorted by attempts, then position relevance)
+  // Get other potential kickers
   const otherKickers = players
     .filter(p => p.id !== tactics?.goal_kicker)
     .sort((a, b) => {
-      // Prioritize those with attempts
       if ((b.goal_kick_attempts || 0) !== (a.goal_kick_attempts || 0)) {
         return (b.goal_kick_attempts || 0) - (a.goal_kick_attempts || 0);
       }
-      // Then by kicking stat
       return b.kicking - a.kicking;
     })
     .slice(0, 5);
@@ -296,6 +316,75 @@ export default function TacticsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
+
+        {/* ATTACK & DEFENSE FOCUS - NEW SECTION */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Attack Focus */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h3 className="text-white font-bold mb-3">⚔️ Attack Focus</h3>
+            <p className="text-gray-500 text-xs mb-3">Where will you focus your attacking plays?</p>
+            <div className="space-y-2">
+              {ATTACK_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setTactics({ ...tactics!, attack_focus: option.value })}
+                  className={`w-full p-3 rounded-lg text-left transition ${
+                    tactics?.attack_focus === option.value
+                      ? 'bg-green-600/30 border-2 border-green-500'
+                      : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{option.emoji}</span>
+                    <div>
+                      <p className="text-white font-bold">{option.label}</p>
+                      <p className="text-gray-400 text-xs">{option.desc}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Defense Focus */}
+          <div className="bg-gray-800 rounded-xl p-4">
+            <h3 className="text-white font-bold mb-3">🛡️ Defense Focus</h3>
+            <p className="text-gray-500 text-xs mb-3">Where will you concentrate your defense?</p>
+            <div className="space-y-2">
+              {DEFENSE_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setTactics({ ...tactics!, defense_focus: option.value })}
+                  className={`w-full p-3 rounded-lg text-left transition ${
+                    tactics?.defense_focus === option.value
+                      ? 'bg-blue-600/30 border-2 border-blue-500'
+                      : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{option.emoji}</span>
+                    <div>
+                      <p className="text-white font-bold">{option.label}</p>
+                      <p className="text-gray-400 text-xs">{option.desc}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tactical Tips */}
+        <div className="bg-gray-800/50 rounded-lg p-4 mb-6 border border-gray-700">
+          <h4 className="text-yellow-400 font-bold text-sm mb-2">💡 Tactical Tips</h4>
+          <ul className="text-gray-400 text-xs space-y-1">
+            <li>• <strong>Counter your opponent:</strong> If they attack left, defend left to neutralize</li>
+            <li>• <strong>Mismatch advantage:</strong> Attacking where they're not defending gives ~10% boost</li>
+            <li>• <strong>Middle attack:</strong> Works best with strong Props, Hooker & Lock</li>
+            <li>• <strong>Edge attacks:</strong> Rely on quality Halves to unlock your outside backs</li>
+          </ul>
+        </div>
+
         {/* Football Field */}
         <div 
           className="rounded-xl p-6 mb-6 relative overflow-hidden border-4 border-white/50"
@@ -304,7 +393,7 @@ export default function TacticsPage() {
             minHeight: '750px'
           }}
         >
-          {/* Top Goalpost - Capital H shape */}
+          {/* Top Goalpost */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2">
             <div className="absolute -left-10 top-0 w-2 h-20 bg-white shadow-lg"></div>
             <div className="absolute left-8 top-0 w-2 h-20 bg-white shadow-lg"></div>
@@ -402,7 +491,7 @@ export default function TacticsPage() {
           </div>
         </div>
 
-        {/* Goal Kicker Section - NEW */}
+        {/* Goal Kicker Section */}
         <div className="bg-gray-800 rounded-xl p-4 mb-6">
           <h3 className="text-white font-bold mb-3">🎯 Goal Kicker</h3>
           
@@ -437,7 +526,6 @@ export default function TacticsPage() {
             Change Goal Kicker
           </button>
 
-          {/* Other Options Preview */}
           {otherKickers.length > 0 && (
             <div>
               <p className="text-gray-500 text-xs mb-2">Other Options:</p>
@@ -561,7 +649,6 @@ export default function TacticsPage() {
             <div className="space-y-2">
               {players
                 .sort((a, b) => {
-                  // Sort by attempts (more tested first), then by success rate
                   const aAttempts = a.goal_kick_attempts || 0;
                   const bAttempts = b.goal_kick_attempts || 0;
                   if (bAttempts !== aAttempts) return bAttempts - aAttempts;
