@@ -36,6 +36,7 @@ interface Team {
   name: string;
   primary_color: string;
   secondary_color: string;
+  tertiary_color: string;
 }
 
 // ============================================================================
@@ -47,16 +48,18 @@ type JerseyPattern = 'solid' | 'hoops' | 'vstripes' | 'chevron' | 'diagonal';
 interface JerseyProps {
   primaryColor: string;
   secondaryColor: string;
+  tertiaryColor?: string;
   pattern?: JerseyPattern;
   isAway?: boolean;
   size?: number;
   teamAbbr?: string;
 }
 
-const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = false, size = 120, teamAbbr = '' }: JerseyProps) => {
+const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', pattern = 'solid', isAway = false, size = 120, teamAbbr = '' }: JerseyProps) => {
   // Swap colors for away jersey
   const mainColor = isAway ? secondaryColor : primaryColor;
   const trimColor = isAway ? primaryColor : secondaryColor;
+  const accentColor = tertiaryColor;
   
   const patternId = `pattern-${isAway ? 'away' : 'home'}-${Math.random().toString(36).substr(2, 9)}`;
   
@@ -117,34 +120,51 @@ const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = fals
         strokeWidth="2"
       />
       
-      {/* Collar V-neck */}
+      {/* Collar V-neck - ACCENT COLOR */}
       <path 
         d="M42 28 L50 40 L58 28" 
         fill="none" 
-        stroke={trimColor} 
+        stroke={accentColor} 
         strokeWidth="3"
         strokeLinecap="round"
       />
       
-      {/* Left Sleeve Band */}
-      <path d="M12 50 L22 52" stroke={trimColor} strokeWidth="4" strokeLinecap="round" />
+      {/* Left Sleeve Band - ACCENT COLOR */}
+      <path d="M12 50 L22 52" stroke={accentColor} strokeWidth="4" strokeLinecap="round" />
       
-      {/* Right Sleeve Band */}
-      <path d="M88 50 L78 52" stroke={trimColor} strokeWidth="4" strokeLinecap="round" />
+      {/* Right Sleeve Band - ACCENT COLOR */}
+      <path d="M88 50 L78 52" stroke={accentColor} strokeWidth="4" strokeLinecap="round" />
       
       {/* Team Abbreviation on Jersey */}
       {teamAbbr && (
-        <text 
-          x="50" 
-          y="72" 
-          textAnchor="middle" 
-          fill={trimColor} 
-          fontSize="14" 
-          fontWeight="bold"
-          fontFamily="Arial, sans-serif"
-        >
-          {teamAbbr}
-        </text>
+        <>
+          {/* Text outline/shadow for contrast */}
+          <text 
+            x="50" 
+            y="72" 
+            textAnchor="middle" 
+            fill={accentColor}
+            stroke={accentColor}
+            strokeWidth="3"
+            fontSize="14" 
+            fontWeight="bold"
+            fontFamily="Arial, sans-serif"
+          >
+            {teamAbbr}
+          </text>
+          {/* Main text */}
+          <text 
+            x="50" 
+            y="72" 
+            textAnchor="middle" 
+            fill={trimColor} 
+            fontSize="14" 
+            fontWeight="bold"
+            fontFamily="Arial, sans-serif"
+          >
+            {teamAbbr}
+          </text>
+        </>
       )}
       
       {/* Arms - Hands on Hips Pose */}
@@ -167,6 +187,9 @@ const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = fals
         strokeWidth="1"
       />
       
+      {/* Shorts stripe - ACCENT COLOR */}
+      <path d="M26 95 L74 95" stroke={accentColor} strokeWidth="2" />
+      
       {/* Left Leg */}
       <path d="M28 112 L30 125" stroke="#E8D4C4" strokeWidth="8" strokeLinecap="round" />
       {/* Right Leg */}
@@ -175,6 +198,10 @@ const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = fals
       {/* Socks */}
       <rect x="24" y="118" width="12" height="8" rx="2" fill={mainColor} />
       <rect x="64" y="118" width="12" height="8" rx="2" fill={mainColor} />
+      
+      {/* Sock stripes - ACCENT COLOR */}
+      <path d="M24 121 L36 121" stroke={accentColor} strokeWidth="1" />
+      <path d="M64 121 L76 121" stroke={accentColor} strokeWidth="1" />
       
       {/* Boots */}
       <ellipse cx="30" cy="128" rx="8" ry="3" fill="#222" />
@@ -471,20 +498,21 @@ export default function SquadPage() {
             ← Back to Clubhouse
           </Link>
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-8">
             {/* Team Info */}
-            <div className="flex-1">
+            <div>
               <h1 className="text-4xl font-bold text-white">{team?.name}</h1>
               <p className="text-white/80 text-lg">👥 Squad • {players.length} Players</p>
             </div>
             
-            {/* Jerseys Display - Close Together */}
+            {/* Jerseys Display - Right next to team name */}
             {team && (
               <div className="flex items-end gap-1">
                 <div className="text-center">
                   <Jersey 
                     primaryColor={team.primary_color} 
                     secondaryColor={team.secondary_color}
+                    tertiaryColor={team.tertiary_color || '#FFFFFF'}
                     pattern="solid"
                     isAway={false}
                     size={70}
@@ -496,6 +524,7 @@ export default function SquadPage() {
                   <Jersey 
                     primaryColor={team.primary_color} 
                     secondaryColor={team.secondary_color}
+                    tertiaryColor={team.tertiary_color || '#FFFFFF'}
                     pattern="solid"
                     isAway={true}
                     size={70}
