@@ -53,7 +53,8 @@ const sports: Sport[] = [
   },
 ];
 
-export default function HomePage() {
+export default function LandingPage() {
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [hoveredSport, setHoveredSport] = useState<string | null>(null);
   const router = useRouter();
@@ -64,20 +65,21 @@ export default function HomePage() {
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.push('/auth');
-      return;
-    }
+    setUser(user);
     setLoading(false);
+    // Don't redirect - let everyone see this page
   };
 
   const handleSelectSport = async (sport: Sport) => {
     if (!sport.available) return;
 
-    // Check if user has a coach record with a team
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    // Not logged in? Send to auth
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
 
+    // Check if user has a coach record with a team
     const { data: coach } = await supabase
       .from('coaches')
       .select('team_id, approved')
@@ -85,16 +87,12 @@ export default function HomePage() {
       .single();
 
     if (!coach) {
-      // No coach record - go to choose team (which will create one)
       router.push('/choose-team');
     } else if (!coach.team_id) {
-      // Has coach record but no team
       router.push('/choose-team');
     } else if (!coach.approved) {
-      // Has team but not approved
       router.push('/pending');
     } else {
-      // Fully set up - go to clubhouse
       router.push('/clubhouse');
     }
   };
@@ -145,10 +143,8 @@ export default function HomePage() {
                   : 'cursor-not-allowed opacity-60'
               }`}
             >
-              {/* Background Gradient */}
               <div className={`absolute inset-0 bg-gradient-to-br ${sport.color} opacity-90`} />
               
-              {/* Content */}
               <div className="relative z-10 p-8">
                 <div className="flex items-start justify-between mb-4">
                   <div className="text-6xl">{sport.icon}</div>
@@ -182,7 +178,6 @@ export default function HomePage() {
                 )}
               </div>
               
-              {/* Shine Effect on Hover */}
               {sport.available && hoveredSport === sport.id && (
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent transform -skew-x-12 animate-pulse" />
               )}
@@ -190,7 +185,6 @@ export default function HomePage() {
           ))}
         </div>
         
-        {/* Footer Note */}
         <div className="mt-12 text-center">
           <p className="text-gray-600 text-sm">
             More sports coming in 2026 • Built with ❤️ for sports fans
