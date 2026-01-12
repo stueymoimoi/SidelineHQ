@@ -1,624 +1,501 @@
-'use client';
-
-import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { NextResponse } from 'next/server';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-interface Team {
-  id: string;
-  name: string;
-  city: string;
-  primary_color: string;
-  secondary_color: string;
-  wins: number;
-  draws: number;
-  losses: number;
-  points_for: number;
-  points_against: number;
-  division: number;
+// Config
+const SEASON = 0;
+const HOME_ADVANTAGE = 3;
+const BASE_TRIES = 4;
+
+function rollChance(pct: number) {
+  return Math.random() * 100 < pct;
 }
 
-interface Fixture {
-  id: string;
-  home_team_id: string;
-  away_team_id: string;
-  round: number;
-  season: number;
-  played: boolean;
-  division: number;
+// Calculate match performance for MOTM
+function calculateMatchPerformance(player: any): number {
+  const baseScore = player.overall;
+  const fatigueMultiplier = 1 - (player.fatigue / 200); // 0% fatigue = 1.0, 100% fatigue = 0.5
+  const variance = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2 random factor
+  return baseScore * fatigueMultiplier * variance;
 }
 
-interface MatchResult {
-  id: string;
-  fixture_id: string;
-  home_score: number;
-  away_score: number;
-  home_team_id: string;
-  away_team_id: string;
-}
-
-interface FixtureWithTeams extends Fixture {
-  home_team: Team;
-  away_team: Team;
-  result?: MatchResult;
-}
-
-// Season 0 schedule: Tues, Thurs, Sun at 6pm AEST
-const SEASON_0_START = new Date('2026-01-13T07:00:00Z'); // Tuesday 13th Jan 6pm AEST = 7am UTC
-
-// Pre-calculate all 18 round dates
-function getRoundDates(): Date[] {
-  const dates: Date[] = [];
-  const start = new Date(SEASON_0_START);
-  let current = new Date(start);
+export async function GET() {
+  const logs: string[] = [];
   
-  for (let round = 1; round <= 18; round++) {
-    dates.push(new Date(current));
+  try {
+    // Find next round to simulate
+    const { data: fixtures } = await supabase
+      .from('fixtures')
+      .select('*')
+      .eq('season', SEASON)
+      .eq('played', false)
+      .order('round', { ascending: true });
     
-    // Move to next update day: Tue -> Thu (+2), Thu -> Sun (+3), Sun -> Tue (+2)
-    const day = current.getDay();
-    if (day === 2) current.setDate(current.getDate() + 2);      // Tue -> Thu
-    else if (day === 4) current.setDate(current.getDate() + 3); // Thu -> Sun
-    else current.setDate(current.getDate() + 2);                // Sun -> Tue
-  }
-  
-  return dates;
-}
-
-const ROUND_DATES = getRoundDates();
-
-function getCurrentRoundFromSchedule(): number {
-  const now = new Date();
-  
-  // Find which round we're up to based on dates
-  for (let i = ROUND_DATES.length - 1; i >= 0; i--) {
-    if (now >= ROUND_DATES[i]) {
-      return i + 1; // Round numbers are 1-indexed
+    if (!fixtures || fixtures.length === 0) {
+      return NextResponse.json({ success: true, message: 'Season complete!' });
     }
-  }
-  
-  return 0; // Season hasn't started yet
-}
-
-function getNextUpdateTime(): { date: Date; round: number } {
-  const now = new Date();
-  
-  // Find next round that hasn't happened yet
-  for (let i = 0; i < ROUND_DATES.length; i++) {
-    if (now < ROUND_DATES[i]) {
-      return { date: ROUND_DATES[i], round: i + 1 };
-    }
-  }
-  
-  // All rounds done
-  return { date: ROUND_DATES[ROUND_DATES.length - 1], round: 18 };
-}
-
-function formatCountdown(targetDate: Date): string {
-  const now = new Date();
-  const diff = targetDate.getTime() - now.getTime();
-  
-  if (diff <= 0) return 'Update pending...';
-  
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
-}
-
-function getDayName(date: Date): string {
-  return date.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Sydney' });
-}
-
-export default function FixturesPage() {
-  const [loading, setLoading] = useState(true);
-  const [team, setTeam] = useState<Team | null>(null);
-  const [allTeams, setAllTeams] = useState<Record<string, Team>>({});
-  const [fixtures, setFixtures] = useState<FixtureWithTeams[]>([]);
-  const [currentRound, setCurrentRound] = useState(1);
-  const [selectedRound, setSelectedRound] = useState<number | null>(null);
-  const [countdown, setCountdown] = useState('');
-  const [nextUpdate, setNextUpdate] = useState<{ date: Date; round: number } | null>(null);
-  const [seasonStarted, setSeasonStarted] = useState(false);
-  const [userDivision, setUserDivision] = useState(1);
-  const router = useRouter();
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Countdown timer
-  useEffect(() => {
-    const updateCountdown = () => {
-      const scheduleRound = getCurrentRoundFromSchedule();
-      setSeasonStarted(scheduleRound > 0);
-      
-      const next = getNextUpdateTime();
-      setNextUpdate(next);
-      setCountdown(formatCountdown(next.date));
-    };
     
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    const currentRound = fixtures[0].round;
+    const roundFixtures = fixtures.filter((f: { round: number }) => f.round === currentRound);
     
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadData = async () => {
-    try {
-      // Check auth
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
-
-      // Get coach
-      const { data: coach } = await supabase
-        .from('coaches')
-        .select('team_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!coach?.team_id) {
-        router.push('/choose-team');
-        return;
-      }
-
-      // Get user's team FIRST to know their division
-      const { data: myTeam } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', coach.team_id)
-        .single();
-
-      if (!myTeam) return;
-
-      setTeam(myTeam);
-      setUserDivision(myTeam.division);
-
-      // Get all teams in user's division
-      const { data: teams } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('division', myTeam.division);
-
-      if (!teams) return;
-
-      const teamsMap: Record<string, Team> = {};
-      teams.forEach(t => { teamsMap[t.id] = t; });
-      setAllTeams(teamsMap);
-
-      // Get fixtures for user's division only
-      const { data: fixturesData } = await supabase
-        .from('fixtures')
-        .select('*')
-        .eq('season', 0)
-        .eq('division', myTeam.division)
-        .order('round', { ascending: true });
-
-      // Get all match results for this division's fixtures
-      const fixtureIds = (fixturesData || []).map(f => f.id);
-      let resultsMap: Record<string, MatchResult> = {};
-      
-      if (fixtureIds.length > 0) {
-        const { data: results } = await supabase
-          .from('match_results')
-          .select('*')
-          .in('fixture_id', fixtureIds);
-
-        results?.forEach(r => { resultsMap[r.fixture_id] = r; });
-      }
-
-      // Combine fixtures with teams and results
-      const fixturesWithTeams: FixtureWithTeams[] = (fixturesData || [])
-        .filter(f => teamsMap[f.home_team_id] && teamsMap[f.away_team_id]) // Only include fixtures where both teams exist
-        .map(f => ({
-          ...f,
-          home_team: teamsMap[f.home_team_id],
-          away_team: teamsMap[f.away_team_id],
-          result: resultsMap[f.id],
-        }));
-
-      setFixtures(fixturesWithTeams);
-
-      // Set current round based on schedule, not played status
-      const scheduleRound = getCurrentRoundFromSchedule();
-      const displayRound = scheduleRound > 0 ? scheduleRound : 1;
-      setCurrentRound(displayRound);
-      setSelectedRound(displayRound);
-      setSeasonStarted(scheduleRound > 0);
-
-    } catch (err) {
-      console.error('Error:', err);
-    } finally {
-      setLoading(false);
+    logs.push(`Simulating Round ${currentRound}`);
+    
+    // Get ALL teams
+    const { data: teams } = await supabase.from('teams').select('*');
+    const teamsMap: Record<string, any> = {};
+    teams?.forEach((t: any) => { teamsMap[t.id] = t; });
+    
+    // Calculate ladder positions (per division)
+    const divisionLadders: Record<number, Record<string, number>> = {};
+    for (let div = 1; div <= 10; div++) {
+      const divTeams = (teams || []).filter(t => t.division === div);
+      const sorted = [...divTeams].sort((a, b) => {
+        const aPoints = (a.wins * 2) + a.draws;
+        const bPoints = (b.wins * 2) + b.draws;
+        if (bPoints !== aPoints) return bPoints - aPoints;
+        return (b.points_for - b.points_against) - (a.points_for - a.points_against);
+      });
+      divisionLadders[div] = {};
+      sorted.forEach((t, i) => { divisionLadders[div][t.id] = i + 1; });
     }
-  };
-
-  // Get user's next match
-  const getMyNextMatch = (): FixtureWithTeams | null => {
-    if (!team) return null;
-    return fixtures.find(f => 
-      !f.played && 
-      (f.home_team_id === team.id || f.away_team_id === team.id)
-    ) || null;
-  };
-
-  // Get fixtures for a specific round
-  const getFixturesForRound = (round: number): FixtureWithTeams[] => {
-    return fixtures.filter(f => f.round === round);
-  };
-
-  // Get user's results
-  const getMyResults = (): FixtureWithTeams[] => {
-    if (!team) return [];
-    return fixtures.filter(f => 
-      f.played && 
-      (f.home_team_id === team.id || f.away_team_id === team.id)
-    );
-  };
-
-  const myNextMatch = getMyNextMatch();
-  const roundFixtures = selectedRound ? getFixturesForRound(selectedRound) : [];
-  const myResults = getMyResults();
-
-  // Calculate ladder standings
-  const getLadder = () => {
-    const teamsArray = Object.values(allTeams);
-    return teamsArray.sort((a, b) => {
-      // Sort by: points (W*2 + D), then point diff, then points for
-      const aPoints = (a.wins * 2) + a.draws;
-      const bPoints = (b.wins * 2) + b.draws;
-      if (bPoints !== aPoints) return bPoints - aPoints;
-      
-      const aDiff = a.points_for - a.points_against;
-      const bDiff = b.points_for - b.points_against;
-      if (bDiff !== aDiff) return bDiff - aDiff;
-      
-      return b.points_for - a.points_for;
+    
+    // Flatten for easy lookup
+    const ladderPositions: Record<string, number> = {};
+    Object.values(divisionLadders).forEach(divLadder => {
+      Object.assign(ladderPositions, divLadder);
     });
-  };
-
-  const ladder = getLadder();
-  
-  // Get ordinal suffix (1st, 2nd, 3rd, etc.)
-  const getOrdinal = (n: number) => {
-    const s = ['th', 'st', 'nd', 'rd'];
-    const v = n % 100;
-    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-  };
-  
-  // Get ladder position for a team
-  const getLadderPosition = (teamId: string): string => {
-    const pos = ladder.findIndex(t => t.id === teamId) + 1;
-    return getOrdinal(pos);
-  };
-
-  // Determine result for user's team
-  const getResultBadge = (fixture: FixtureWithTeams): { text: string; color: string } => {
-    if (!fixture.result || !team) return { text: '', color: '' };
     
-    const isHome = fixture.home_team_id === team.id;
-    const myScore = isHome ? fixture.result.home_score : fixture.result.away_score;
-    const theirScore = isHome ? fixture.result.away_score : fixture.result.home_score;
-    
-    if (myScore > theirScore) return { text: 'W', color: 'bg-green-500' };
-    if (myScore < theirScore) return { text: 'L', color: 'bg-red-500' };
-    return { text: 'D', color: 'bg-yellow-500' };
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-900">
-      {/* Header with team colors */}
-      <div 
-        className="p-6"
-        style={{
-          background: `linear-gradient(135deg, ${team?.primary_color || '#1f2937'} 0%, ${team?.secondary_color || '#111827'} 100%)`
-        }}
-      >
-        <div className="max-w-6xl mx-auto">
-          <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
-            ← Back to Clubhouse
-          </Link>
-          <h1 className="text-3xl font-bold text-white">📅 Fixtures</h1>
-          <p className="text-white/80 mt-1">
-            Season 0 • Division {userDivision} • {seasonStarted ? `Round ${currentRound} of 18` : 'Pre-Season'}
-          </p>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
+    // Simulate each match
+    for (const fixture of roundFixtures) {
+      const homeTeam = teamsMap[fixture.home_team_id];
+      const awayTeam = teamsMap[fixture.away_team_id];
+      
+      // Skip if teams don't exist
+      if (!homeTeam || !awayTeam) {
+        logs.push(`Skipping fixture - missing team`);
+        continue;
+      }
+      
+      // Get team strengths (top 13 players with full data for MOTM)
+      const { data: homePlayers } = await supabase
+        .from('players')
+        .select('id, first_name, last_name, position, overall, fatigue, team_id')
+        .eq('team_id', fixture.home_team_id)
+        .order('overall', { ascending: false })
+        .limit(13);
+      
+      const { data: awayPlayers } = await supabase
+        .from('players')
+        .select('id, first_name, last_name, position, overall, fatigue, team_id')
+        .eq('team_id', fixture.away_team_id)
+        .order('overall', { ascending: false })
+        .limit(13);
+      
+      const homeStrength = (homePlayers?.reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13 + HOME_ADVANTAGE;
+      const awayStrength = (awayPlayers?.reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
+      
+      // Calculate MOTM from all 26 players
+      const allPlayers = [...(homePlayers || []), ...(awayPlayers || [])];
+      let motmPlayer: any = null;
+      let motmScore = 0;
+      
+      for (const player of allPlayers) {
+        const performance = calculateMatchPerformance(player);
+        if (performance > motmScore) {
+          motmScore = performance;
+          motmPlayer = player;
+        }
+      }
+      
+      // Get goal kickers
+      const { data: homeTactics } = await supabase
+        .from('team_tactics')
+        .select('goal_kicker')
+        .eq('team_id', fixture.home_team_id)
+        .single();
+      
+      const { data: awayTactics } = await supabase
+        .from('team_tactics')
+        .select('goal_kicker')
+        .eq('team_id', fixture.away_team_id)
+        .single();
+      
+      let homeKicking = 60;
+      let awayKicking = 60;
+      
+      if (homeTactics?.goal_kicker) {
+        const { data: kicker } = await supabase.from('players').select('kicking').eq('id', homeTactics.goal_kicker).single();
+        if (kicker) homeKicking = kicker.kicking;
+      }
+      
+      if (awayTactics?.goal_kicker) {
+        const { data: kicker } = await supabase.from('players').select('kicking').eq('id', awayTactics.goal_kicker).single();
+        if (kicker) awayKicking = kicker.kicking;
+      }
+      
+      // Calculate tries
+      const strengthDiff = homeStrength - awayStrength;
+      const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 20) + (Math.random() - 0.5) * 4));
+      const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 20) + (Math.random() - 0.5) * 4));
+      
+      // Conversions
+      let homeConv = 0, awayConv = 0;
+      for (let i = 0; i < homeTries; i++) if (rollChance(homeKicking)) homeConv++;
+      for (let i = 0; i < awayTries; i++) if (rollChance(awayKicking)) awayConv++;
+      
+      // Penalties
+      const homePen = rollChance(30) ? (rollChance(30) ? 2 : 1) : 0;
+      const awayPen = rollChance(30) ? (rollChance(30) ? 2 : 1) : 0;
+      
+      // Final scores
+      const homeScore = (homeTries * 4) + (homeConv * 2) + (homePen * 2);
+      const awayScore = (awayTries * 4) + (awayConv * 2) + (awayPen * 2);
+      
+      // Save result with MOTM
+      await supabase.from('match_results').insert({
+        fixture_id: fixture.id,
+        home_team_id: fixture.home_team_id,
+        away_team_id: fixture.away_team_id,
+        home_score: homeScore,
+        away_score: awayScore,
+        motm_player_id: motmPlayer?.id || null,
+        motm_score: motmScore
+      });
+      
+      // Mark played
+      await supabase.from('fixtures').update({ played: true }).eq('id', fixture.id);
+      
+      // Update standings
+      const homeWin = homeScore > awayScore;
+      const awayWin = awayScore > homeScore;
+      const draw = homeScore === awayScore;
+      
+      await supabase.from('teams').update({
+        wins: homeTeam.wins + (homeWin ? 1 : 0),
+        draws: homeTeam.draws + (draw ? 1 : 0),
+        losses: homeTeam.losses + (awayWin ? 1 : 0),
+        points_for: homeTeam.points_for + homeScore,
+        points_against: homeTeam.points_against + awayScore
+      }).eq('id', homeTeam.id);
+      
+      await supabase.from('teams').update({
+        wins: awayTeam.wins + (awayWin ? 1 : 0),
+        draws: awayTeam.draws + (draw ? 1 : 0),
+        losses: awayTeam.losses + (homeWin ? 1 : 0),
+        points_for: awayTeam.points_for + awayScore,
+        points_against: awayTeam.points_against + homeScore
+      }).eq('id', awayTeam.id);
+      
+      // Add fatigue to players who played (+15%)
+      const { data: homeLineup } = await supabase.from('team_tactics').select('*').eq('team_id', fixture.home_team_id).single();
+      const { data: awayLineup } = await supabase.from('team_tactics').select('*').eq('team_id', fixture.away_team_id).single();
+      
+      const posFields = ['pos_fullback', 'pos_winger_l', 'pos_winger_r', 'pos_centre_l', 'pos_centre_r',
+        'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_prop_r', 'pos_hooker',
+        'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'];
+      
+      for (const field of posFields) {
+        if (homeLineup?.[field]) {
+          const { data: p } = await supabase.from('players').select('fatigue').eq('id', homeLineup[field]).single();
+          if (p) await supabase.from('players').update({ fatigue: Math.min(100, p.fatigue + 15) }).eq('id', homeLineup[field]);
+        }
+        if (awayLineup?.[field]) {
+          const { data: p } = await supabase.from('players').select('fatigue').eq('id', awayLineup[field]).single();
+          if (p) await supabase.from('players').update({ fatigue: Math.min(100, p.fatigue + 15) }).eq('id', awayLineup[field]);
+        }
+      }
+      
+      logs.push(`${homeTeam.city} ${homeScore} - ${awayScore} ${awayTeam.city} | MOTM: ${motmPlayer?.first_name} ${motmPlayer?.last_name}`);
+      
+      // Create notifications for both teams
+      const homeResult = homeWin ? 'win' : awayWin ? 'loss' : 'draw';
+      const awayResult = awayWin ? 'win' : homeWin ? 'loss' : 'draw';
+      
+      const homeTitle = homeWin ? '🏆 Victory!' : awayWin ? '😢 Defeat' : '🤝 Draw';
+      const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
+      
+      const homeMsg = homeWin 
+        ? `Congratulations! ${homeTeam.city} ${homeTeam.name} defeated ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`
+        : awayWin
+        ? `${homeTeam.city} ${homeTeam.name} lost to ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`
+        : `${homeTeam.city} ${homeTeam.name} drew with ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`;
+      
+      const awayMsg = awayWin
+        ? `Congratulations! ${awayTeam.city} ${awayTeam.name} defeated ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`
+        : homeWin
+        ? `${awayTeam.city} ${awayTeam.name} lost to ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`
+        : `${awayTeam.city} ${awayTeam.name} drew with ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`;
+      
+      await supabase.from('notifications').insert({
+        team_id: homeTeam.id,
+        type: `match_${homeResult}`,
+        title: homeTitle,
+        message: homeMsg,
+        fixture_id: fixture.id
+      });
+      
+      await supabase.from('notifications').insert({
+        team_id: awayTeam.id,
+        type: `match_${awayResult}`,
+        title: awayTitle,
+        message: awayMsg,
+        fixture_id: fixture.id
+      });
+      
+      // MOTM notification + XP bonus
+      if (motmPlayer) {
+        const motmTeam = teamsMap[motmPlayer.team_id];
+        const motmTeamName = motmTeam ? `${motmTeam.city} ${motmTeam.name}` : 'Unknown';
         
-        {/* Next Update Countdown */}
-        <div className="bg-gray-800 rounded-lg p-4 border-l-4 border-green-500">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">
-                {seasonStarted ? `Round ${nextUpdate?.round} Simulates` : 'Season Kicks Off'}
-              </p>
-              <p className="text-white font-bold text-lg">
-                {nextUpdate && getDayName(nextUpdate.date)} 6:00 PM AEST
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-gray-400 text-sm">Countdown</p>
-              <p className="text-green-400 font-bold text-2xl">{countdown}</p>
-            </div>
-          </div>
-          <p className="text-gray-500 text-xs mt-2">
-            Season 0 Schedule: Tuesday, Thursday & Sunday at 6pm
-          </p>
-        </div>
-
-        {/* My Next Match */}
-        {myNextMatch && (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-gray-400 text-sm mb-3">YOUR NEXT MATCH • Round {myNextMatch.round}</h2>
-            <div className="flex items-center justify-between">
-              {/* Home Team */}
-              <div className="flex-1 text-center">
-                <div 
-                  className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
-                  style={{ 
-                    backgroundColor: myNextMatch.home_team.primary_color,
-                    color: myNextMatch.home_team.secondary_color 
-                  }}
-                >
-                  {myNextMatch.home_team.city.substring(0, 3).toUpperCase()}
-                </div>
-                <p className="text-white font-bold">{myNextMatch.home_team.city} <span className="text-gray-400 font-normal">({getLadderPosition(myNextMatch.home_team_id)})</span></p>
-                <p className="text-gray-400 text-sm">{myNextMatch.home_team.name}</p>
-                {myNextMatch.home_team_id === team?.id && (
-                  <span className="inline-block bg-green-600 text-white text-xs px-2 py-1 rounded mt-1">
-                    YOUR TEAM
-                  </span>
-                )}
-              </div>
-
-              {/* VS */}
-              <div className="px-6">
-                <div className="text-gray-500 text-2xl font-bold">VS</div>
-                <div className="text-gray-600 text-sm mt-1">
-                  {myNextMatch.home_team_id === team?.id ? 'HOME' : 'AWAY'}
-                </div>
-              </div>
-
-              {/* Away Team */}
-              <div className="flex-1 text-center">
-                <div 
-                  className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
-                  style={{ 
-                    backgroundColor: myNextMatch.away_team.primary_color,
-                    color: myNextMatch.away_team.secondary_color 
-                  }}
-                >
-                  {myNextMatch.away_team.city.substring(0, 3).toUpperCase()}
-                </div>
-                <p className="text-white font-bold">{myNextMatch.away_team.city} <span className="text-gray-400 font-normal">({getLadderPosition(myNextMatch.away_team_id)})</span></p>
-                <p className="text-gray-400 text-sm">{myNextMatch.away_team.name}</p>
-                {myNextMatch.away_team_id === team?.id && (
-                  <span className="inline-block bg-green-600 text-white text-xs px-2 py-1 rounded mt-1">
-                    YOUR TEAM
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Round Selector */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-white font-bold mb-3">Browse Rounds</h2>
-          <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 18 }, (_, i) => i + 1).map(round => {
-              const roundGames = getFixturesForRound(round);
-              const allPlayed = roundGames.length > 0 && roundGames.every(f => f.played);
-              const isCurrentRound = round === currentRound;
-              
-              return (
-                <button
-                  key={round}
-                  onClick={() => setSelectedRound(round)}
-                  className={`w-10 h-10 rounded-lg font-bold transition ${
-                    selectedRound === round
-                      ? 'bg-green-600 text-white'
-                      : allPlayed
-                        ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                        : isCurrentRound
-                          ? 'bg-gray-700 text-green-400 border border-green-500 hover:bg-gray-600'
-                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                  }`}
-                >
-                  {round}
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex gap-4 mt-3 text-xs text-gray-500">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 bg-gray-600 rounded"></span> Completed
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 bg-gray-700 border border-green-500 rounded"></span> Current
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 bg-gray-700 rounded"></span> Upcoming
-            </span>
-          </div>
-        </div>
-
-        {/* Round Fixtures */}
-        {selectedRound && (
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h2 className="text-white font-bold mb-4">
-              Round {selectedRound} {selectedRound === currentRound && <span className="text-green-400 text-sm font-normal">(Current)</span>}
-            </h2>
-            <div className="space-y-3">
-              {roundFixtures.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No fixtures found for this round</p>
-              ) : (
-                roundFixtures.map(fixture => {
-                  const isMyGame = fixture.home_team_id === team?.id || fixture.away_team_id === team?.id;
-                  
-                  return (
-                    <div 
-                      key={fixture.id}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        isMyGame ? 'bg-gray-700 border border-green-500/50' : 'bg-gray-700/50'
-                      }`}
-                    >
-                      {/* Home Team */}
-                      <div className="flex-1 flex items-center gap-2">
-                        <div 
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                          style={{ 
-                            backgroundColor: fixture.home_team.primary_color,
-                            color: fixture.home_team.secondary_color 
-                          }}
-                        >
-                          {fixture.home_team.city.substring(0, 3).toUpperCase()}
-                        </div>
-                        <span className={`${isMyGame && fixture.home_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                          {fixture.home_team.city} <span className="text-gray-500">({getLadderPosition(fixture.home_team_id)})</span>
-                        </span>
-                      </div>
-
-                      {/* Score or VS */}
-                      <div className="px-4 text-center min-w-[80px]">
-                        {fixture.played && fixture.result ? (
-                          <span className="text-white font-bold">
-                            {fixture.result.home_score} - {fixture.result.away_score}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">vs</span>
-                        )}
-                      </div>
-
-                      {/* Away Team */}
-                      <div className="flex-1 flex items-center gap-2 justify-end">
-                        <span className={`${isMyGame && fixture.away_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                          {fixture.away_team.city} <span className="text-gray-500">({getLadderPosition(fixture.away_team_id)})</span>
-                        </span>
-                        <div 
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                          style={{ 
-                            backgroundColor: fixture.away_team.primary_color,
-                            color: fixture.away_team.secondary_color 
-                          }}
-                        >
-                          {fixture.away_team.city.substring(0, 3).toUpperCase()}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* My Results History */}
-        {myResults.length > 0 && (
-          <div className="bg-gray-800 rounded-lg p-4">
-            <h2 className="text-white font-bold mb-4">Your Results</h2>
-            <div className="space-y-2">
-              {myResults.map(fixture => {
-                const isHome = fixture.home_team_id === team?.id;
-                const opponent = isHome ? fixture.away_team : fixture.home_team;
-                const result = getResultBadge(fixture);
-                
-                return (
-                  <div 
-                    key={fixture.id}
-                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm ${result.color}`}>
-                        {result.text}
-                      </span>
-                      <div>
-                        <p className="text-white">
-                          {isHome ? 'vs' : '@'} {opponent.city} {opponent.name} <span className="text-gray-500">({getLadderPosition(opponent.id)})</span>
-                        </p>
-                        <p className="text-gray-500 text-sm">Round {fixture.round}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white font-bold">
-                        {fixture.result && (
-                          isHome 
-                            ? `${fixture.result.home_score} - ${fixture.result.away_score}`
-                            : `${fixture.result.away_score} - ${fixture.result.home_score}`
-                        )}
-                      </p>
-                      <p className="text-gray-500 text-sm">{isHome ? 'Home' : 'Away'}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Season Progress */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-white font-bold mb-3">Season Progress</h2>
-          {(() => {
-            // Count rounds where ALL fixtures are played
-            const completedRounds = new Set<number>();
-            const roundCounts: Record<number, { total: number; played: number }> = {};
+        // Notify MOTM player's team
+        await supabase.from('notifications').insert({
+          team_id: motmPlayer.team_id,
+          type: 'motm',
+          title: '⭐ Man of the Match!',
+          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmPlayer.position}) was awarded Man of the Match! +5 XP`,
+          player_id: motmPlayer.id,
+          fixture_id: fixture.id
+        });
+        
+        // Award +5 XP to the coach
+        const { data: motmCoach } = await supabase
+          .from('coaches')
+          .select('id, xp')
+          .eq('team_id', motmPlayer.team_id)
+          .single();
+        
+        if (motmCoach) {
+          await supabase
+            .from('coaches')
+            .update({ xp: (motmCoach.xp || 0) + 5 })
+            .eq('id', motmCoach.id);
+        }
+        
+        // Notify the other team too (so they know who starred against them)
+        const otherTeamId = motmPlayer.team_id === fixture.home_team_id 
+          ? fixture.away_team_id 
+          : fixture.home_team_id;
+        
+        await supabase.from('notifications').insert({
+          team_id: otherTeamId,
+          type: 'motm_opponent',
+          title: '⭐ Opponent MOTM',
+          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmTeamName}) was Man of the Match`,
+          player_id: motmPlayer.id,
+          fixture_id: fixture.id
+        });
+      }
+    }
+    
+    // Process training
+    const { data: trainingPlayers } = await supabase
+      .from('players')
+      .select('*')
+      .not('current_training', 'is', null);
+    
+    let improvements = 0;
+    const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
+    const STAT_CHANCES: Record<string, number> = { 'NONE': 0, 'POOR': 15, 'FAIR': 35, 'GOOD': 55, 'VERY GOOD': 75, 'EXCELLENT': 90 };
+    const STAT_TRAINING = ['Speed', 'Strength', 'Skill', 'Stamina', 'Defense'];
+    
+    for (const player of trainingPlayers || []) {
+      const updates: Record<string, any> = {};
+      const training = player.current_training;
+      const progress = player.training_progress || 'NONE';
+      const potential = player.potential || 70;
+      const potentialBonus = (potential - 60) / 2;
+      
+      if (training === 'Rest') {
+        updates.fatigue = Math.max(0, player.fatigue - 25);
+      } else {
+        updates.fatigue = Math.min(100, player.fatigue + 5);
+        
+        // Progress advancement
+        if (progress !== 'EXCELLENT' && rollChance(60 + potentialBonus)) {
+          const idx = PROGRESS_STAGES.indexOf(progress);
+          if (idx < PROGRESS_STAGES.length - 1) {
+            updates.training_progress = PROGRESS_STAGES[idx + 1];
+          }
+        }
+        
+        // Stat improvement
+        const effectiveProgress = updates.training_progress || progress;
+        const chance = (STAT_CHANCES[effectiveProgress] || 0) + potentialBonus;
+        
+        if (chance > 0 && rollChance(chance) && STAT_TRAINING.includes(training)) {
+          const statKey = training.toLowerCase();
+          const current = player[statKey];
+          if (current < 99) {
+            const roll = Math.random() * 100;
+            const gain = roll < 50 ? 1 : roll < 85 ? 2 : 3;
+            const newStat = Math.min(99, current + gain);
+            updates[statKey] = newStat;
+            const newOverall = Math.round((
+              (updates.speed ?? player.speed) +
+              (updates.strength ?? player.strength) +
+              (updates.skill ?? player.skill) +
+              (updates.stamina ?? player.stamina) +
+              (updates.defense ?? player.defense)
+            ) / 5);
+            updates.overall = newOverall;
+            improvements++;
             
-            fixtures.forEach(f => {
-              if (!roundCounts[f.round]) roundCounts[f.round] = { total: 0, played: 0 };
-              roundCounts[f.round].total++;
-              if (f.played) roundCounts[f.round].played++;
+            // Create notification for player improvement
+            if (newOverall > player.overall) {
+              await supabase.from('notifications').insert({
+                team_id: player.team_id,
+                type: 'player_improvement',
+                title: '⭐ Player Improved!',
+                message: `${player.first_name} ${player.last_name} increased ${training} from ${current} to ${newStat}! Overall now ${newOverall} (was ${player.overall})`,
+                player_id: player.id
+              });
+            }
+          }
+        }
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        await supabase.from('players').update(updates).eq('id', player.id);
+      }
+    }
+    
+    logs.push(`Training: ${improvements} players improved`);
+    
+    // Process free agent claims
+    let freeAgentMoves = 0;
+    
+    // Get all free agents with claims
+    const { data: freeAgents } = await supabase
+      .from('free_agents')
+      .select('*, players(*)')
+      .eq('claimed', false)
+      .lte('available_round', currentRound);
+    
+    for (const freeAgent of freeAgents || []) {
+      // Get all claims for this free agent
+      const { data: claims } = await supabase
+        .from('free_agent_claims')
+        .select('*')
+        .eq('free_agent_id', freeAgent.id);
+      
+      if (!claims || claims.length === 0) continue;
+      
+      // Score each claim
+      const scoredClaims = [];
+      
+      for (const claim of claims) {
+        // Get team's squad
+        const { data: squadPlayers } = await supabase
+          .from('players')
+          .select('position')
+          .eq('team_id', claim.team_id);
+        
+        const squadSize = squadPlayers?.length || 0;
+        const samePositionCount = squadPlayers?.filter(p => p.position === freeAgent.players.position).length || 0;
+        const ladderPos = ladderPositions[claim.team_id] || 5;
+        
+        // Calculate priority score (higher = better chance)
+        const ladderScore = ladderPos;
+        const squadScore = (22 - squadSize);
+        const needScore = Math.max(0, 4 - samePositionCount) * 2;
+        
+        const totalScore = ladderScore + squadScore + needScore + Math.random() * 2;
+        
+        scoredClaims.push({
+          ...claim,
+          score: totalScore,
+          teamName: teamsMap[claim.team_id]?.name || 'Unknown'
+        });
+      }
+      
+      // Sort by score (highest first)
+      scoredClaims.sort((a, b) => b.score - a.score);
+      
+      const winner = scoredClaims[0];
+      const winnerTeam = teamsMap[winner.team_id];
+      
+      // Process the winner
+      if (winner.release_player_id) {
+        const { data: releasedPlayer } = await supabase
+          .from('players')
+          .select('*')
+          .eq('id', winner.release_player_id)
+          .single();
+        
+        if (releasedPlayer) {
+          await supabase.from('free_agents').insert({
+            player_id: winner.release_player_id,
+            released_by_team_id: winner.team_id,
+            available_round: currentRound + 1
+          });
+          
+          await supabase.from('players').delete().eq('id', winner.release_player_id);
+          
+          for (const t of teams || []) {
+            await supabase.from('notifications').insert({
+              team_id: t.id,
+              type: 'league_news',
+              title: '🏪 Player Released to Free Agents',
+              message: `${winnerTeam?.name} released ${releasedPlayer.first_name} ${releasedPlayer.last_name} (${releasedPlayer.position}, ${releasedPlayer.overall} OVR, Age ${releasedPlayer.age}). Available next round.`
             });
-            
-            Object.entries(roundCounts).forEach(([round, counts]) => {
-              if (counts.played === counts.total && counts.total > 0) {
-                completedRounds.add(Number(round));
-              }
-            });
-            
-            const completed = completedRounds.size;
-            
-            return (
-              <>
-                <div className="w-full bg-gray-700 rounded-full h-4">
-                  <div 
-                    className="bg-green-500 h-4 rounded-full transition-all duration-500"
-                    style={{ width: `${(completed / 18) * 100}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-sm text-gray-500 mt-2">
-                  <span>Round 1</span>
-                  <span>{completed} of 18 rounds completed</span>
-                  <span>Finals</span>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-
-      </div>
-    </div>
-  );
+          }
+        }
+      }
+      
+      await supabase.from('players').update({ team_id: winner.team_id }).eq('id', freeAgent.player_id);
+      await supabase.from('free_agents').update({ claimed: true }).eq('id', freeAgent.id);
+      
+      await supabase.from('notifications').insert({
+        team_id: winner.team_id,
+        type: 'free_agent_won',
+        title: '✅ Free Agent Signed!',
+        message: `You successfully signed ${freeAgent.players.first_name} ${freeAgent.players.last_name} (${freeAgent.players.position}, ${freeAgent.players.overall} OVR)!`,
+        player_id: freeAgent.player_id
+      });
+      
+      for (const loser of scoredClaims.slice(1)) {
+        await supabase.from('notifications').insert({
+          team_id: loser.team_id,
+          type: 'free_agent_lost',
+          title: '❌ Free Agent Request Failed',
+          message: `${freeAgent.players.first_name} ${freeAgent.players.last_name} signed with ${winnerTeam?.name || 'another team'} instead.`,
+          player_id: freeAgent.player_id
+        });
+      }
+      
+      for (const t of teams || []) {
+        if (t.id !== winner.team_id) {
+          await supabase.from('notifications').insert({
+            team_id: t.id,
+            type: 'league_news',
+            title: '📰 Free Agent Signed',
+            message: `${winnerTeam?.name} signed ${freeAgent.players.first_name} ${freeAgent.players.last_name} (${freeAgent.players.position}, ${freeAgent.players.overall} OVR, Age ${freeAgent.players.age}) from free agency.`
+          });
+        }
+      }
+      
+      await supabase.from('free_agent_claims').delete().eq('free_agent_id', freeAgent.id);
+      
+      freeAgentMoves++;
+      logs.push(`Free Agent: ${freeAgent.players.last_name} → ${winnerTeam?.city || 'Unknown'}`);
+    }
+    
+    logs.push(`Free Agents: ${freeAgentMoves} players moved`);
+    
+    return NextResponse.json({
+      success: true,
+      round: currentRound,
+      matches: logs,
+      improvements,
+      freeAgentMoves
+    });
+    
+  } catch (error) {
+    console.error('Update error:', error);
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+  }
 }
