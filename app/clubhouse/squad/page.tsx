@@ -91,16 +91,9 @@ const Shield = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', teamA
         fontSize="22" 
         fontWeight="bold"
         fontFamily="Arial, sans-serif"
-        style={{ textShadow: `1px 1px 2px ${secondaryColor}` }}
       >
         {teamAbbr}
       </text>
-      
-      {/* Decorative lines */}
-      <path d="M20 50 L30 50" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
-      <path d="M70 50 L80 50" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
-      <path d="M50 20 L50 30" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
-      <path d="M50 70 L50 80" stroke={tertiaryColor} strokeWidth="3" strokeLinecap="round" />
     </svg>
   );
 };
