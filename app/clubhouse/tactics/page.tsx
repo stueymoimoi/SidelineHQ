@@ -98,12 +98,12 @@ const getSideBadge = (side: string | null) => {
 // Check if player's side matches the position slot
 const getSideMatchStatus = (player: Player, posKey: string): 'match' | 'mismatch' | 'neutral' => {
   if (!shouldShowSide(player.position)) return 'neutral';
-  if (player.dominant_side === 'both' || player.dominant_side === 'none') return 'neutral';
+  if (player.dominant_side === 'both' || player.dominant_side === 'none' || !player.dominant_side) return 'neutral';
   
-  const isLeftSlot = posKey.includes('_l') || posKey.includes('_left');
-  const isRightSlot = posKey.includes('_r') || posKey.includes('_right');
+  const isLeftSlot = posKey.includes('_l');
+  const isRightSlot = posKey.includes('_r');
   
-  if (!isLeftSlot && !isRightSlot) return 'neutral'; // bench or central position
+  if (!isLeftSlot && !isRightSlot) return 'neutral';
   
   if (isLeftSlot && player.dominant_side === 'left') return 'match';
   if (isRightSlot && player.dominant_side === 'right') return 'match';
@@ -125,7 +125,6 @@ export default function TacticsPage() {
   
   const router = useRouter();
 
-  // Auto-save function
   const saveToDatabase = useCallback(async (tacticsToSave: Tactics) => {
     if (!tacticsToSave || !team) return;
     
@@ -170,7 +169,6 @@ export default function TacticsPage() {
     }
   }, [team]);
 
-  // Auto-save when tactics change (with debounce)
   useEffect(() => {
     if (initialLoad || !tactics) return;
     
@@ -232,7 +230,6 @@ export default function TacticsPage() {
         defense_focus: tacticsData?.defense_focus || 'line_speed',
       });
       
-      // Mark initial load complete after a short delay
       setTimeout(() => setInitialLoad(false), 100);
 
     } catch (err) {
@@ -293,10 +290,9 @@ export default function TacticsPage() {
     };
   };
 
-  // Get position slot side (left/right/central)
   const getSlotSide = (posKey: string): 'left' | 'right' | 'central' => {
-    if (posKey.includes('_l') || posKey.includes('_left')) return 'left';
-    if (posKey.includes('_r') || posKey.includes('_right')) return 'right';
+    if (posKey.includes('_l')) return 'left';
+    if (posKey.includes('_r')) return 'right';
     return 'central';
   };
 
@@ -306,18 +302,16 @@ export default function TacticsPage() {
     const isKicker = tactics?.goal_kicker === player?.id;
     const isCaptain = tactics?.captain === player?.id;
     
-    // Check side match for edge positions
     const sideMatch = player ? getSideMatchStatus(player, posKey) : 'neutral';
     const showSide = player && shouldShowSide(player.position);
     const sideBadge = player ? getSideBadge(player.dominant_side) : null;
     
-    // Border color: prioritize wrong position, then side mismatch
     let borderColor = 'border-gray-600';
     if (status === 'wrong') {
       borderColor = 'border-red-500';
     } else if (sideMatch === 'mismatch') {
       borderColor = 'border-orange-500';
-    } else if (status === 'natural' && sideMatch !== 'mismatch') {
+    } else if (status === 'natural') {
       borderColor = 'border-green-500';
     }
     
@@ -401,7 +395,6 @@ export default function TacticsPage() {
               <p className="text-white/80">{team?.name} • Set Your Lineup</p>
             </div>
             
-            {/* Auto-save indicator */}
             <div className="text-right">
               {saveStatus === 'saving' && (
                 <span className="text-yellow-400 text-sm animate-pulse">💾 Saving...</span>
@@ -707,7 +700,6 @@ export default function TacticsPage() {
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-white mb-2">Select Player</h3>
             
-            {/* Show slot side hint for edge positions */}
             {(selectedPosition.includes('winger') || selectedPosition.includes('centre') || selectedPosition.includes('second_row')) && (
               <p className="text-gray-400 text-sm mb-4">
                 {getSlotSide(selectedPosition) === 'left' ? '⬅️ Left side position' : '➡️ Right side position'}
