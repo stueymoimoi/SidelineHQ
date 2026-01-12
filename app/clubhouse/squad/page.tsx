@@ -112,6 +112,13 @@ const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', patte
       {/* Hair */}
       <ellipse cx="50" cy="9" rx="9" ry="6" fill="#4A3728" />
       
+      {/* Face - Eyes */}
+      <circle cx="46" cy="14" r="1.5" fill="#333" />
+      <circle cx="54" cy="14" r="1.5" fill="#333" />
+      
+      {/* Face - Smile */}
+      <path d="M46 18 Q50 21 54 18" stroke="#333" strokeWidth="1" fill="none" strokeLinecap="round" />
+      
       {/* Jersey Body */}
       <path 
         d="M30 28 L18 34 L12 55 L22 58 L22 90 L78 90 L78 58 L88 55 L82 34 L70 28 L65 26 L58 30 L50 32 L42 30 L35 26 L30 28Z" 
@@ -488,7 +495,7 @@ export default function SquadPage() {
     <div className="min-h-screen bg-gray-900">
       {/* Header with Jerseys */}
       <div 
-        className="p-6 relative overflow-hidden"
+        className="p-6 pb-8 relative overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${team?.primary_color}dd 0%, ${team?.secondary_color}dd 100%)`
         }}
@@ -507,7 +514,7 @@ export default function SquadPage() {
             
             {/* Jerseys Display - Right next to team name */}
             {team && (
-              <div className="flex items-end gap-1">
+              <div className="flex items-end gap-2">
                 <div className="text-center">
                   <Jersey 
                     primaryColor={team.primary_color} 
@@ -515,7 +522,7 @@ export default function SquadPage() {
                     tertiaryColor={team.tertiary_color || '#FFFFFF'}
                     pattern="solid"
                     isAway={false}
-                    size={70}
+                    size={90}
                     teamAbbr={getTeamAbbr(team.name)}
                   />
                   <p className="text-white/60 text-xs">Home</p>
@@ -527,7 +534,7 @@ export default function SquadPage() {
                     tertiaryColor={team.tertiary_color || '#FFFFFF'}
                     pattern="solid"
                     isAway={true}
-                    size={70}
+                    size={90}
                     teamAbbr={getTeamAbbr(team.name)}
                   />
                   <p className="text-white/60 text-xs">Away</p>
