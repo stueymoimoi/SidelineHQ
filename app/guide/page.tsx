@@ -204,7 +204,7 @@ export default function GuidePage() {
                 </div>
               )}
 
-              {/* Player Stats */}
+              {/* Player Stats - UPDATED FOR 7 STATS */}
               {activeSection === 'stats' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -212,35 +212,50 @@ export default function GuidePage() {
                   </h2>
 
                   <p className="text-gray-300">
-                    Every player has 6 core stats that determine their ability on the field. Stats are rated on a tier system from 1 (lowest) to 8 (highest).
+                    Every player has 7 core stats that determine their ability on the field. Stats are rated on a tier system from 1 (lowest) to 8 (highest).
                   </p>
 
-                  <h3 className="text-xl text-white mt-6">The Six Stats</h3>
+                  <h3 className="text-xl text-white mt-6">The Seven Stats</h3>
                   <div className="space-y-3">
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">⚡ Speed</p>
-                      <p className="text-gray-400 text-sm m-0">How fast the player moves. Essential for wingers, fullbacks, and outside backs.</p>
+                      <p className="text-gray-400 text-sm m-0">How fast the player moves. Essential for wingers, fullbacks, and outside backs. Affects metres gained.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">💪 Strength</p>
                       <p className="text-gray-400 text-sm m-0">Physical power for tackles and carries. Crucial for forwards.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🎯 Skill</p>
-                      <p className="text-gray-400 text-sm m-0">Ball handling, passing, and general technique. Important for halves and hookers.</p>
+                      <p className="text-white font-bold m-0">💥 Power</p>
+                      <p className="text-gray-400 text-sm m-0">Ability to break tackles and bust the line. Key for try-scoring and making metres. Props and Centres need this!</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-3">
+                      <p className="text-white font-bold m-0">🎯 Passing</p>
+                      <p className="text-gray-400 text-sm m-0">Ball handling, passing accuracy, and technique. Low Passing = more errors! Important for halves and hookers.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🫁 Stamina</p>
-                      <p className="text-gray-400 text-sm m-0">Endurance and fitness. Affects performance over 80 minutes.</p>
+                      <p className="text-gray-400 text-sm m-0">Endurance and fitness. Affects performance over 80 minutes and tackle count.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🛡️ Defense</p>
-                      <p className="text-gray-400 text-sm m-0">Tackling ability and defensive positioning. Key for middles and edges.</p>
+                      <p className="text-white font-bold m-0">🛡️ Tackling</p>
+                      <p className="text-gray-400 text-sm m-0">Defensive ability and technique. Low Tackling = more missed tackles! Key for middles and edges.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🦶 Kicking</p>
-                      <p className="text-gray-400 text-sm m-0">Kicking accuracy and distance. Vital for halves and fullbacks.</p>
+                      <p className="text-gray-400 text-sm m-0">Kicking accuracy and distance. Vital for halves, fullbacks, and your goal kicker.</p>
                     </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">How Stats Affect Match Performance</h3>
+                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
+                    <p className="text-yellow-400 m-0 mb-2"><strong>Stats directly impact what happens on the field:</strong></p>
+                    <ul className="text-gray-300 text-sm space-y-1 m-0">
+                      <li>• <strong>Speed + Power</strong> → More metres gained, more tries scored</li>
+                      <li>• <strong>Low Passing</strong> → More handling errors</li>
+                      <li>• <strong>Low Tackling</strong> → More missed tackles</li>
+                      <li>• <strong>Stamina</strong> → More tackles made, better late-game performance</li>
+                    </ul>
                   </div>
 
                   <h3 className="text-xl text-white mt-6">Stat Tiers</h3>
@@ -260,6 +275,25 @@ export default function GuidePage() {
                     <div className="bg-green-500/30 rounded p-2 text-center">
                       <p className="text-white font-bold m-0">7-8</p>
                       <p className="text-gray-400 text-xs m-0">Elite</p>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Overall Rating (OVR)</h3>
+                  <p className="text-gray-300">
+                    A player's OVR is the sum of all 7 stats. Higher OVR = better player overall.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-gray-400 text-xs m-0">Developing</p>
+                      <p className="text-white font-bold m-0">14-25</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-gray-400 text-xs m-0">First Grader</p>
+                      <p className="text-white font-bold m-0">26-35</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-gray-400 text-xs m-0">Star / Elite</p>
+                      <p className="text-white font-bold m-0">36-50+</p>
                     </div>
                   </div>
 
@@ -286,7 +320,7 @@ export default function GuidePage() {
                       <span className="bg-gray-500 text-white px-2 py-1 rounded font-bold">L/R</span>
                       <div>
                         <p className="text-white font-bold m-0">Versatile</p>
-                        <p className="text-gray-400 text-sm m-0">Elite! Plays both sides equally</p>
+                        <p className="text-gray-400 text-sm m-0">Plays both sides equally</p>
                       </div>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex items-center gap-3">
@@ -297,16 +331,10 @@ export default function GuidePage() {
                       </div>
                     </div>
                   </div>
-
-                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
-                    <p className="text-yellow-400 m-0">
-                      <strong>💡 Tip:</strong> Playing a left-sided player on the right edge (or vice versa) will hurt their performance! Versatile players are rare and valuable.
-                    </p>
-                  </div>
                 </div>
               )}
 
-              {/* Tactics */}
+              {/* Tactics - UPDATED */}
               {activeSection === 'tactics' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -331,7 +359,7 @@ export default function GuidePage() {
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">⬅️ Raid Left</p>
-                      <p className="text-gray-400 text-sm m-0">Target the left edge with your outside backs. Counters Shift Right defense.</p>
+                      <p className="text-gray-400 text-sm m-0">Target the left edge with your outside backs.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">💪 Up the Guts</p>
@@ -339,7 +367,7 @@ export default function GuidePage() {
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">➡️ Raid Right</p>
-                      <p className="text-gray-400 text-sm m-0">Target the right edge with your outside backs. Counters Shift Left defense.</p>
+                      <p className="text-gray-400 text-sm m-0">Target the right edge with your outside backs.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🎲 Off the Cuff</p>
@@ -355,28 +383,16 @@ export default function GuidePage() {
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🛡️ Shift Left</p>
-                      <p className="text-gray-400 text-sm m-0">Overload left side coverage. Counters Raid Left attacks.</p>
+                      <p className="text-gray-400 text-sm m-0">Overload left side coverage.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🧱 Brick Wall</p>
-                      <p className="text-gray-400 text-sm m-0">Stack the middle. Stops Up the Guts, but leaves edges exposed.</p>
+                      <p className="text-gray-400 text-sm m-0">Stack the middle. Stops forward momentum.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🛡️ Shift Right</p>
-                      <p className="text-gray-400 text-sm m-0">Overload right side coverage. Counters Raid Right attacks.</p>
+                      <p className="text-gray-400 text-sm m-0">Overload right side coverage.</p>
                     </div>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">Tactical Matchups</h3>
-                  <div className="bg-gray-700 rounded p-4">
-                    <p className="text-gray-300 mb-2">Counter your opponent's tactics for an advantage:</p>
-                    <ul className="text-gray-300 space-y-1 text-sm">
-                      <li>• <strong>Raid Left</strong> beats <strong>Shift Right</strong></li>
-                      <li>• <strong>Raid Right</strong> beats <strong>Shift Left</strong></li>
-                      <li>• <strong>Up the Guts</strong> struggles vs <strong>Brick Wall</strong></li>
-                      <li>• <strong>Edge raids</strong> work well vs <strong>Brick Wall</strong></li>
-                      <li>• <strong>Line Speed</strong> can force errors from <strong>Off the Cuff</strong></li>
-                    </ul>
                   </div>
 
                   <h3 className="text-xl text-white mt-6">Goal Kicker</h3>
@@ -389,17 +405,10 @@ export default function GuidePage() {
                       <strong>💡 Tip:</strong> Some players have hidden goal kicking talent! Try different players as kickers throughout the season — you might find a gem you didn't expect.
                     </p>
                   </div>
-
-                  <h3 className="text-xl text-white mt-6">Position Indicators</h3>
-                  <div className="flex flex-wrap gap-4 mt-3">
-                    <span className="text-green-400">● Natural Position</span>
-                    <span className="text-orange-400">● Wrong Side</span>
-                    <span className="text-red-400">● Wrong Position</span>
-                  </div>
                 </div>
               )}
 
-              {/* Film Room */}
+              {/* Film Room - UPDATED */}
               {activeSection === 'filmroom' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -418,7 +427,7 @@ export default function GuidePage() {
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">⚔️ Attack Tendency</p>
-                      <p className="text-gray-400 text-sm m-0">A hint at their preferred attacking style (not exact tactic)</p>
+                      <p className="text-gray-400 text-sm m-0">Where they like to attack — LEFT, RIGHT, or MIDDLE</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🤝 Head to Head</p>
@@ -426,7 +435,7 @@ export default function GuidePage() {
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">⚠️ Key Threats</p>
-                      <p className="text-gray-400 text-sm m-0">Their top 3 players to watch out for</p>
+                      <p className="text-gray-400 text-sm m-0">Their top 3 players by overall rating</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">👥 Their Squad</p>
@@ -441,25 +450,15 @@ export default function GuidePage() {
                     <li>❌ Their training assignments</li>
                   </ul>
 
-                  <h3 className="text-xl text-white mt-6">Scout's Advice</h3>
-                  <p className="text-gray-300">
-                    The Film Room provides tactical recommendations based on what you learn:
-                  </p>
-                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
-                    <p className="text-yellow-400 m-0">
-                      <strong>Example:</strong> "They like the left edge — consider <strong>Shift Left</strong> defense to shut it down"
-                    </p>
-                  </div>
-
                   <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 my-4">
                     <p className="text-green-400 m-0">
-                      <strong>💡 Pro Move:</strong> Check the dominant side of their edge players. If their star centre is left-sided, you know where they'll attack!
+                      <strong>💡 Pro Move:</strong> Check where their star players are positioned and their dominant sides. A left-sided centre on the left edge tells you where they'll attack!
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Training */}
+              {/* Training - UPDATED FOR 7 STATS */}
               {activeSection === 'training' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -487,35 +486,48 @@ export default function GuidePage() {
                   <h3 className="text-xl text-white mt-6">Training Programs</h3>
                   <div className="space-y-2">
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">⚡ Speed Training</span>
+                      <span className="text-white">😴 Rest</span>
+                      <span className="text-gray-400 text-sm">Reduces fatigue</span>
+                    </div>
+                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+                      <span className="text-white">⚡ Speed</span>
                       <span className="text-gray-400 text-sm">Improves Speed stat</span>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">💪 Gym Work</span>
+                      <span className="text-white">💪 Strength</span>
                       <span className="text-gray-400 text-sm">Improves Strength stat</span>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🎯 Skills Session</span>
-                      <span className="text-gray-400 text-sm">Improves Skill stat</span>
+                      <span className="text-white">💥 Power</span>
+                      <span className="text-gray-400 text-sm">Improves Power stat</span>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🫁 Cardio</span>
+                      <span className="text-white">🎯 Passing</span>
+                      <span className="text-gray-400 text-sm">Improves Passing stat (reduces errors!)</span>
+                    </div>
+                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+                      <span className="text-white">🫁 Stamina</span>
                       <span className="text-gray-400 text-sm">Improves Stamina stat</span>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🛡️ Defense Drills</span>
-                      <span className="text-gray-400 text-sm">Improves Defense stat</span>
+                      <span className="text-white">🛡️ Tackling</span>
+                      <span className="text-gray-400 text-sm">Improves Tackling stat (reduces missed tackles!)</span>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🦶 Kicking Practice</span>
+                      <span className="text-white">🦶 Kicking</span>
                       <span className="text-gray-400 text-sm">Improves Kicking stat</span>
                     </div>
                   </div>
 
+                  <h3 className="text-xl text-white mt-6">Training Strategy</h3>
                   <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
-                    <p className="text-yellow-400 m-0">
-                      <strong>💡 Strategy:</strong> Focus training on stats that matter most for each player's position. There's no point training a prop's kicking when their strength and defense matter far more!
-                    </p>
+                    <p className="text-yellow-400 m-0 mb-2"><strong>💡 Use match stats to guide training:</strong></p>
+                    <ul className="text-gray-300 text-sm space-y-1 m-0">
+                      <li>• Player making lots of errors? → Train <strong>Passing</strong></li>
+                      <li>• Player missing tackles? → Train <strong>Tackling</strong></li>
+                      <li>• Player not making metres? → Train <strong>Speed</strong> or <strong>Power</strong></li>
+                      <li>• Player fading in 2nd half? → Train <strong>Stamina</strong></li>
+                    </ul>
                   </div>
                 </div>
               )}
@@ -627,7 +639,7 @@ export default function GuidePage() {
                 </div>
               )}
 
-              {/* Pro Tips */}
+              {/* Pro Tips - UPDATED */}
               {activeSection === 'tips' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -640,16 +652,30 @@ export default function GuidePage() {
 
                   <div className="space-y-4 mt-6">
                     <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">🎬 Scout Before Every Match</h4>
+                      <h4 className="text-white font-bold m-0 mb-2">📊 Read Your Match Stats</h4>
                       <p className="text-gray-400 m-0">
-                        Use the Film Room to learn your opponent's attack tendency, then set your defense to counter it. A well-prepared team wins more often!
+                        After each game, check your players' stats. High missed tackles? Train Tackling. Lots of errors? Train Passing. Stats tell the story!
                       </p>
                     </div>
 
                     <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">↔️ Match Dominant Sides</h4>
+                      <h4 className="text-white font-bold m-0 mb-2">🎬 Scout Before Every Match</h4>
                       <p className="text-gray-400 m-0">
-                        Always play left-sided players on the left edge and right-sided players on the right. Versatile (L/R) players are rare and valuable — they can play anywhere without penalty.
+                        Use the Film Room to learn your opponent's attack tendency. If they're strong on the LEFT, you'll know where to focus your defense.
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-white font-bold m-0 mb-2">↔️ Consider Dominant Sides</h4>
+                      <p className="text-gray-400 m-0">
+                        Left-sided players generally perform best on the left edge, right-sided on the right. Versatile (L/R) players are rare and valuable.
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-white font-bold m-0 mb-2">💥 Power Wins Games</h4>
+                      <p className="text-gray-400 m-0">
+                        Power helps players break tackles and score tries. Train it for your centres and wingers to get more points on the board!
                       </p>
                     </div>
 
@@ -657,13 +683,6 @@ export default function GuidePage() {
                       <h4 className="text-white font-bold m-0 mb-2">🎲 Off the Cuff — Use Sparingly</h4>
                       <p className="text-gray-400 m-0">
                         The Off the Cuff attack style is high risk/high reward. It can blow games open, but it can also backfire badly. Best used when you have nothing to lose!
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">🎯 Position Fit Matters</h4>
-                      <p className="text-gray-400 m-0">
-                        A 35 OVR player in their natural position can outperform a 40 OVR player playing out of position. Always consider position fit!
                       </p>
                     </div>
 
