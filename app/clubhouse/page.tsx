@@ -216,7 +216,7 @@ export default function ClubhousePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gray-900 flex flex-col">
       {/* Team Banner */}
       <div 
         className="p-6 pb-8"
@@ -247,7 +247,7 @@ export default function ClubhousePage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-6 -mt-4">
+      <div className="max-w-6xl mx-auto p-6 -mt-4 flex-1">
         
         {/* Next Match Card */}
         {nextMatch && (
@@ -314,42 +314,49 @@ export default function ClubhousePage() {
             <p className="text-white font-bold">Training</p>
             <p className="text-gray-500 text-sm">Develop players</p>
           </Link>
+          <Link href="/clubhouse/film-room" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-yellow-500">
+            <div className="text-4xl mb-2">🎬</div>
+            <p className="text-white font-bold">Film Room</p>
+            <p className="text-gray-500 text-sm">Scout opponent</p>
+          </Link>
+        </div>
+
+        {/* Secondary Navigation */}
+        <h2 className="text-white font-bold mb-3">League</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Link href="/clubhouse/fixtures" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">📅</div>
             <p className="text-white font-bold">Fixtures</p>
             <p className="text-gray-500 text-sm">Match schedule</p>
           </Link>
-        </div>
-
-        {/* Secondary Navigation - Same Size */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Link href="/clubhouse/ladder" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">🏆</div>
             <p className="text-white font-bold">Ladder</p>
             <p className="text-gray-500 text-sm">Standings</p>
-          </Link>
-          <Link href="/clubhouse/academy" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
-            <div className="text-4xl mb-2">🎓</div>
-            <p className="text-white font-bold">Dev Squad</p>
-            <p className="text-gray-500 text-sm">Youth players</p>
-          </Link>
-          <Link href="/clubhouse/free-agents" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
-            <div className="text-4xl mb-2">🏪</div>
-            <p className="text-white font-bold">Free Agents</p>
-            <p className="text-gray-500 text-sm">Sign players</p>
           </Link>
           <Link href="/clubhouse/rep-honours" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">🏅</div>
             <p className="text-white font-bold">Rep Honours</p>
             <p className="text-gray-500 text-sm">Origin & National</p>
           </Link>
+          <Link href="/clubhouse/free-agents" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
+            <div className="text-4xl mb-2">🏪</div>
+            <p className="text-white font-bold">Free Agents</p>
+            <p className="text-gray-500 text-sm">Sign players</p>
+          </Link>
         </div>
 
-        {/* Third Row - Info & Admin */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+        {/* Tertiary Navigation */}
+        <h2 className="text-white font-bold mb-3">Development</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link href="/clubhouse/academy" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
+            <div className="text-4xl mb-2">🎓</div>
+            <p className="text-white font-bold">Dev Squad</p>
+            <p className="text-gray-500 text-sm">Youth players</p>
+          </Link>
           <Link href="/guide" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">📖</div>
-            <p className="text-white font-bold">Guide</p>
+            <p className="text-white font-bold">Coach Guide</p>
             <p className="text-gray-500 text-sm">How to play</p>
           </Link>
           {userId === 'b0c4c970-ac17-4be8-9b35-68d321a166ad' && (
@@ -373,8 +380,34 @@ export default function ClubhousePage() {
             Sign Out
           </button>
         </div>
-
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-950 border-t border-gray-800 py-6 mt-8">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="text-center md:text-left">
+              <p className="text-gray-500 text-sm">
+                © 2026 SidelineHQ. All rights reserved.
+              </p>
+              <p className="text-gray-600 text-xs mt-1">
+                Season 0 • Built with ☕ in Melbourne
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <a href="https://twitter.com/SidelineHQ" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition">
+                𝕏
+              </a>
+              <a href="https://discord.gg/sidelinehq" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-white transition">
+                Discord
+              </a>
+              <a href="mailto:support@sidelinehq.app" className="text-gray-500 hover:text-white transition text-sm">
+                Support
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
