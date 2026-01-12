@@ -30,6 +30,7 @@ interface Player {
   position: string;
   overall: number;
   age: number;
+  dominant_side?: string;
 }
 
 interface Fixture {
@@ -88,6 +89,17 @@ const getPositionColor = (position: string) => {
     'Lock': 'bg-red-700',
   };
   return colors[position] || 'bg-gray-600';
+};
+
+const getSideIcon = (side: string | undefined) => {
+  if (side === 'left') return '⬅️';
+  if (side === 'right') return '➡️';
+  if (side === 'both') return '↔️';
+  return '';
+};
+
+const shouldShowSide = (position: string) => {
+  return ['Winger', 'Centre', 'Second Row'].includes(position);
 };
 
 export default function FilmRoomPage() {
@@ -170,10 +182,10 @@ export default function FilmRoomPage() {
     const opponent = teamsMap[opponentId];
     if (!opponent) return;
 
-    // Get opponent players (top 17)
+    // Get opponent players (top 17) - including dominant_side
     const { data: playersData } = await supabase
       .from('players')
-      .select('id, first_name, last_name, position, overall, age')
+      .select('id, first_name, last_name, position, overall, age, dominant_side')
       .eq('team_id', opponentId)
       .order('overall', { ascending: false })
       .limit(17);
@@ -386,27 +398,35 @@ export default function FilmRoomPage() {
               <h3 className="text-white font-bold mb-3">⚠️ Key Threats</h3>
               <p className="text-gray-500 text-sm mb-4">Watch out for these players</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {scoutReport.keyThreats.map((player, i) => (
-                  <div 
-                    key={player.id} 
-                    className="bg-gray-700 rounded-lg p-4 border-l-4"
-                    style={{ borderColor: i === 0 ? '#ef4444' : i === 1 ? '#f97316' : '#eab308' }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-gray-400 text-xs">{player.first_name}</p>
-                        <p className="text-white font-bold text-lg">{player.last_name}</p>
+                {scoutReport.keyThreats.map((player, i) => {
+                  const showSide = shouldShowSide(player.position);
+                  const sideIcon = getSideIcon(player.dominant_side);
+                  
+                  return (
+                    <div 
+                      key={player.id} 
+                      className="bg-gray-700 rounded-lg p-4 border-l-4"
+                      style={{ borderColor: i === 0 ? '#ef4444' : i === 1 ? '#f97316' : '#eab308' }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="text-gray-400 text-xs">{player.first_name}</p>
+                          <p className="text-white font-bold text-lg">{player.last_name}</p>
+                        </div>
+                        <span className="text-2xl font-bold text-green-400">{player.overall}</span>
                       </div>
-                      <span className="text-2xl font-bold text-green-400">{player.overall}</span>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs font-bold text-white ${getPositionColor(player.position)}`}>
+                          {player.position}
+                        </span>
+                        <span className="text-gray-500 text-xs">Age {player.age}</span>
+                        {showSide && sideIcon && (
+                          <span className="text-sm" title={`${player.dominant_side}-sided`}>{sideIcon}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded text-xs font-bold text-white ${getPositionColor(player.position)}`}>
-                        {player.position}
-                      </span>
-                      <span className="text-gray-500 text-xs">Age {player.age}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -415,29 +435,37 @@ export default function FilmRoomPage() {
               <h3 className="text-white font-bold mb-3">👥 Their Squad</h3>
               <p className="text-gray-500 text-sm mb-4">Top 17 players by overall rating</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {scoutReport.players.map((player, i) => (
-                  <div 
-                    key={player.id} 
-                    className="bg-gray-700 rounded p-3 flex justify-between items-center"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-500 text-xs w-4">{i + 1}</span>
-                      <div>
-                        <p className="text-white font-medium">
-                          {player.first_name.charAt(0)}. {player.last_name}
-                        </p>
-                        <p className="text-gray-500 text-xs">{player.position} • {player.age}yo</p>
+                {scoutReport.players.map((player, i) => {
+                  const showSide = shouldShowSide(player.position);
+                  const sideIcon = getSideIcon(player.dominant_side);
+                  
+                  return (
+                    <div 
+                      key={player.id} 
+                      className="bg-gray-700 rounded p-3 flex justify-between items-center"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-500 text-xs w-4">{i + 1}</span>
+                        <div>
+                          <p className="text-white font-medium">
+                            {player.first_name} {player.last_name}
+                          </p>
+                          <p className="text-gray-500 text-xs">
+                            {player.position} • {player.age}yo
+                            {showSide && sideIcon && <span className="ml-1">{sideIcon}</span>}
+                          </p>
+                        </div>
                       </div>
+                      <span className={`font-bold ${
+                        player.overall >= 45 ? 'text-green-400' :
+                        player.overall >= 35 ? 'text-yellow-400' :
+                        'text-gray-400'
+                      }`}>
+                        {player.overall}
+                      </span>
                     </div>
-                    <span className={`font-bold ${
-                      player.overall >= 45 ? 'text-green-400' :
-                      player.overall >= 35 ? 'text-yellow-400' :
-                      'text-gray-400'
-                    }`}>
-                      {player.overall}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
