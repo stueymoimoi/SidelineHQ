@@ -74,7 +74,7 @@ const DEFENSE_OPTIONS = [
 ];
 
 // ============================================================================
-// DOMINANT SIDE HELPERS
+// DOMINANT SIDE HELPERS - Information only, no warnings
 // ============================================================================
 
 const shouldShowSide = (position: string) => {
@@ -93,38 +93,6 @@ const getSideBadge = (side: string | null) => {
     default:
       return { text: '?', bg: 'bg-yellow-500', title: 'Developing - side not yet determined' };
   }
-};
-
-// Check if player's side matches the position slot
-const getSideMatchStatus = (player: Player, posKey: string): 'match' | 'mismatch' | 'neutral' => {
-  if (!shouldShowSide(player.position)) return 'neutral';
-  if (player.dominant_side === 'both' || player.dominant_side === 'none' || !player.dominant_side) return 'neutral';
-  
-  const isLeftSlot = posKey.includes('_l');
-  const isRightSlot = posKey.includes('_r');
-  
-  if (!isLeftSlot && !isRightSlot) return 'neutral';
-  
-  if (isLeftSlot && player.dominant_side === 'left') return 'match';
-  if (isRightSlot && player.dominant_side === 'right') return 'match';
-  if (isLeftSlot && player.dominant_side === 'right') return 'mismatch';
-  if (isRightSlot && player.dominant_side === 'left') return 'mismatch';
-  
-  return 'neutral';
-};
-
-// Get natural position for a slot
-const getSlotNaturalPosition = (posKey: string): string => {
-  if (posKey.includes('winger')) return 'Winger';
-  if (posKey.includes('centre')) return 'Centre';
-  if (posKey.includes('second_row')) return 'Second Row';
-  if (posKey.includes('fullback')) return 'Fullback';
-  if (posKey.includes('five_eighth')) return 'Five-Eighth';
-  if (posKey.includes('halfback')) return 'Halfback';
-  if (posKey.includes('prop')) return 'Prop';
-  if (posKey.includes('hooker')) return 'Hooker';
-  if (posKey.includes('lock')) return 'Lock';
-  return '';
 };
 
 export default function TacticsPage() {
@@ -268,12 +236,6 @@ export default function TacticsPage() {
     return allPositions.some(pos => (tactics as any)[pos] === playerId);
   };
 
-  const getPositionStatus = (player: Player | null, naturalPosition: string) => {
-    if (!player) return 'empty';
-    if (player.position === naturalPosition) return 'natural';
-    return 'wrong';
-  };
-
   const handleSelectPlayer = (posKey: string, playerId: string) => {
     if (!tactics) return;
     setTactics({ ...tactics, [posKey]: playerId || null });
@@ -310,29 +272,19 @@ export default function TacticsPage() {
     return 'central';
   };
 
-  const PositionSlot = ({ posKey, label, number, natural }: { posKey: string; label: string; number: number; natural: string }) => {
+  // Position Slot - Clean design, no warnings, just information
+  const PositionSlot = ({ posKey, label, number }: { posKey: string; label: string; number: number }) => {
     const player = getPlayerById((tactics as any)?.[posKey]);
-    const status = getPositionStatus(player, natural);
     const isKicker = tactics?.goal_kicker === player?.id;
     const isCaptain = tactics?.captain === player?.id;
     
-    const sideMatch = player ? getSideMatchStatus(player, posKey) : 'neutral';
     const showSide = player && shouldShowSide(player.position);
     const sideBadge = player ? getSideBadge(player.dominant_side) : null;
-    
-    let borderColor = 'border-gray-600';
-    if (status === 'wrong') {
-      borderColor = 'border-red-500';
-    } else if (sideMatch === 'mismatch') {
-      borderColor = 'border-orange-500';
-    } else if (status === 'natural') {
-      borderColor = 'border-green-500';
-    }
     
     return (
       <div
         onClick={() => setSelectedPosition(posKey)}
-        className={`bg-gray-800/90 rounded-lg p-2 cursor-pointer hover:bg-gray-700 transition border-2 ${borderColor} min-w-[100px] text-center`}
+        className="bg-gray-800/90 rounded-lg p-2 cursor-pointer hover:bg-gray-700 transition border-2 border-gray-600 hover:border-green-500 min-w-[100px] text-center"
       >
         <div className="text-xs text-gray-400">#{number} {label}</div>
         {player ? (
@@ -342,10 +294,7 @@ export default function TacticsPage() {
               <p className="text-white font-bold text-sm">{player.last_name}</p>
             </div>
             <div className="flex justify-center items-center gap-1">
-              <span className={`text-xs font-bold ${
-                status === 'wrong' ? 'text-red-400' : 
-                sideMatch === 'mismatch' ? 'text-orange-400' : 'text-green-400'
-              }`}>
+              <span className="text-xs font-bold text-green-400">
                 {player.overall}
               </span>
               {isKicker && <span className="text-xs">🎯</span>}
@@ -358,12 +307,7 @@ export default function TacticsPage() {
                 </span>
               )}
             </div>
-            {status === 'wrong' && (
-              <p className="text-red-400 text-[10px]">Wrong position!</p>
-            )}
-            {status !== 'wrong' && sideMatch === 'mismatch' && (
-              <p className="text-orange-400 text-[10px]">Wrong side!</p>
-            )}
+            <p className="text-gray-500 text-[10px]">{player.position}</p>
           </>
         ) : (
           <div className="text-gray-500 text-sm font-semibold">Empty</div>
@@ -498,7 +442,7 @@ export default function TacticsPage() {
             <li>• <strong>Raid edges:</strong> Need quality Halves to unlock your outside backs</li>
             <li>• <strong>Off the Cuff:</strong> High risk! Can win you games or blow them open</li>
             <li>• <strong>Brick Wall:</strong> Stops forward momentum, but leaves edges exposed</li>
-            <li>• <strong>Dominant Side:</strong> Put left-sided players on the left edge, right on right!</li>
+            <li>• <strong>Dominant Side:</strong> Consider putting left-sided players on the left edge</li>
           </ul>
         </div>
 
@@ -552,47 +496,47 @@ export default function TacticsPage() {
             
             {/* Fullback */}
             <div className="flex justify-center">
-              <PositionSlot posKey="pos_fullback" label="FB" number={1} natural="Fullback" />
+              <PositionSlot posKey="pos_fullback" label="FB" number={1} />
             </div>
 
             {/* Wingers */}
             <div className="flex justify-between w-full max-w-lg px-4">
-              <PositionSlot posKey="pos_winger_l" label="LW" number={2} natural="Winger" />
-              <PositionSlot posKey="pos_winger_r" label="RW" number={5} natural="Winger" />
+              <PositionSlot posKey="pos_winger_l" label="LW" number={2} />
+              <PositionSlot posKey="pos_winger_r" label="RW" number={5} />
             </div>
 
             {/* Centres */}
             <div className="flex justify-center gap-24">
-              <PositionSlot posKey="pos_centre_l" label="LC" number={3} natural="Centre" />
-              <PositionSlot posKey="pos_centre_r" label="RC" number={4} natural="Centre" />
+              <PositionSlot posKey="pos_centre_l" label="LC" number={3} />
+              <PositionSlot posKey="pos_centre_r" label="RC" number={4} />
             </div>
 
             {/* Five-Eighth */}
             <div className="flex justify-center">
-              <PositionSlot posKey="pos_five_eighth" label="FE" number={6} natural="Five-Eighth" />
+              <PositionSlot posKey="pos_five_eighth" label="FE" number={6} />
             </div>
 
             {/* Halfback */}
             <div className="flex justify-center">
-              <PositionSlot posKey="pos_halfback" label="HB" number={7} natural="Halfback" />
+              <PositionSlot posKey="pos_halfback" label="HB" number={7} />
             </div>
 
             {/* Lock */}
             <div className="flex justify-center">
-              <PositionSlot posKey="pos_lock" label="LK" number={13} natural="Lock" />
+              <PositionSlot posKey="pos_lock" label="LK" number={13} />
             </div>
 
             {/* Second Row */}
             <div className="flex justify-center gap-24">
-              <PositionSlot posKey="pos_second_row_l" label="2R" number={11} natural="Second Row" />
-              <PositionSlot posKey="pos_second_row_r" label="2R" number={12} natural="Second Row" />
+              <PositionSlot posKey="pos_second_row_l" label="2R" number={11} />
+              <PositionSlot posKey="pos_second_row_r" label="2R" number={12} />
             </div>
 
             {/* Props & Hooker */}
             <div className="flex justify-center gap-4">
-              <PositionSlot posKey="pos_prop_l" label="PR" number={8} natural="Prop" />
-              <PositionSlot posKey="pos_hooker" label="HK" number={9} natural="Hooker" />
-              <PositionSlot posKey="pos_prop_r" label="PR" number={10} natural="Prop" />
+              <PositionSlot posKey="pos_prop_l" label="PR" number={8} />
+              <PositionSlot posKey="pos_hooker" label="HK" number={9} />
+              <PositionSlot posKey="pos_prop_r" label="PR" number={10} />
             </div>
           </div>
         </div>
@@ -601,10 +545,10 @@ export default function TacticsPage() {
         <div className="bg-gray-800 rounded-xl p-4 mb-6">
           <h3 className="text-white font-bold mb-3">🪑 Bench</h3>
           <div className="flex justify-center gap-4 flex-wrap">
-            <PositionSlot posKey="bench_1" label="B" number={14} natural="" />
-            <PositionSlot posKey="bench_2" label="B" number={15} natural="" />
-            <PositionSlot posKey="bench_3" label="B" number={16} natural="" />
-            <PositionSlot posKey="bench_4" label="B" number={17} natural="" />
+            <PositionSlot posKey="bench_1" label="B" number={14} />
+            <PositionSlot posKey="bench_2" label="B" number={15} />
+            <PositionSlot posKey="bench_3" label="B" number={16} />
+            <PositionSlot posKey="bench_4" label="B" number={17} />
           </div>
         </div>
 
@@ -682,14 +626,10 @@ export default function TacticsPage() {
           </select>
         </div>
 
-        {/* Legend */}
+        {/* Legend - Simplified */}
         <div className="bg-gray-800 rounded-lg p-3 mb-6">
-          <div className="flex flex-wrap justify-center gap-4 text-sm">
-            <span className="text-green-400">● Natural Position</span>
-            <span className="text-orange-400">● Wrong Side</span>
-            <span className="text-red-400">● Wrong Position</span>
-          </div>
-          <div className="flex flex-wrap justify-center gap-3 mt-2 text-xs">
+          <p className="text-gray-400 text-xs text-center mb-2">Dominant Side (for edge positions)</p>
+          <div className="flex flex-wrap justify-center gap-3 text-xs">
             <span className="flex items-center gap-1">
               <span className="bg-orange-500 text-white px-1.5 rounded font-bold">L</span>
               <span className="text-gray-400">Left</span>
@@ -711,7 +651,7 @@ export default function TacticsPage() {
 
       </div>
 
-      {/* Player Selection Modal */}
+      {/* Player Selection Modal - Clean, no warnings */}
       {selectedPosition && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
@@ -720,8 +660,6 @@ export default function TacticsPage() {
             {(selectedPosition.includes('winger') || selectedPosition.includes('centre') || selectedPosition.includes('second_row')) && (
               <p className="text-gray-400 text-sm mb-4">
                 {getSlotSide(selectedPosition) === 'left' ? '⬅️ Left side position' : '➡️ Right side position'}
-                {' — '}
-                <span className="text-yellow-400">match player's dominant side for best results!</span>
               </p>
             )}
             
@@ -737,12 +675,6 @@ export default function TacticsPage() {
                 const alreadySelected = isPlayerSelected(p.id) && (tactics as any)?.[selectedPosition] !== p.id;
                 const showSide = shouldShowSide(p.position);
                 const sideBadge = getSideBadge(p.dominant_side);
-                const sideMatch = getSideMatchStatus(p, selectedPosition);
-                
-                // Check if player's natural position matches the slot
-                const slotNaturalPosition = getSlotNaturalPosition(selectedPosition);
-                const isNaturalPosition = p.position === slotNaturalPosition || slotNaturalPosition === '';
-                const isWrongPosition = slotNaturalPosition !== '' && p.position !== slotNaturalPosition;
                 
                 return (
                   <button
@@ -752,12 +684,6 @@ export default function TacticsPage() {
                     className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
                       alreadySelected 
                         ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
-                        : isWrongPosition
-                        ? 'bg-red-900/30 hover:bg-red-900/50 text-white border border-red-500/50'
-                        : sideMatch === 'mismatch'
-                        ? 'bg-orange-900/30 hover:bg-orange-900/50 text-white border border-orange-500/50'
-                        : sideMatch === 'match'
-                        ? 'bg-green-900/30 hover:bg-green-900/50 text-white border border-green-500/50'
                         : 'bg-gray-700 hover:bg-gray-600 text-white'
                     }`}
                   >
@@ -776,17 +702,8 @@ export default function TacticsPage() {
                       <div className="text-sm text-gray-400">
                         {p.position} • Age {p.age} • {p.nationality}{p.state ? `, ${p.state}` : ''}
                       </div>
-                      {isWrongPosition && (
-                        <div className="text-red-400 text-xs mt-1">⚠️ Wrong position</div>
-                      )}
-                      {!isWrongPosition && sideMatch === 'mismatch' && (
-                        <div className="text-orange-400 text-xs mt-1">⚠️ Wrong side — may underperform</div>
-                      )}
-                      {!isWrongPosition && sideMatch === 'match' && (
-                        <div className="text-green-400 text-xs mt-1">✓ Correct side</div>
-                      )}
                     </div>
-                    <span className={`font-bold ${isWrongPosition ? 'text-red-400' : 'text-green-500'}`}>{p.overall}</span>
+                    <span className="font-bold text-green-500">{p.overall}</span>
                   </button>
                 );
               })}
