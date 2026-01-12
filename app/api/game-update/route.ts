@@ -23,8 +23,20 @@ function calculateMatchPerformance(player: any): number {
   return baseScore * fatigueMultiplier * variance;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const logs: string[] = [];
+  
+  // Safety check - prevent accidental manual runs
+  const url = new URL(request.url);
+  const secret = url.searchParams.get('secret');
+  const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
+  
+  if (!isVercelCron && secret !== 'frost2026') {
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Manual trigger blocked. Add ?secret=frost2026 to force run.' 
+    });
+  }
   
   try {
     // Find next round to simulate
@@ -207,7 +219,7 @@ export async function GET() {
         }
       }
       
-      logs.push(`${homeTeam.city} ${homeScore} - ${awayScore} ${awayTeam.city} | MOTM: ${motmPlayer?.first_name} ${motmPlayer?.last_name}`);
+      logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name} ${motmPlayer?.last_name}`);
       
       // Create notifications for both teams
       const homeResult = homeWin ? 'win' : awayWin ? 'loss' : 'draw';
@@ -217,16 +229,16 @@ export async function GET() {
       const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
       
       const homeMsg = homeWin 
-        ? `Congratulations! ${homeTeam.city} ${homeTeam.name} defeated ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`
+        ? `Congratulations! ${homeTeam.name} defeated ${awayTeam.name} ${homeScore}-${awayScore}`
         : awayWin
-        ? `${homeTeam.city} ${homeTeam.name} lost to ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`
-        : `${homeTeam.city} ${homeTeam.name} drew with ${awayTeam.city} ${awayTeam.name} ${homeScore}-${awayScore}`;
+        ? `${homeTeam.name} lost to ${awayTeam.name} ${homeScore}-${awayScore}`
+        : `${homeTeam.name} drew with ${awayTeam.name} ${homeScore}-${awayScore}`;
       
       const awayMsg = awayWin
-        ? `Congratulations! ${awayTeam.city} ${awayTeam.name} defeated ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`
+        ? `Congratulations! ${awayTeam.name} defeated ${homeTeam.name} ${awayScore}-${homeScore}`
         : homeWin
-        ? `${awayTeam.city} ${awayTeam.name} lost to ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`
-        : `${awayTeam.city} ${awayTeam.name} drew with ${homeTeam.city} ${homeTeam.name} ${awayScore}-${homeScore}`;
+        ? `${awayTeam.name} lost to ${homeTeam.name} ${awayScore}-${homeScore}`
+        : `${awayTeam.name} drew with ${homeTeam.name} ${awayScore}-${homeScore}`;
       
       await supabase.from('notifications').insert({
         team_id: homeTeam.id,
@@ -247,7 +259,6 @@ export async function GET() {
       // MOTM notification + XP bonus
       if (motmPlayer) {
         const motmTeam = teamsMap[motmPlayer.team_id];
-        const motmTeamName = motmTeam ? `${motmTeam.city} ${motmTeam.name}` : 'Unknown';
         
         await supabase.from('notifications').insert({
           team_id: motmPlayer.team_id,
@@ -279,7 +290,7 @@ export async function GET() {
           team_id: otherTeamId,
           type: 'motm_opponent',
           title: '⭐ Opponent MOTM',
-          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmTeamName}) was Man of the Match`,
+          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmTeam?.name}) was Man of the Match`,
           player_id: motmPlayer.id,
           fixture_id: fixture.id
         });
