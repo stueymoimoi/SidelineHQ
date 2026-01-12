@@ -21,6 +21,7 @@ interface Team {
   losses: number;
   points_for: number;
   points_against: number;
+  division: number;
 }
 
 interface Fixture {
@@ -30,6 +31,7 @@ interface Fixture {
   round: number;
   season: number;
   played: boolean;
+  division: number;
 }
 
 interface MatchResult {
@@ -48,7 +50,6 @@ interface FixtureWithTeams extends Fixture {
 }
 
 // Season 0 schedule: Tues, Thurs, Sun at 6pm AEST
-// Round 1: Tue 14 Jan, Round 2: Thu 16 Jan, Round 3: Sun 19 Jan, etc.
 const SEASON_0_START = new Date('2026-01-13T07:00:00Z'); // Tuesday 13th Jan 6pm AEST = 7am UTC
 
 // Pre-calculate all 18 round dates
@@ -128,6 +129,7 @@ export default function FixturesPage() {
   const [countdown, setCountdown] = useState('');
   const [nextUpdate, setNextUpdate] = useState<{ date: Date; round: number } | null>(null);
   const [seasonStarted, setSeasonStarted] = useState(false);
+  const [userDivision, setUserDivision] = useState(1);
   const router = useRouter();
 
   useEffect(() => {
@@ -172,41 +174,60 @@ export default function FixturesPage() {
         return;
       }
 
-      // Get all teams
+      // Get user's team FIRST to know their division
+      const { data: myTeam } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', coach.team_id)
+        .single();
+
+      if (!myTeam) return;
+
+      setTeam(myTeam);
+      setUserDivision(myTeam.division);
+
+      // Get all teams in user's division
       const { data: teams } = await supabase
         .from('teams')
         .select('*')
-        .eq('division', 1);
+        .eq('division', myTeam.division);
 
       if (!teams) return;
 
       const teamsMap: Record<string, Team> = {};
       teams.forEach(t => { teamsMap[t.id] = t; });
       setAllTeams(teamsMap);
-      setTeam(teamsMap[coach.team_id]);
 
-      // Get all fixtures for season 0
+      // Get fixtures for user's division only
       const { data: fixturesData } = await supabase
         .from('fixtures')
         .select('*')
         .eq('season', 0)
+        .eq('division', myTeam.division)
         .order('round', { ascending: true });
 
-      // Get all match results
-      const { data: results } = await supabase
-        .from('match_results')
-        .select('*');
+      // Get all match results for this division's fixtures
+      const fixtureIds = (fixturesData || []).map(f => f.id);
+      let resultsMap: Record<string, MatchResult> = {};
+      
+      if (fixtureIds.length > 0) {
+        const { data: results } = await supabase
+          .from('match_results')
+          .select('*')
+          .in('fixture_id', fixtureIds);
 
-      const resultsMap: Record<string, MatchResult> = {};
-      results?.forEach(r => { resultsMap[r.fixture_id] = r; });
+        results?.forEach(r => { resultsMap[r.fixture_id] = r; });
+      }
 
       // Combine fixtures with teams and results
-      const fixturesWithTeams: FixtureWithTeams[] = (fixturesData || []).map(f => ({
-        ...f,
-        home_team: teamsMap[f.home_team_id],
-        away_team: teamsMap[f.away_team_id],
-        result: resultsMap[f.id],
-      }));
+      const fixturesWithTeams: FixtureWithTeams[] = (fixturesData || [])
+        .filter(f => teamsMap[f.home_team_id] && teamsMap[f.away_team_id]) // Only include fixtures where both teams exist
+        .map(f => ({
+          ...f,
+          home_team: teamsMap[f.home_team_id],
+          away_team: teamsMap[f.away_team_id],
+          result: resultsMap[f.id],
+        }));
 
       setFixtures(fixturesWithTeams);
 
@@ -310,7 +331,7 @@ export default function FixturesPage() {
       <div 
         className="p-6"
         style={{
-          background: `linear-gradient(135deg, ${team?.primary_color} 0%, ${team?.secondary_color} 100%)`
+          background: `linear-gradient(135deg, ${team?.primary_color || '#1f2937'} 0%, ${team?.secondary_color || '#111827'} 100%)`
         }}
       >
         <div className="max-w-6xl mx-auto">
@@ -319,7 +340,7 @@ export default function FixturesPage() {
           </Link>
           <h1 className="text-3xl font-bold text-white">📅 Fixtures</h1>
           <p className="text-white/80 mt-1">
-            Season 0 • {seasonStarted ? `Round ${currentRound} of 18` : 'Pre-Season'}
+            Season 0 • Division {userDivision} • {seasonStarted ? `Round ${currentRound} of 18` : 'Pre-Season'}
           </p>
         </div>
       </div>
@@ -409,7 +430,7 @@ export default function FixturesPage() {
           <div className="flex flex-wrap gap-2">
             {Array.from({ length: 18 }, (_, i) => i + 1).map(round => {
               const roundGames = getFixturesForRound(round);
-              const allPlayed = roundGames.every(f => f.played);
+              const allPlayed = roundGames.length > 0 && roundGames.every(f => f.played);
               const isCurrentRound = round === currentRound;
               
               return (
@@ -451,61 +472,65 @@ export default function FixturesPage() {
               Round {selectedRound} {selectedRound === currentRound && <span className="text-green-400 text-sm font-normal">(Current)</span>}
             </h2>
             <div className="space-y-3">
-              {roundFixtures.map(fixture => {
-                const isMyGame = fixture.home_team_id === team?.id || fixture.away_team_id === team?.id;
-                
-                return (
-                  <div 
-                    key={fixture.id}
-                    className={`flex items-center justify-between p-3 rounded-lg ${
-                      isMyGame ? 'bg-gray-700 border border-green-500/50' : 'bg-gray-700/50'
-                    }`}
-                  >
-                    {/* Home Team */}
-                    <div className="flex-1 flex items-center gap-2">
-                      <div 
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                        style={{ 
-                          backgroundColor: fixture.home_team.primary_color,
-                          color: fixture.home_team.secondary_color 
-                        }}
-                      >
-                        {fixture.home_team.city.substring(0, 3).toUpperCase()}
-                      </div>
-                      <span className={`${isMyGame && fixture.home_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                        {fixture.home_team.city} <span className="text-gray-500">({getLadderPosition(fixture.home_team_id)})</span>
-                      </span>
-                    </div>
-
-                    {/* Score or VS */}
-                    <div className="px-4 text-center min-w-[80px]">
-                      {fixture.played && fixture.result ? (
-                        <span className="text-white font-bold">
-                          {fixture.result.home_score} - {fixture.result.away_score}
+              {roundFixtures.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No fixtures found for this round</p>
+              ) : (
+                roundFixtures.map(fixture => {
+                  const isMyGame = fixture.home_team_id === team?.id || fixture.away_team_id === team?.id;
+                  
+                  return (
+                    <div 
+                      key={fixture.id}
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        isMyGame ? 'bg-gray-700 border border-green-500/50' : 'bg-gray-700/50'
+                      }`}
+                    >
+                      {/* Home Team */}
+                      <div className="flex-1 flex items-center gap-2">
+                        <div 
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                          style={{ 
+                            backgroundColor: fixture.home_team.primary_color,
+                            color: fixture.home_team.secondary_color 
+                          }}
+                        >
+                          {fixture.home_team.city.substring(0, 3).toUpperCase()}
+                        </div>
+                        <span className={`${isMyGame && fixture.home_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
+                          {fixture.home_team.city} <span className="text-gray-500">({getLadderPosition(fixture.home_team_id)})</span>
                         </span>
-                      ) : (
-                        <span className="text-gray-500">vs</span>
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Away Team */}
-                    <div className="flex-1 flex items-center gap-2 justify-end">
-                      <span className={`${isMyGame && fixture.away_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                        {fixture.away_team.city} <span className="text-gray-500">({getLadderPosition(fixture.away_team_id)})</span>
-                      </span>
-                      <div 
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                        style={{ 
-                          backgroundColor: fixture.away_team.primary_color,
-                          color: fixture.away_team.secondary_color 
-                        }}
-                      >
-                        {fixture.away_team.city.substring(0, 3).toUpperCase()}
+                      {/* Score or VS */}
+                      <div className="px-4 text-center min-w-[80px]">
+                        {fixture.played && fixture.result ? (
+                          <span className="text-white font-bold">
+                            {fixture.result.home_score} - {fixture.result.away_score}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">vs</span>
+                        )}
+                      </div>
+
+                      {/* Away Team */}
+                      <div className="flex-1 flex items-center gap-2 justify-end">
+                        <span className={`${isMyGame && fixture.away_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
+                          {fixture.away_team.city} <span className="text-gray-500">({getLadderPosition(fixture.away_team_id)})</span>
+                        </span>
+                        <div 
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                          style={{ 
+                            backgroundColor: fixture.away_team.primary_color,
+                            color: fixture.away_team.secondary_color 
+                          }}
+                        >
+                          {fixture.away_team.city.substring(0, 3).toUpperCase()}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         )}
