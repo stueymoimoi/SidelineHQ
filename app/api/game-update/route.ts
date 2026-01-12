@@ -23,6 +23,127 @@ function calculateMatchPerformance(player: any): number {
   return baseScore * fatigueMultiplier * variance;
 }
 
+// Calculate tactical bonus/penalty
+function calculateTacticalBonus(
+  attackFocus: string,
+  defenseFocus: string,
+  attackingPlayers: any[],
+  tactics: any
+): { bonus: number; description: string } {
+  let bonus = 0;
+  let description = '';
+
+  // Get key player averages for position-based bonuses
+  const getPlayerOverall = (id: string | null) => {
+    if (!id) return 50;
+    const player = attackingPlayers.find(p => p.id === id);
+    return player?.overall || 50;
+  };
+
+  // Spine players (for edge attacks)
+  const halfback = getPlayerOverall(tactics?.pos_halfback);
+  const fiveEighth = getPlayerOverall(tactics?.pos_five_eighth);
+  const spineAvg = (halfback + fiveEighth) / 2;
+
+  // Forward pack (for middle attacks)
+  const propL = getPlayerOverall(tactics?.pos_prop_l);
+  const propR = getPlayerOverall(tactics?.pos_prop_r);
+  const hooker = getPlayerOverall(tactics?.pos_hooker);
+  const lock = getPlayerOverall(tactics?.pos_lock);
+  const forwardAvg = (propL + propR + hooker + lock) / 4;
+
+  // OFF THE CUFF - High risk, high reward
+  if (attackFocus === 'off_the_cuff') {
+    const spineBonus = (spineAvg - 50) / 100; // Better halves = better odds
+    const roll = Math.random() * 100;
+    
+    if (roll < 40 + (spineBonus * 20)) {
+      // It clicks! Big bonus
+      bonus = 15;
+      description = '🎲 Off the Cuff magic! Playing with freedom';
+    } else if (roll < 75 + (spineBonus * 10)) {
+      // Meh, nothing special
+      bonus = 0;
+      description = '🎲 Off the Cuff: Nothing came off';
+    } else {
+      // Falls apart
+      bonus = -10;
+      description = '🎲 Off the Cuff backfired! Too many errors';
+    }
+    return { bonus, description };
+  }
+
+  // RAID LEFT vs Defense
+  if (attackFocus === 'raid_left') {
+    if (defenseFocus === 'shift_right') {
+      bonus = 10;
+      description = '⬅️ Left edge raid found space on the right-loaded defense';
+    } else if (defenseFocus === 'shift_left') {
+      bonus = -2;
+      description = '⬅️ Left raid met a stacked left-side defense';
+    } else if (defenseFocus === 'brick_wall') {
+      bonus = 5;
+      description = '⬅️ Left edge raid stretched the packed middle';
+    }
+    // Spine bonus for edge attacks
+    const spineImpact = (spineAvg - 55) / 10;
+    bonus += spineImpact;
+  }
+
+  // RAID RIGHT vs Defense
+  if (attackFocus === 'raid_right') {
+    if (defenseFocus === 'shift_left') {
+      bonus = 10;
+      description = '➡️ Right edge raid exploited the left-loaded defense';
+    } else if (defenseFocus === 'shift_right') {
+      bonus = -2;
+      description = '➡️ Right raid met a stacked right-side defense';
+    } else if (defenseFocus === 'brick_wall') {
+      bonus = 5;
+      description = '➡️ Right edge raid stretched the packed middle';
+    }
+    // Spine bonus for edge attacks
+    const spineImpact = (spineAvg - 55) / 10;
+    bonus += spineImpact;
+  }
+
+  // UP THE GUTS vs Defense
+  if (attackFocus === 'up_the_guts') {
+    if (defenseFocus === 'brick_wall') {
+      bonus = -3;
+      description = '💪 Forward charges met a brick wall defense';
+    } else if (defenseFocus === 'shift_left' || defenseFocus === 'shift_right') {
+      bonus = 8;
+      description = '💪 Forwards punched through the undermanned middle';
+    } else if (defenseFocus === 'line_speed') {
+      bonus = 2;
+      description = '💪 Forwards absorbed the line speed and made meters';
+    }
+    // Forward pack bonus for middle attacks
+    const forwardImpact = (forwardAvg - 55) / 8;
+    bonus += forwardImpact;
+  }
+
+  // STRUCTURED vs Defense
+  if (attackFocus === 'structured') {
+    // Structured is safe, small bonuses
+    if (defenseFocus === 'line_speed') {
+      bonus = 2;
+      description = '📋 Structured attack handled the pressure well';
+    } else {
+      bonus = 1;
+      description = '📋 Structured attack probed for openings';
+    }
+  }
+
+  // LINE SPEED defense bonus
+  if (defenseFocus === 'line_speed' && attackFocus !== 'structured') {
+    bonus -= 2; // Pressure causes errors
+  }
+
+  return { bonus, description };
+}
+
 export async function GET(request: Request) {
   const logs: string[] = [];
   
@@ -90,23 +211,51 @@ export async function GET(request: Request) {
         continue;
       }
       
+      // Get team tactics
+      const { data: homeTactics } = await supabase
+        .from('team_tactics')
+        .select('*')
+        .eq('team_id', fixture.home_team_id)
+        .single();
+      
+      const { data: awayTactics } = await supabase
+        .from('team_tactics')
+        .select('*')
+        .eq('team_id', fixture.away_team_id)
+        .single();
+
       // Get team strengths (top 13 players with full data for MOTM)
       const { data: homePlayers } = await supabase
         .from('players')
         .select('id, first_name, last_name, position, overall, fatigue, team_id')
         .eq('team_id', fixture.home_team_id)
         .order('overall', { ascending: false })
-        .limit(13);
+        .limit(17);
       
       const { data: awayPlayers } = await supabase
         .from('players')
         .select('id, first_name, last_name, position, overall, fatigue, team_id')
         .eq('team_id', fixture.away_team_id)
         .order('overall', { ascending: false })
-        .limit(13);
+        .limit(17);
       
-      const homeStrength = (homePlayers?.reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13 + HOME_ADVANTAGE;
-      const awayStrength = (awayPlayers?.reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
+      // Base strength (top 13 average)
+      const homeBaseStrength = (homePlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
+      const awayBaseStrength = (awayPlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
+      
+      // Get attack/defense focus (default to structured/line_speed)
+      const homeAttack = homeTactics?.attack_focus || 'structured';
+      const homeDefense = homeTactics?.defense_focus || 'line_speed';
+      const awayAttack = awayTactics?.attack_focus || 'structured';
+      const awayDefense = awayTactics?.defense_focus || 'line_speed';
+      
+      // Calculate tactical bonuses
+      const homeTacticalBonus = calculateTacticalBonus(homeAttack, awayDefense, homePlayers || [], homeTactics);
+      const awayTacticalBonus = calculateTacticalBonus(awayAttack, homeDefense, awayPlayers || [], awayTactics);
+      
+      // Final strength with tactics and home advantage
+      const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus;
+      const awayStrength = awayBaseStrength + awayTacticalBonus.bonus;
       
       // Calculate MOTM from all 26 players
       const allPlayers = [...(homePlayers || []), ...(awayPlayers || [])];
@@ -122,18 +271,6 @@ export async function GET(request: Request) {
       }
       
       // Get goal kickers
-      const { data: homeTactics } = await supabase
-        .from('team_tactics')
-        .select('goal_kicker')
-        .eq('team_id', fixture.home_team_id)
-        .single();
-      
-      const { data: awayTactics } = await supabase
-        .from('team_tactics')
-        .select('goal_kicker')
-        .eq('team_id', fixture.away_team_id)
-        .single();
-      
       let homeKicking = 60;
       let awayKicking = 60;
       
@@ -147,10 +284,10 @@ export async function GET(request: Request) {
         if (kicker) awayKicking = kicker.kicking;
       }
       
-      // Calculate tries
+      // Calculate tries (now influenced by tactics)
       const strengthDiff = homeStrength - awayStrength;
-      const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 20) + (Math.random() - 0.5) * 4));
-      const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 20) + (Math.random() - 0.5) * 4));
+      const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 15) + (Math.random() - 0.5) * 4));
+      const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 15) + (Math.random() - 0.5) * 4));
       
       // Conversions
       let homeConv = 0, awayConv = 0;
@@ -228,17 +365,18 @@ export async function GET(request: Request) {
       const homeTitle = homeWin ? '🏆 Victory!' : awayWin ? '😢 Defeat' : '🤝 Draw';
       const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
       
+      // Include tactical summary in notifications
       const homeMsg = homeWin 
-        ? `Congratulations! ${homeTeam.name} defeated ${awayTeam.name} ${homeScore}-${awayScore}`
+        ? `${homeTeam.name} defeated ${awayTeam.name} ${homeScore}-${awayScore}. ${homeTacticalBonus.description}`
         : awayWin
-        ? `${homeTeam.name} lost to ${awayTeam.name} ${homeScore}-${awayScore}`
-        : `${homeTeam.name} drew with ${awayTeam.name} ${homeScore}-${awayScore}`;
+        ? `${homeTeam.name} lost to ${awayTeam.name} ${homeScore}-${awayScore}. ${homeTacticalBonus.description}`
+        : `${homeTeam.name} drew with ${awayTeam.name} ${homeScore}-${awayScore}. ${homeTacticalBonus.description}`;
       
       const awayMsg = awayWin
-        ? `Congratulations! ${awayTeam.name} defeated ${homeTeam.name} ${awayScore}-${homeScore}`
+        ? `${awayTeam.name} defeated ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`
         : homeWin
-        ? `${awayTeam.name} lost to ${homeTeam.name} ${awayScore}-${homeScore}`
-        : `${awayTeam.name} drew with ${homeTeam.name} ${awayScore}-${homeScore}`;
+        ? `${awayTeam.name} lost to ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`
+        : `${awayTeam.name} drew with ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`;
       
       await supabase.from('notifications').insert({
         team_id: homeTeam.id,
