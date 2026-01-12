@@ -347,6 +347,11 @@ export default function ClubhousePage() {
 
         {/* Sign Out */}
         <div className="mt-8 text-center space-y-2">
+          <div>
+            <Link href="/guide" className="text-green-500 hover:text-green-400 text-sm">
+              📖 Coach Guide
+            </Link>
+          </div>
           {userId === 'b0c4c970-ac17-4be8-9b35-68d321a166ad' && (
             <div>
               <Link href="/admin" className="text-yellow-500 hover:text-yellow-400 text-sm">
