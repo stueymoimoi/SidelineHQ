@@ -345,20 +345,24 @@ export default function ClubhousePage() {
           </Link>
         </div>
 
-        {/* Sign Out */}
-        <div className="mt-8 text-center space-y-2">
-          <div>
-            <Link href="/guide" className="text-green-500 hover:text-green-400 text-sm">
-              📖 Coach Guide
-            </Link>
-          </div>
+        {/* Third Row - Info & Admin */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+          <Link href="/guide" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
+            <div className="text-4xl mb-2">📖</div>
+            <p className="text-white font-bold">Guide</p>
+            <p className="text-gray-500 text-sm">How to play</p>
+          </Link>
           {userId === 'b0c4c970-ac17-4be8-9b35-68d321a166ad' && (
-            <div>
-              <Link href="/admin" className="text-yellow-500 hover:text-yellow-400 text-sm">
-                🔐 Admin Panel
-              </Link>
-            </div>
+            <Link href="/admin" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-yellow-500">
+              <div className="text-4xl mb-2">🔐</div>
+              <p className="text-white font-bold">Admin</p>
+              <p className="text-gray-500 text-sm">Manage league</p>
+            </Link>
           )}
+        </div>
+
+        {/* Sign Out */}
+        <div className="mt-8 text-center">
           <button
             onClick={async () => {
               await supabase.auth.signOut();
