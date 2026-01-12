@@ -113,6 +113,20 @@ const getSideMatchStatus = (player: Player, posKey: string): 'match' | 'mismatch
   return 'neutral';
 };
 
+// Get natural position for a slot
+const getSlotNaturalPosition = (posKey: string): string => {
+  if (posKey.includes('winger')) return 'Winger';
+  if (posKey.includes('centre')) return 'Centre';
+  if (posKey.includes('second_row')) return 'Second Row';
+  if (posKey.includes('fullback')) return 'Fullback';
+  if (posKey.includes('five_eighth')) return 'Five-Eighth';
+  if (posKey.includes('halfback')) return 'Halfback';
+  if (posKey.includes('prop')) return 'Prop';
+  if (posKey.includes('hooker')) return 'Hooker';
+  if (posKey.includes('lock')) return 'Lock';
+  return '';
+};
+
 export default function TacticsPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -344,7 +358,10 @@ export default function TacticsPage() {
                 </span>
               )}
             </div>
-            {sideMatch === 'mismatch' && (
+            {status === 'wrong' && (
+              <p className="text-red-400 text-[10px]">Wrong position!</p>
+            )}
+            {status !== 'wrong' && sideMatch === 'mismatch' && (
               <p className="text-orange-400 text-[10px]">Wrong side!</p>
             )}
           </>
@@ -722,6 +739,11 @@ export default function TacticsPage() {
                 const sideBadge = getSideBadge(p.dominant_side);
                 const sideMatch = getSideMatchStatus(p, selectedPosition);
                 
+                // Check if player's natural position matches the slot
+                const slotNaturalPosition = getSlotNaturalPosition(selectedPosition);
+                const isNaturalPosition = p.position === slotNaturalPosition || slotNaturalPosition === '';
+                const isWrongPosition = slotNaturalPosition !== '' && p.position !== slotNaturalPosition;
+                
                 return (
                   <button
                     key={p.id}
@@ -730,6 +752,8 @@ export default function TacticsPage() {
                     className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
                       alreadySelected 
                         ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
+                        : isWrongPosition
+                        ? 'bg-red-900/30 hover:bg-red-900/50 text-white border border-red-500/50'
                         : sideMatch === 'mismatch'
                         ? 'bg-orange-900/30 hover:bg-orange-900/50 text-white border border-orange-500/50'
                         : sideMatch === 'match'
@@ -752,14 +776,17 @@ export default function TacticsPage() {
                       <div className="text-sm text-gray-400">
                         {p.position} • Age {p.age} • {p.nationality}{p.state ? `, ${p.state}` : ''}
                       </div>
-                      {sideMatch === 'mismatch' && (
-                        <div className="text-orange-400 text-xs mt-1">⚠️ Wrong side — will underperform</div>
+                      {isWrongPosition && (
+                        <div className="text-red-400 text-xs mt-1">⚠️ Wrong position</div>
                       )}
-                      {sideMatch === 'match' && (
+                      {!isWrongPosition && sideMatch === 'mismatch' && (
+                        <div className="text-orange-400 text-xs mt-1">⚠️ Wrong side — may underperform</div>
+                      )}
+                      {!isWrongPosition && sideMatch === 'match' && (
                         <div className="text-green-400 text-xs mt-1">✓ Correct side</div>
                       )}
                     </div>
-                    <span className="text-green-500 font-bold">{p.overall}</span>
+                    <span className={`font-bold ${isWrongPosition ? 'text-red-400' : 'text-green-500'}`}>{p.overall}</span>
                   </button>
                 );
               })}
