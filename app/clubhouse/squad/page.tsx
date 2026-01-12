@@ -29,6 +29,7 @@ interface Player {
   state: string | null;
   current_training: string | null;
   training_progress: string | null;
+  dominant_side: string | null;
 }
 
 interface Team {
@@ -49,11 +50,10 @@ interface ShieldProps {
   tertiaryColor?: string;
   teamAbbr: string;
   size?: number;
-  customLogo?: string | null; // Future: URL to uploaded logo
+  customLogo?: string | null;
 }
 
 const Shield = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', teamAbbr, size = 80, customLogo }: ShieldProps) => {
-  // If custom logo exists, show that instead
   if (customLogo) {
     return (
       <div 
@@ -69,19 +69,11 @@ const Shield = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', teamA
     );
   }
 
-  // Default generated shield
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Outer ring */}
       <circle cx="50" cy="50" r="48" fill={primaryColor} stroke={tertiaryColor} strokeWidth="4" />
-      
-      {/* Inner circle */}
       <circle cx="50" cy="50" r="38" fill={secondaryColor} />
-      
-      {/* Center accent circle */}
       <circle cx="50" cy="50" r="28" fill={primaryColor} />
-      
-      {/* Team abbreviation */}
       <text 
         x="50" 
         y="50" 
@@ -115,7 +107,6 @@ interface JerseyProps {
 }
 
 const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', pattern = 'solid', isAway = false, size = 120, teamAbbr = '' }: JerseyProps) => {
-  // Swap colors for away jersey
   const mainColor = isAway ? secondaryColor : primaryColor;
   const trimColor = isAway ? primaryColor : secondaryColor;
   const accentColor = tertiaryColor;
@@ -152,7 +143,7 @@ const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', patte
             <rect x="10" width="10" height="20" fill={trimColor} />
           </pattern>
         );
-      default: // solid
+      default:
         return null;
     }
   };
@@ -165,36 +156,20 @@ const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', patte
         {renderPattern()}
       </defs>
       
-      {/* Head - rounder, friendlier */}
       <ellipse cx="50" cy="18" rx="14" ry="15" fill="#F5D0B5" />
-      
-      {/* Ears */}
       <ellipse cx="35" cy="18" rx="3" ry="4" fill="#F5D0B5" />
       <ellipse cx="65" cy="18" rx="3" ry="4" fill="#F5D0B5" />
-      
-      {/* Hair - short sporty cut */}
       <path d="M36 8 Q40 3 50 3 Q60 3 64 8 Q65 12 64 14 L62 10 Q55 6 50 6 Q45 6 38 10 L36 14 Q35 12 36 8Z" fill="#3D2314" />
-      
-      {/* Eyebrows - confident look */}
       <path d="M42 13 L47 12" stroke="#3D2314" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M53 12 L58 13" stroke="#3D2314" strokeWidth="1.5" strokeLinecap="round" />
-      
-      {/* Eyes - determined */}
       <ellipse cx="45" cy="17" rx="2.5" ry="2" fill="#FFFFFF" />
       <ellipse cx="55" cy="17" rx="2.5" ry="2" fill="#FFFFFF" />
       <circle cx="45" cy="17" r="1.2" fill="#2C1810" />
       <circle cx="55" cy="17" r="1.2" fill="#2C1810" />
-      
-      {/* Nose */}
       <ellipse cx="50" cy="21" rx="2" ry="1.5" fill="#E8B89D" />
-      
-      {/* Confident smile */}
       <path d="M45 26 Q50 29 55 26" stroke="#2C1810" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      
-      {/* Neck */}
       <rect x="45" y="32" width="10" height="6" fill="#F5D0B5" />
       
-      {/* Jersey Body - athletic fit */}
       <path 
         d="M28 38 L15 44 L10 65 L20 68 L20 95 L80 95 L80 68 L90 65 L85 44 L72 38 L68 36 L60 40 L50 42 L40 40 L32 36 L28 38Z" 
         fill={jerseyFill}
@@ -202,7 +177,6 @@ const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', patte
         strokeWidth="2"
       />
       
-      {/* Collar - V-neck with accent */}
       <path 
         d="M40 38 L50 50 L60 38" 
         fill="none" 
@@ -212,11 +186,9 @@ const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', patte
         strokeLinejoin="round"
       />
       
-      {/* Shoulder stripes - accent color */}
       <path d="M15 52 L20 54" stroke={accentColor} strokeWidth="4" strokeLinecap="round" />
       <path d="M85 52 L80 54" stroke={accentColor} strokeWidth="4" strokeLinecap="round" />
       
-      {/* Team Abbreviation on Jersey */}
       {teamAbbr && (
         <>
           <text 
@@ -246,24 +218,18 @@ const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', patte
         </>
       )}
       
-      {/* Arms - muscular, hands on hips */}
-      {/* Left Arm */}
       <path 
         d="M10 65 Q2 72 8 85 L16 82 Q10 72 16 68" 
         fill="#F5D0B5"
       />
-      {/* Left Hand */}
       <ellipse cx="12" cy="86" rx="5" ry="4" fill="#F5D0B5" />
       
-      {/* Right Arm */}
       <path 
         d="M90 65 Q98 72 92 85 L84 82 Q90 72 84 68" 
         fill="#F5D0B5"
       />
-      {/* Right Hand */}
       <ellipse cx="88" cy="86" rx="5" ry="4" fill="#F5D0B5" />
       
-      {/* Shorts */}
       <path 
         d="M24 95 L22 115 L40 115 L50 100 L60 115 L78 115 L76 95 Z" 
         fill={trimColor}
@@ -271,31 +237,24 @@ const Jersey = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', patte
         strokeWidth="1"
       />
       
-      {/* Shorts accent stripe */}
       <path d="M24 100 L76 100" stroke={accentColor} strokeWidth="2" />
       
-      {/* Legs - athletic */}
       <path d="M28 115 L30 125" stroke="#F5D0B5" strokeWidth="10" strokeLinecap="round" />
       <path d="M72 115 L70 125" stroke="#F5D0B5" strokeWidth="10" strokeLinecap="round" />
       
-      {/* Socks - with stripes */}
       <rect x="22" y="120" width="16" height="8" rx="2" fill={mainColor} />
       <rect x="62" y="120" width="16" height="8" rx="2" fill={mainColor} />
       
-      {/* Sock accent stripes */}
       <path d="M22 123 L38 123" stroke={accentColor} strokeWidth="1.5" />
       <path d="M62 123 L78 123" stroke={accentColor} strokeWidth="1.5" />
       
-      {/* Boots */}
       <ellipse cx="30" cy="130" rx="10" ry="3" fill="#1a1a1a" />
       <ellipse cx="70" cy="130" rx="10" ry="3" fill="#1a1a1a" />
     </svg>
   );
 };
 
-// Get team abbreviation from name
 const getTeamAbbr = (teamName: string): string => {
-  // Common abbreviations
   const abbrs: Record<string, string> = {
     'Frost': 'CBR',
     'Raptors': 'BRI',
@@ -315,7 +274,6 @@ const getTeamAbbr = (teamName: string): string => {
 // CONSTANTS
 // ============================================================================
 
-// Tier names (index 0 = unused, 1-8 = tiers)
 const TIER_NAMES: Record<number, string> = {
   1: 'None',
   2: 'Poor',
@@ -327,7 +285,6 @@ const TIER_NAMES: Record<number, string> = {
   8: 'World Class'
 };
 
-// Position stat importance
 const POSITION_STATS: Record<string, { primary: string[], secondary: string[], minor: string[], negligible: string[] }> = {
   'Prop': {
     primary: ['strength', 'defense'],
@@ -385,6 +342,28 @@ const POSITION_STATS: Record<string, { primary: string[], secondary: string[], m
   }
 };
 
+// ============================================================================
+// DOMINANT SIDE HELPERS
+// ============================================================================
+
+const shouldShowSide = (position: string) => {
+  return ['Winger', 'Centre', 'Second Row'].includes(position);
+};
+
+const getSideBadge = (side: string | null) => {
+  switch (side) {
+    case 'left':
+      return { text: 'L', bg: 'bg-orange-500', title: 'Left-sided specialist' };
+    case 'right':
+      return { text: 'R', bg: 'bg-blue-500', title: 'Right-sided specialist' };
+    case 'both':
+      return { text: 'L/R', bg: 'bg-gray-500', title: 'Versatile - plays both sides' };
+    case 'none':
+    default:
+      return { text: '?', bg: 'bg-yellow-500', title: 'Developing - side not yet determined' };
+  }
+};
+
 export default function SquadPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -439,17 +418,15 @@ export default function SquadPage() {
     }
   };
 
-  // Get OVR color based on new 12-48 scale
   const getOvrColor = (ovr: number) => {
-    if (ovr >= 41) return 'bg-purple-500'; // Elite/Rep
-    if (ovr >= 35) return 'bg-green-500';  // Star
-    if (ovr >= 29) return 'bg-green-600';  // Quality
-    if (ovr >= 23) return 'bg-yellow-500'; // Solid
-    if (ovr >= 17) return 'bg-orange-500'; // Fringe
-    return 'bg-red-500';                   // Youth/Dev
+    if (ovr >= 41) return 'bg-purple-500';
+    if (ovr >= 35) return 'bg-green-500';
+    if (ovr >= 29) return 'bg-green-600';
+    if (ovr >= 23) return 'bg-yellow-500';
+    if (ovr >= 17) return 'bg-orange-500';
+    return 'bg-red-500';
   };
 
-  // Get OVR stars (1-5) based on OVR value
   const getOvrStars = (ovr: number) => {
     if (ovr >= 39) return '⭐⭐⭐⭐⭐';
     if (ovr >= 33) return '⭐⭐⭐⭐';
@@ -473,31 +450,27 @@ export default function SquadPage() {
     return colors[position] || 'bg-gray-600';
   };
 
-  // Get fitness color (inverted from fatigue)
   const getFitnessColor = (fitness: number) => {
     if (fitness >= 70) return 'text-green-500';
     if (fitness >= 40) return 'text-yellow-500';
     return 'text-red-500';
   };
 
-  // Get tier name from value
   const getTierName = (value: number) => {
     return TIER_NAMES[value] || 'None';
   };
 
-  // Get tier color
   const getTierColor = (value: number) => {
-    if (value >= 8) return 'text-purple-400';  // World Class
-    if (value >= 7) return 'text-yellow-400';  // Elite
-    if (value >= 6) return 'text-green-400';   // Excellent
-    if (value >= 5) return 'text-blue-400';    // Very Good
-    if (value >= 4) return 'text-white';       // Good
-    if (value >= 3) return 'text-gray-400';    // Fair
-    if (value >= 2) return 'text-orange-400';  // Poor
-    return 'text-red-400';                     // None
+    if (value >= 8) return 'text-purple-400';
+    if (value >= 7) return 'text-yellow-400';
+    if (value >= 6) return 'text-green-400';
+    if (value >= 5) return 'text-blue-400';
+    if (value >= 4) return 'text-white';
+    if (value >= 3) return 'text-gray-400';
+    if (value >= 2) return 'text-orange-400';
+    return 'text-red-400';
   };
 
-  // Get stat importance for position
   const getStatImportance = (position: string, stat: string): 'primary' | 'secondary' | 'minor' | 'negligible' => {
     const posStats = POSITION_STATS[position];
     if (!posStats) return 'secondary';
@@ -508,7 +481,6 @@ export default function SquadPage() {
     return 'negligible';
   };
 
-  // Get importance indicator
   const getImportanceIndicator = (importance: 'primary' | 'secondary' | 'minor' | 'negligible') => {
     switch (importance) {
       case 'primary': return { icon: '⭐', color: 'text-yellow-400', opacity: 'opacity-100' };
@@ -518,7 +490,6 @@ export default function SquadPage() {
     }
   };
 
-  // Render stat bar for modal
   const renderStatBar = (
     label: string, 
     statKey: string, 
@@ -529,7 +500,7 @@ export default function SquadPage() {
     const indicator = getImportanceIndicator(importance);
     const tierName = getTierName(value);
     const tierColor = getTierColor(value);
-    const barWidth = (value / 8) * 100; // 8 is max tier
+    const barWidth = (value / 8) * 100;
     
     const barColors: Record<string, string> = {
       speed: 'bg-blue-500',
@@ -582,7 +553,6 @@ export default function SquadPage() {
           </Link>
           
           <div className="flex items-center gap-8">
-            {/* Team Shield */}
             {team && (
               <Shield
                 primaryColor={team.primary_color}
@@ -593,13 +563,11 @@ export default function SquadPage() {
               />
             )}
             
-            {/* Team Info */}
             <div>
               <h1 className="text-4xl font-bold text-white">{team?.name}</h1>
               <p className="text-white/80 text-lg">👥 Squad • {players.length} Players</p>
             </div>
             
-            {/* Jerseys Display - Right next to team name */}
             {team && (
               <div className="flex items-end gap-2">
                 <div className="text-center">
@@ -633,51 +601,81 @@ export default function SquadPage() {
       </div>
 
       <div className="max-w-6xl mx-auto p-6">
+        {/* Side Badge Legend - Only show if team has edge players */}
+        {players.some(p => shouldShowSide(p.position)) && (
+          <div className="bg-gray-800 rounded-lg p-3 mb-6 flex flex-wrap items-center gap-4 text-sm">
+            <span className="text-gray-400">Side:</span>
+            <span className="flex items-center gap-1">
+              <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded font-bold">L</span>
+              <span className="text-gray-400">Left</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded font-bold">R</span>
+              <span className="text-gray-400">Right</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-gray-500 text-white text-xs px-2 py-0.5 rounded font-bold">L/R</span>
+              <span className="text-gray-400">Versatile</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded font-bold">?</span>
+              <span className="text-gray-400">Developing</span>
+            </span>
+          </div>
+        )}
+
         {/* All Players */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {players.map((player) => (
-            <div
-              key={player.id}
-              onClick={() => setSelectedPlayer(player)}
-              className="bg-gray-800 rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  {/* First Name - Bigger */}
-                  <p className="text-gray-300 text-base font-semibold">{player.first_name}</p>
-                  {/* Last Name - Biggest */}
-                  <p className="text-white font-bold text-xl">{player.last_name}</p>
-                  {/* Nationality + State */}
-                  <p className="text-gray-500 text-xs">
-                    {player.nationality === 'AUS' && player.state 
-                      ? `${player.nationality}, ${player.state}` 
-                      : player.nationality}
-                  </p>
-                  {/* Position Badge */}
-                  <div className="flex gap-2 mt-2">
-                    <span className={`${getPositionColor(player.position)} text-white text-xs px-2 py-1 rounded`}>
-                      {player.position}
+          {players.map((player) => {
+            const showSide = shouldShowSide(player.position);
+            const sideBadge = getSideBadge(player.dominant_side);
+            
+            return (
+              <div
+                key={player.id}
+                onClick={() => setSelectedPlayer(player)}
+                className="bg-gray-800 rounded-lg p-4 cursor-pointer hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="text-gray-300 text-base font-semibold">{player.first_name}</p>
+                    <p className="text-white font-bold text-xl">{player.last_name}</p>
+                    <p className="text-gray-500 text-xs">
+                      {player.nationality === 'AUS' && player.state 
+                        ? `${player.nationality}, ${player.state}` 
+                        : player.nationality}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <span className={`${getPositionColor(player.position)} text-white text-xs px-2 py-1 rounded`}>
+                        {player.position}
+                      </span>
+                      {showSide && (
+                        <span 
+                          className={`${sideBadge.bg} text-white text-xs px-2 py-1 rounded font-bold`}
+                          title={sideBadge.title}
+                        >
+                          {sideBadge.text}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`${getOvrColor(player.overall)} text-white px-3 py-1 rounded-lg font-bold text-lg inline-block`}>
+                      {player.overall}
                     </span>
+                    <p className="text-yellow-500 text-sm mt-1">{getOvrStars(player.overall)}</p>
                   </div>
                 </div>
-                {/* OVR Badge + Stars */}
-                <div className="text-right">
-                  <span className={`${getOvrColor(player.overall)} text-white px-3 py-1 rounded-lg font-bold text-lg inline-block`}>
-                    {player.overall}
+                
+                <div className="flex justify-between text-sm text-gray-400 mt-3 pt-2 border-t border-gray-700">
+                  <span>Age: {player.age}</span>
+                  <span className={getFitnessColor(100 - (player.fatigue || 0))}>
+                    {100 - (player.fatigue || 0)}% Fit
                   </span>
-                  <p className="text-yellow-500 text-sm mt-1">{getOvrStars(player.overall)}</p>
                 </div>
               </div>
-              
-              {/* Bottom Row: Age, Fitness */}
-              <div className="flex justify-between text-sm text-gray-400 mt-3 pt-2 border-t border-gray-700">
-                <span>Age: {player.age}</span>
-                <span className={getFitnessColor(100 - (player.fatigue || 0))}>
-                  {100 - (player.fatigue || 0)}% Fit
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -699,6 +697,14 @@ export default function SquadPage() {
                   <span className={`${getPositionColor(selectedPlayer.position)} text-white text-sm px-3 py-1 rounded`}>
                     {selectedPlayer.position}
                   </span>
+                  {shouldShowSide(selectedPlayer.position) && (
+                    <span 
+                      className={`${getSideBadge(selectedPlayer.dominant_side).bg} text-white text-sm px-3 py-1 rounded font-bold`}
+                      title={getSideBadge(selectedPlayer.dominant_side).title}
+                    >
+                      {getSideBadge(selectedPlayer.dominant_side).text}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right">
@@ -722,6 +728,19 @@ export default function SquadPage() {
                 </p>
               </div>
             </div>
+
+            {/* Side explanation for edge positions */}
+            {shouldShowSide(selectedPlayer.position) && (
+              <div className="bg-gray-700 rounded p-3 mb-4">
+                <p className="text-gray-400 text-xs">Dominant Side</p>
+                <p className="text-white font-semibold flex items-center gap-2">
+                  <span className={`${getSideBadge(selectedPlayer.dominant_side).bg} text-white text-xs px-2 py-1 rounded font-bold`}>
+                    {getSideBadge(selectedPlayer.dominant_side).text}
+                  </span>
+                  {getSideBadge(selectedPlayer.dominant_side).title}
+                </p>
+              </div>
+            )}
 
             {/* Stats Legend */}
             <div className="flex gap-4 text-xs text-gray-500 mb-2 justify-center">
