@@ -78,7 +78,7 @@ export default function GuidePage() {
                   <h3 className="text-xl text-white mt-6">How the Season Works</h3>
                   <ul className="text-gray-300 space-y-2">
                     <li><strong>18 Rounds</strong> per season</li>
-                    <li><strong>Matches simulate</strong> on Tuesdays and Thursdays at 6pm AEST</li>
+                    <li><strong>Matches simulate</strong> on Tuesdays, Thursdays, and Sundays at 6pm AEST</li>
                     <li><strong>Set your lineup</strong> before each match day</li>
                     <li><strong>Top teams</strong> make the finals at the end of the season</li>
                   </ul>
