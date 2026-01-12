@@ -29,17 +29,18 @@ interface Player {
   overall: number;
   speed: number;
   strength: number;
-  skill: number;
+  power: number;
+  passing: number;
   stamina: number;
-  defense: number;
+  tackling: number;
   kicking: number;
   fatigue: number;
   current_training: string | null;
   training_progress: string | null;
 }
 
-// All training options
-const STAT_TRAINING = ['Speed', 'Strength', 'Skill', 'Stamina', 'Defense'];
+// Updated for 7 stats
+const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'];
 const POSITIONS = ['Fullback', 'Winger', 'Centre', 'Five-Eighth', 'Halfback', 'Prop', 'Hooker', 'Second Row', 'Lock'];
 
 // Progress stages in order
@@ -75,10 +76,10 @@ const getProgressColor = (progress: string | null) => {
 const getProgressWidth = (progress: string | null) => {
   const widths: Record<string, string> = {
     'NONE': 'w-0',
-    'POOR': 'w-1/5',
-    'FAIR': 'w-2/5',
-    'GOOD': 'w-3/5',
-    'VERY GOOD': 'w-4/5',
+    'POOR': 'w-1/6',
+    'FAIR': 'w-2/6',
+    'GOOD': 'w-3/6',
+    'VERY GOOD': 'w-4/6',
     'EXCELLENT': 'w-full',
   };
   return widths[progress || 'NONE'] || 'w-0';
@@ -90,14 +91,17 @@ const getFatigueColor = (fatigue: number) => {
   return 'text-green-500';
 };
 
+// Updated icons for 7 stats
 const getTrainingIcon = (training: string | null) => {
   if (!training) return '➖';
   if (training === 'Rest') return '😴';
   if (training === 'Speed') return '⚡';
   if (training === 'Strength') return '💪';
-  if (training === 'Skill') return '🎯';
-  if (training === 'Stamina') return '🫀';
-  if (training === 'Defense') return '🛡️';
+  if (training === 'Power') return '💥';
+  if (training === 'Passing') return '🎯';
+  if (training === 'Stamina') return '🫁';
+  if (training === 'Tackling') return '🛡️';
+  if (training === 'Kicking') return '🦶';
   return '📍';
 };
 
@@ -311,7 +315,13 @@ export default function TrainingPage() {
         <div className="bg-gray-800 rounded-lg p-4">
           <h2 className="text-white font-bold mb-3">Quick Assign</h2>
           <div className="flex flex-wrap gap-2">
-            {['Rest', ...STAT_TRAINING].map(training => (
+            <button
+              onClick={() => setAllTraining('Rest')}
+              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition"
+            >
+              😴 All Rest
+            </button>
+            {STAT_TRAINING.map(training => (
               <button
                 key={training}
                 onClick={() => setAllTraining(training)}
@@ -416,8 +426,8 @@ export default function TrainingPage() {
               {selectedPlayer.position} • {selectedPlayer.overall} OVR
             </p>
 
-            {/* Player Stats */}
-            <div className="grid grid-cols-3 gap-2 mb-4 text-sm">
+            {/* Player Stats - Updated for 7 stats */}
+            <div className="grid grid-cols-4 gap-2 mb-4 text-sm">
               <div className="bg-gray-700 rounded p-2 text-center">
                 <p className="text-gray-400 text-xs">SPD</p>
                 <p className="text-white font-bold">{selectedPlayer.speed}</p>
@@ -427,16 +437,24 @@ export default function TrainingPage() {
                 <p className="text-white font-bold">{selectedPlayer.strength}</p>
               </div>
               <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">SKL</p>
-                <p className="text-white font-bold">{selectedPlayer.skill}</p>
+                <p className="text-gray-400 text-xs">PWR</p>
+                <p className="text-white font-bold">{selectedPlayer.power}</p>
+              </div>
+              <div className="bg-gray-700 rounded p-2 text-center">
+                <p className="text-gray-400 text-xs">PAS</p>
+                <p className="text-white font-bold">{selectedPlayer.passing}</p>
               </div>
               <div className="bg-gray-700 rounded p-2 text-center">
                 <p className="text-gray-400 text-xs">STA</p>
                 <p className="text-white font-bold">{selectedPlayer.stamina}</p>
               </div>
               <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">DEF</p>
-                <p className="text-white font-bold">{selectedPlayer.defense}</p>
+                <p className="text-gray-400 text-xs">TAK</p>
+                <p className="text-white font-bold">{selectedPlayer.tackling}</p>
+              </div>
+              <div className="bg-gray-700 rounded p-2 text-center">
+                <p className="text-gray-400 text-xs">KCK</p>
+                <p className="text-white font-bold">{selectedPlayer.kicking}</p>
               </div>
               <div className="bg-gray-700 rounded p-2 text-center">
                 <p className="text-gray-400 text-xs">FAT</p>
@@ -466,31 +484,36 @@ export default function TrainingPage() {
               )}
             </button>
 
-            {/* Stat Training */}
+            {/* Stat Training - Updated for 7 stats */}
             <p className="text-gray-500 text-xs mt-4 mb-2">STAT TRAINING</p>
             <div className="grid grid-cols-1 gap-2">
-              {STAT_TRAINING.map(stat => (
-                <button
-                  key={stat}
-                  onClick={() => handleTrainingChange(selectedPlayer.id, stat)}
-                  className={`p-3 rounded-lg text-left transition flex items-center justify-between ${
-                    selectedPlayer.current_training === stat
-                      ? 'bg-green-600/30 border-2 border-green-500'
-                      : 'bg-gray-700 hover:bg-gray-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{getTrainingIcon(stat)}</span>
-                    <div>
-                      <p className="text-white font-medium">{stat}</p>
-                      <p className="text-gray-400 text-xs">Current: {selectedPlayer[stat.toLowerCase() as keyof Player]}</p>
+              {STAT_TRAINING.map(stat => {
+                const statKey = stat.toLowerCase() as keyof Player;
+                const statValue = selectedPlayer[statKey];
+                
+                return (
+                  <button
+                    key={stat}
+                    onClick={() => handleTrainingChange(selectedPlayer.id, stat)}
+                    className={`p-3 rounded-lg text-left transition flex items-center justify-between ${
+                      selectedPlayer.current_training === stat
+                        ? 'bg-green-600/30 border-2 border-green-500'
+                        : 'bg-gray-700 hover:bg-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{getTrainingIcon(stat)}</span>
+                      <div>
+                        <p className="text-white font-medium">{stat}</p>
+                        <p className="text-gray-400 text-xs">Current: {statValue}</p>
+                      </div>
                     </div>
-                  </div>
-                  {selectedPlayer.current_training === stat && (
-                    <span className="text-green-400">✓</span>
-                  )}
-                </button>
-              ))}
+                    {selectedPlayer.current_training === stat && (
+                      <span className="text-green-400">✓</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Position Training */}
