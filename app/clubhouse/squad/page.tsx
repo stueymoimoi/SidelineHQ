@@ -50,9 +50,10 @@ interface JerseyProps {
   pattern?: JerseyPattern;
   isAway?: boolean;
   size?: number;
+  teamAbbr?: string;
 }
 
-const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = false, size = 120 }: JerseyProps) => {
+const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = false, size = 120, teamAbbr = '' }: JerseyProps) => {
   // Swap colors for away jersey
   const mainColor = isAway ? secondaryColor : primaryColor;
   const trimColor = isAway ? primaryColor : secondaryColor;
@@ -97,49 +98,107 @@ const Jersey = ({ primaryColor, secondaryColor, pattern = 'solid', isAway = fals
   const jerseyFill = pattern === 'solid' ? mainColor : `url(#${patternId})`;
 
   return (
-    <svg width={size} height={size * 1.2} viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width={size} height={size * 1.3} viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         {renderPattern()}
       </defs>
       
       {/* Head */}
-      <circle cx="50" cy="15" r="12" fill="#E8D4C4" />
+      <ellipse cx="50" cy="14" rx="10" ry="11" fill="#E8D4C4" />
+      
+      {/* Hair */}
+      <ellipse cx="50" cy="9" rx="9" ry="6" fill="#4A3728" />
       
       {/* Jersey Body */}
       <path 
-        d="M30 30 L20 35 L15 70 L25 72 L25 95 L75 95 L75 72 L85 70 L80 35 L70 30 L65 28 L60 32 L50 35 L40 32 L35 28 L30 30Z" 
+        d="M30 28 L18 34 L12 55 L22 58 L22 90 L78 90 L78 58 L88 55 L82 34 L70 28 L65 26 L58 30 L50 32 L42 30 L35 26 L30 28Z" 
         fill={jerseyFill}
         stroke={trimColor}
         strokeWidth="2"
       />
       
-      {/* Collar */}
+      {/* Collar V-neck */}
       <path 
-        d="M40 30 Q50 38 60 30" 
+        d="M42 28 L50 40 L58 28" 
         fill="none" 
         stroke={trimColor} 
         strokeWidth="3"
+        strokeLinecap="round"
       />
       
-      {/* Left Sleeve Trim */}
-      <path d="M15 45 L25 47" stroke={trimColor} strokeWidth="3" />
+      {/* Left Sleeve Band */}
+      <path d="M12 50 L22 52" stroke={trimColor} strokeWidth="4" strokeLinecap="round" />
       
-      {/* Right Sleeve Trim */}
-      <path d="M85 45 L75 47" stroke={trimColor} strokeWidth="3" />
+      {/* Right Sleeve Band */}
+      <path d="M88 50 L78 52" stroke={trimColor} strokeWidth="4" strokeLinecap="round" />
+      
+      {/* Team Abbreviation on Jersey */}
+      {teamAbbr && (
+        <text 
+          x="50" 
+          y="72" 
+          textAnchor="middle" 
+          fill={trimColor} 
+          fontSize="14" 
+          fontWeight="bold"
+          fontFamily="Arial, sans-serif"
+        >
+          {teamAbbr}
+        </text>
+      )}
+      
+      {/* Arms - Hands on Hips Pose */}
+      {/* Left Arm */}
+      <path 
+        d="M12 55 Q5 65 10 78 L18 75 Q12 65 18 58" 
+        fill="#E8D4C4"
+      />
+      {/* Right Arm */}
+      <path 
+        d="M88 55 Q95 65 90 78 L82 75 Q88 65 82 58" 
+        fill="#E8D4C4"
+      />
       
       {/* Shorts */}
       <path 
-        d="M30 95 L28 115 L45 115 L50 100 L55 115 L72 115 L70 95 Z" 
+        d="M26 90 L24 112 L42 112 L50 95 L58 112 L76 112 L74 90 Z" 
         fill={trimColor}
         stroke={mainColor}
         strokeWidth="1"
       />
       
+      {/* Left Leg */}
+      <path d="M28 112 L30 125" stroke="#E8D4C4" strokeWidth="8" strokeLinecap="round" />
+      {/* Right Leg */}
+      <path d="M72 112 L70 125" stroke="#E8D4C4" strokeWidth="8" strokeLinecap="round" />
+      
       {/* Socks */}
-      <rect x="30" y="115" width="12" height="5" fill={mainColor} />
-      <rect x="58" y="115" width="12" height="5" fill={mainColor} />
+      <rect x="24" y="118" width="12" height="8" rx="2" fill={mainColor} />
+      <rect x="64" y="118" width="12" height="8" rx="2" fill={mainColor} />
+      
+      {/* Boots */}
+      <ellipse cx="30" cy="128" rx="8" ry="3" fill="#222" />
+      <ellipse cx="70" cy="128" rx="8" ry="3" fill="#222" />
     </svg>
   );
+};
+
+// Get team abbreviation from name
+const getTeamAbbr = (teamName: string): string => {
+  // Common abbreviations
+  const abbrs: Record<string, string> = {
+    'Frost': 'CBR',
+    'Raptors': 'BRI',
+    'Serpents': 'SYD',
+    'Wolves': 'MEL',
+    'Steelers': 'NEW',
+    'Pelicans': 'GLD',
+    'Quokkas': 'PER',
+    'Coopers': 'ADL',
+    'Cassowaries': 'TWN',
+    'Ironmen': 'WOL',
+  };
+  return abbrs[teamName] || teamName.substring(0, 3).toUpperCase();
 };
 
 // ============================================================================
@@ -412,24 +471,26 @@ export default function SquadPage() {
             ← Back to Clubhouse
           </Link>
           
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center gap-6">
+            {/* Team Info */}
+            <div className="flex-1">
               <h1 className="text-4xl font-bold text-white">{team?.name}</h1>
               <p className="text-white/80 text-lg">👥 Squad • {players.length} Players</p>
             </div>
             
-            {/* Jerseys Display */}
+            {/* Jerseys Display - Close Together */}
             {team && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-end gap-1">
                 <div className="text-center">
                   <Jersey 
                     primaryColor={team.primary_color} 
                     secondaryColor={team.secondary_color}
                     pattern="solid"
                     isAway={false}
-                    size={80}
+                    size={70}
+                    teamAbbr={getTeamAbbr(team.name)}
                   />
-                  <p className="text-white/70 text-xs mt-1">Home</p>
+                  <p className="text-white/60 text-xs">Home</p>
                 </div>
                 <div className="text-center">
                   <Jersey 
@@ -437,9 +498,10 @@ export default function SquadPage() {
                     secondaryColor={team.secondary_color}
                     pattern="solid"
                     isAway={true}
-                    size={80}
+                    size={70}
+                    teamAbbr={getTeamAbbr(team.name)}
                   />
-                  <p className="text-white/70 text-xs mt-1">Away</p>
+                  <p className="text-white/60 text-xs">Away</p>
                 </div>
               </div>
             )}
