@@ -23,6 +23,157 @@ function calculateMatchPerformance(player: any): number {
   return baseScore * fatigueMultiplier * variance;
 }
 
+// ============================================
+// PLAYER MATCH STATS GENERATION
+// ============================================
+
+function getPositionConfig(jerseyNumber: number) {
+  const configs: Record<number, { metresBase: number; tacklesBase: number; touchesBase: number }> = {
+    1:  { metresBase: 80, tacklesBase: 4, touchesBase: 15 },
+    2:  { metresBase: 45, tacklesBase: 5, touchesBase: 8 },
+    3:  { metresBase: 50, tacklesBase: 8, touchesBase: 10 },
+    4:  { metresBase: 50, tacklesBase: 8, touchesBase: 10 },
+    5:  { metresBase: 45, tacklesBase: 5, touchesBase: 8 },
+    6:  { metresBase: 55, tacklesBase: 10, touchesBase: 18 },
+    7:  { metresBase: 40, tacklesBase: 10, touchesBase: 25 },
+    8:  { metresBase: 85, tacklesBase: 25, touchesBase: 12 },
+    9:  { metresBase: 45, tacklesBase: 35, touchesBase: 30 },
+    10: { metresBase: 80, tacklesBase: 25, touchesBase: 12 },
+    11: { metresBase: 65, tacklesBase: 20, touchesBase: 10 },
+    12: { metresBase: 65, tacklesBase: 20, touchesBase: 10 },
+    13: { metresBase: 70, tacklesBase: 25, touchesBase: 12 },
+    14: { metresBase: 35, tacklesBase: 12, touchesBase: 6 },
+    15: { metresBase: 35, tacklesBase: 12, touchesBase: 6 },
+    16: { metresBase: 30, tacklesBase: 10, touchesBase: 5 },
+    17: { metresBase: 30, tacklesBase: 10, touchesBase: 5 },
+  };
+  return configs[jerseyNumber] || configs[14];
+}
+
+function getMissChance(defenseStat: number): number {
+  if (defenseStat >= 90) return 0.02;
+  if (defenseStat >= 80) return 0.04;
+  if (defenseStat >= 70) return 0.06;
+  if (defenseStat >= 60) return 0.09;
+  if (defenseStat >= 50) return 0.12;
+  if (defenseStat >= 40) return 0.15;
+  return 0.20;
+}
+
+function getErrorChance(skillStat: number): number {
+  if (skillStat >= 90) return 0.01;
+  if (skillStat >= 80) return 0.02;
+  if (skillStat >= 70) return 0.03;
+  if (skillStat >= 60) return 0.05;
+  if (skillStat >= 50) return 0.07;
+  if (skillStat >= 40) return 0.10;
+  return 0.15;
+}
+
+function generatePlayerStats(
+  player: any,
+  jerseyNumber: number,
+  minutes: number
+): { metres: number; tackles: number; missedTackles: number; errors: number } {
+  
+  if (minutes === 0) {
+    return { metres: 0, tackles: 0, missedTackles: 0, errors: 0 };
+  }
+
+  const config = getPositionConfig(jerseyNumber);
+  const minutesFactor = minutes / 80;
+
+  const speedBonus = ((player.speed || 50) - 50) / 5;
+  const strengthBonus = ((player.strength || 50) - 50) / 8;
+  const metresVariance = 0.7 + Math.random() * 0.6;
+  const metres = Math.max(0, Math.round((config.metresBase + speedBonus + strengthBonus) * minutesFactor * metresVariance));
+
+  const staminaBonus = ((player.stamina || 50) - 50) / 10;
+  const tacklesVariance = 0.75 + Math.random() * 0.5;
+  const tackles = Math.max(0, Math.round((config.tacklesBase + staminaBonus) * minutesFactor * tacklesVariance));
+
+  const missChance = getMissChance(player.defense || 50);
+  let missedTackles = 0;
+  const tackleAttempts = tackles + Math.floor(Math.random() * 5);
+  for (let i = 0; i < tackleAttempts; i++) {
+    if (Math.random() < missChance) missedTackles++;
+  }
+
+  const errorChance = getErrorChance(player.skill || 50);
+  let errors = 0;
+  const touches = Math.round(config.touchesBase * minutesFactor);
+  for (let i = 0; i < touches; i++) {
+    if (Math.random() < errorChance) errors++;
+  }
+
+  return { metres, tackles, missedTackles, errors };
+}
+
+function distributeTries(
+  players: any[],
+  totalTries: number,
+  attackStyle: string,
+  tactics: any
+): Record<string, number> {
+  const tryScorers: Record<string, number> = {};
+  
+  const baseWeights: Record<number, number> = {
+    1: 15, 2: 20, 3: 12, 4: 12, 5: 20, 6: 10, 7: 8,
+    8: 5, 9: 8, 10: 4, 11: 10, 12: 10, 13: 8,
+    14: 3, 15: 3, 16: 2, 17: 2
+  };
+
+  const styleModifiers: Record<string, Record<number, number>> = {
+    'raid_left': { 4: 1.5, 5: 1.8, 11: 1.4 },
+    'raid_right': { 2: 1.8, 3: 1.5, 12: 1.4 },
+    'up_the_guts': { 8: 1.5, 9: 1.5, 10: 1.5, 13: 1.5 },
+    'off_the_cuff': { 1: 1.4, 6: 1.4, 7: 1.3 },
+    'structured': {}
+  };
+
+  const modifiers = styleModifiers[attackStyle] || {};
+
+  const positionFields = [
+    'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
+    'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_hooker', 'pos_prop_r',
+    'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'
+  ];
+
+  const weightedPlayers: { id: string; weight: number }[] = [];
+
+  positionFields.forEach((field, index) => {
+    const jerseyNum = index + 1;
+    const playerId = tactics?.[field];
+    if (playerId) {
+      const player = players.find(p => p.id === playerId);
+      const baseWeight = baseWeights[jerseyNum] || 5;
+      const modifier = modifiers[jerseyNum] || 1;
+      const speedBonus = ((player?.speed || 50) - 50) / 25;
+      const strengthBonus = ((player?.strength || 50) - 50) / 30;
+      
+      weightedPlayers.push({
+        id: playerId,
+        weight: Math.max(1, (baseWeight * modifier) + speedBonus + strengthBonus)
+      });
+    }
+  });
+
+  for (let i = 0; i < totalTries; i++) {
+    const totalWeight = weightedPlayers.reduce((sum, p) => sum + p.weight, 0);
+    let random = Math.random() * totalWeight;
+    
+    for (const wp of weightedPlayers) {
+      random -= wp.weight;
+      if (random <= 0) {
+        tryScorers[wp.id] = (tryScorers[wp.id] || 0) + 1;
+        break;
+      }
+    }
+  }
+
+  return tryScorers;
+}
+
 // Calculate tactical bonus/penalty
 function calculateTacticalBonus(
   attackFocus: string,
@@ -33,47 +184,39 @@ function calculateTacticalBonus(
   let bonus = 0;
   let description = '';
 
-  // Get key player averages for position-based bonuses
   const getPlayerOverall = (id: string | null) => {
     if (!id) return 50;
     const player = attackingPlayers.find(p => p.id === id);
     return player?.overall || 50;
   };
 
-  // Spine players (for edge attacks)
   const halfback = getPlayerOverall(tactics?.pos_halfback);
   const fiveEighth = getPlayerOverall(tactics?.pos_five_eighth);
   const spineAvg = (halfback + fiveEighth) / 2;
 
-  // Forward pack (for middle attacks)
   const propL = getPlayerOverall(tactics?.pos_prop_l);
   const propR = getPlayerOverall(tactics?.pos_prop_r);
   const hooker = getPlayerOverall(tactics?.pos_hooker);
   const lock = getPlayerOverall(tactics?.pos_lock);
   const forwardAvg = (propL + propR + hooker + lock) / 4;
 
-  // OFF THE CUFF - High risk, high reward
   if (attackFocus === 'off_the_cuff') {
-    const spineBonus = (spineAvg - 50) / 100; // Better halves = better odds
+    const spineBonus = (spineAvg - 50) / 100;
     const roll = Math.random() * 100;
     
     if (roll < 40 + (spineBonus * 20)) {
-      // It clicks! Big bonus
       bonus = 15;
       description = '🎲 Off the Cuff magic! Playing with freedom';
     } else if (roll < 75 + (spineBonus * 10)) {
-      // Meh, nothing special
       bonus = 0;
       description = '🎲 Off the Cuff: Nothing came off';
     } else {
-      // Falls apart
       bonus = -10;
       description = '🎲 Off the Cuff backfired! Too many errors';
     }
     return { bonus, description };
   }
 
-  // RAID LEFT vs Defense
   if (attackFocus === 'raid_left') {
     if (defenseFocus === 'shift_right') {
       bonus = 10;
@@ -85,12 +228,10 @@ function calculateTacticalBonus(
       bonus = 5;
       description = '⬅️ Left edge raid stretched the packed middle';
     }
-    // Spine bonus for edge attacks
     const spineImpact = (spineAvg - 55) / 10;
     bonus += spineImpact;
   }
 
-  // RAID RIGHT vs Defense
   if (attackFocus === 'raid_right') {
     if (defenseFocus === 'shift_left') {
       bonus = 10;
@@ -102,12 +243,10 @@ function calculateTacticalBonus(
       bonus = 5;
       description = '➡️ Right edge raid stretched the packed middle';
     }
-    // Spine bonus for edge attacks
     const spineImpact = (spineAvg - 55) / 10;
     bonus += spineImpact;
   }
 
-  // UP THE GUTS vs Defense
   if (attackFocus === 'up_the_guts') {
     if (defenseFocus === 'brick_wall') {
       bonus = -3;
@@ -119,14 +258,11 @@ function calculateTacticalBonus(
       bonus = 2;
       description = '💪 Forwards absorbed the line speed and made meters';
     }
-    // Forward pack bonus for middle attacks
     const forwardImpact = (forwardAvg - 55) / 8;
     bonus += forwardImpact;
   }
 
-  // STRUCTURED vs Defense
   if (attackFocus === 'structured') {
-    // Structured is safe, small bonuses
     if (defenseFocus === 'line_speed') {
       bonus = 2;
       description = '📋 Structured attack handled the pressure well';
@@ -136,9 +272,8 @@ function calculateTacticalBonus(
     }
   }
 
-  // LINE SPEED defense bonus
   if (defenseFocus === 'line_speed' && attackFocus !== 'structured') {
-    bonus -= 2; // Pressure causes errors
+    bonus -= 2;
   }
 
   return { bonus, description };
@@ -147,7 +282,6 @@ function calculateTacticalBonus(
 export async function GET(request: Request) {
   const logs: string[] = [];
   
-  // Safety check - prevent accidental manual runs
   const url = new URL(request.url);
   const secret = url.searchParams.get('secret');
   const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
@@ -160,7 +294,6 @@ export async function GET(request: Request) {
   }
   
   try {
-    // Find next round to simulate
     const { data: fixtures } = await supabase
       .from('fixtures')
       .select('*')
@@ -177,12 +310,10 @@ export async function GET(request: Request) {
     
     logs.push(`Simulating Round ${currentRound}`);
     
-    // Get ALL teams
     const { data: teams } = await supabase.from('teams').select('*');
     const teamsMap: Record<string, any> = {};
     teams?.forEach((t: any) => { teamsMap[t.id] = t; });
     
-    // Calculate ladder positions (per division)
     const divisionLadders: Record<number, Record<string, number>> = {};
     for (let div = 1; div <= 10; div++) {
       const divTeams = (teams || []).filter(t => t.division === div);
@@ -201,7 +332,6 @@ export async function GET(request: Request) {
       Object.assign(ladderPositions, divLadder);
     });
     
-    // Simulate each match
     for (const fixture of roundFixtures) {
       const homeTeam = teamsMap[fixture.home_team_id];
       const awayTeam = teamsMap[fixture.away_team_id];
@@ -211,7 +341,6 @@ export async function GET(request: Request) {
         continue;
       }
       
-      // Get team tactics
       const { data: homeTactics } = await supabase
         .from('team_tactics')
         .select('*')
@@ -224,40 +353,34 @@ export async function GET(request: Request) {
         .eq('team_id', fixture.away_team_id)
         .single();
 
-      // Get team strengths (top 13 players with full data for MOTM)
       const { data: homePlayers } = await supabase
         .from('players')
-        .select('id, first_name, last_name, position, overall, fatigue, team_id')
+        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, skill, stamina, defense')
         .eq('team_id', fixture.home_team_id)
         .order('overall', { ascending: false })
         .limit(17);
       
       const { data: awayPlayers } = await supabase
         .from('players')
-        .select('id, first_name, last_name, position, overall, fatigue, team_id')
+        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, skill, stamina, defense')
         .eq('team_id', fixture.away_team_id)
         .order('overall', { ascending: false })
         .limit(17);
       
-      // Base strength (top 13 average)
       const homeBaseStrength = (homePlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
       const awayBaseStrength = (awayPlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
       
-      // Get attack/defense focus (default to structured/line_speed)
       const homeAttack = homeTactics?.attack_focus || 'structured';
       const homeDefense = homeTactics?.defense_focus || 'line_speed';
       const awayAttack = awayTactics?.attack_focus || 'structured';
       const awayDefense = awayTactics?.defense_focus || 'line_speed';
       
-      // Calculate tactical bonuses
       const homeTacticalBonus = calculateTacticalBonus(homeAttack, awayDefense, homePlayers || [], homeTactics);
       const awayTacticalBonus = calculateTacticalBonus(awayAttack, homeDefense, awayPlayers || [], awayTactics);
       
-      // Final strength with tactics and home advantage
       const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus;
       const awayStrength = awayBaseStrength + awayTacticalBonus.bonus;
       
-      // Calculate MOTM from all 26 players
       const allPlayers = [...(homePlayers || []), ...(awayPlayers || [])];
       let motmPlayer: any = null;
       let motmScore = 0;
@@ -270,7 +393,6 @@ export async function GET(request: Request) {
         }
       }
       
-      // Get goal kickers
       let homeKicking = 60;
       let awayKicking = 60;
       
@@ -284,25 +406,122 @@ export async function GET(request: Request) {
         if (kicker) awayKicking = kicker.kicking;
       }
       
-      // Calculate tries (now influenced by tactics)
       const strengthDiff = homeStrength - awayStrength;
       const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 15) + (Math.random() - 0.5) * 4));
       const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 15) + (Math.random() - 0.5) * 4));
       
-      // Conversions
       let homeConv = 0, awayConv = 0;
       for (let i = 0; i < homeTries; i++) if (rollChance(homeKicking)) homeConv++;
       for (let i = 0; i < awayTries; i++) if (rollChance(awayKicking)) awayConv++;
       
-      // Penalties
       const homePen = rollChance(30) ? (rollChance(30) ? 2 : 1) : 0;
       const awayPen = rollChance(30) ? (rollChance(30) ? 2 : 1) : 0;
       
-      // Final scores
       const homeScore = (homeTries * 4) + (homeConv * 2) + (homePen * 2);
       const awayScore = (awayTries * 4) + (awayConv * 2) + (awayPen * 2);
+
+      // ============================================
+      // GENERATE PLAYER MATCH STATS
+      // ============================================
+
+      const positionFields = [
+        'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
+        'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_hooker', 'pos_prop_r',
+        'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'
+      ];
+
+      const minutesPlayed = [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 25, 20, 10, 0];
+
+      const homeTryScorers = distributeTries(homePlayers || [], homeTries, homeAttack, homeTactics);
+      const awayTryScorers = distributeTries(awayPlayers || [], awayTries, awayAttack, awayTactics);
+
+      const homePlayerStats = [];
+      for (let i = 0; i < positionFields.length; i++) {
+        const field = positionFields[i];
+        const playerId = homeTactics?.[field];
+        const jerseyNumber = i + 1;
+        const minutes = minutesPlayed[i];
+        
+        if (playerId) {
+          const player = homePlayers?.find(p => p.id === playerId);
+          if (player) {
+            const stats = generatePlayerStats(player, jerseyNumber, minutes);
+            const tries = homeTryScorers[playerId] || 0;
+            const isKicker = homeTactics?.goal_kicker === playerId;
+            const goalsMade = isKicker ? homeConv + homePen : 0;
+            const goalsAttempted = isKicker ? homeTries + (homePen > 0 ? Math.ceil(homePen / 2) + 1 : 0) : 0;
+            const points = (tries * 4) + (goalsMade * 2);
+            
+            homePlayerStats.push({
+              fixture_id: fixture.id,
+              player_id: playerId,
+              team_id: fixture.home_team_id,
+              jersey_number: jerseyNumber,
+              player_name: `${player.first_name.charAt(0)}. ${player.last_name}`,
+              ovr: player.overall,
+              points: points,
+              tries: tries,
+              goals_made: goalsMade,
+              goals_attempted: goalsAttempted,
+              metres: minutes > 0 ? stats.metres : 0,
+              tackles: minutes > 0 ? stats.tackles : 0,
+              missed_tackles: minutes > 0 ? stats.missedTackles : 0,
+              errors: minutes > 0 ? stats.errors : 0,
+              minutes_played: minutes
+            });
+          }
+        }
+      }
+
+      const awayPlayerStats = [];
+      for (let i = 0; i < positionFields.length; i++) {
+        const field = positionFields[i];
+        const playerId = awayTactics?.[field];
+        const jerseyNumber = i + 1;
+        const minutes = minutesPlayed[i];
+        
+        if (playerId) {
+          const player = awayPlayers?.find(p => p.id === playerId);
+          if (player) {
+            const stats = generatePlayerStats(player, jerseyNumber, minutes);
+            const tries = awayTryScorers[playerId] || 0;
+            const isKicker = awayTactics?.goal_kicker === playerId;
+            const goalsMade = isKicker ? awayConv + awayPen : 0;
+            const goalsAttempted = isKicker ? awayTries + (awayPen > 0 ? Math.ceil(awayPen / 2) + 1 : 0) : 0;
+            const points = (tries * 4) + (goalsMade * 2);
+            
+            awayPlayerStats.push({
+              fixture_id: fixture.id,
+              player_id: playerId,
+              team_id: fixture.away_team_id,
+              jersey_number: jerseyNumber,
+              player_name: `${player.first_name.charAt(0)}. ${player.last_name}`,
+              ovr: player.overall,
+              points: points,
+              tries: tries,
+              goals_made: goalsMade,
+              goals_attempted: goalsAttempted,
+              metres: minutes > 0 ? stats.metres : 0,
+              tackles: minutes > 0 ? stats.tackles : 0,
+              missed_tackles: minutes > 0 ? stats.missedTackles : 0,
+              errors: minutes > 0 ? stats.errors : 0,
+              minutes_played: minutes
+            });
+          }
+        }
+      }
+
+      if (homePlayerStats.length > 0) {
+        await supabase.from('player_match_stats').insert(homePlayerStats);
+      }
+      if (awayPlayerStats.length > 0) {
+        await supabase.from('player_match_stats').insert(awayPlayerStats);
+      }
+
+      // ============================================
+      // END PLAYER MATCH STATS
+      // ============================================
       
-      // Save result with MOTM
       await supabase.from('match_results').insert({
         fixture_id: fixture.id,
         home_team_id: fixture.home_team_id,
@@ -313,10 +532,8 @@ export async function GET(request: Request) {
         motm_score: motmScore
       });
       
-      // Mark played
       await supabase.from('fixtures').update({ played: true }).eq('id', fixture.id);
       
-      // Update standings
       const homeWin = homeScore > awayScore;
       const awayWin = awayScore > homeScore;
       const draw = homeScore === awayScore;
@@ -337,7 +554,6 @@ export async function GET(request: Request) {
         points_against: awayTeam.points_against + homeScore
       }).eq('id', awayTeam.id);
       
-      // Add fatigue to players who played (+15%)
       const { data: homeLineup } = await supabase.from('team_tactics').select('*').eq('team_id', fixture.home_team_id).single();
       const { data: awayLineup } = await supabase.from('team_tactics').select('*').eq('team_id', fixture.away_team_id).single();
       
@@ -358,14 +574,12 @@ export async function GET(request: Request) {
       
       logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name} ${motmPlayer?.last_name}`);
       
-      // Create notifications for both teams
       const homeResult = homeWin ? 'win' : awayWin ? 'loss' : 'draw';
       const awayResult = awayWin ? 'win' : homeWin ? 'loss' : 'draw';
       
       const homeTitle = homeWin ? '🏆 Victory!' : awayWin ? '😢 Defeat' : '🤝 Draw';
       const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
       
-      // Include tactical summary in notifications
       const homeMsg = homeWin 
         ? `${homeTeam.name} defeated ${awayTeam.name} ${homeScore}-${awayScore}. ${homeTacticalBonus.description}`
         : awayWin
@@ -394,7 +608,6 @@ export async function GET(request: Request) {
         fixture_id: fixture.id
       });
       
-      // MOTM notification + XP bonus
       if (motmPlayer) {
         const motmTeam = teamsMap[motmPlayer.team_id];
         
@@ -435,7 +648,6 @@ export async function GET(request: Request) {
       }
     }
     
-    // Process training
     const { data: trainingPlayers } = await supabase
       .from('players')
       .select('*')
@@ -506,7 +718,6 @@ export async function GET(request: Request) {
     
     logs.push(`Training: ${improvements} players improved`);
     
-    // Process free agent claims
     let freeAgentMoves = 0;
     
     const { data: freeAgents } = await supabase
