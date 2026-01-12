@@ -19,9 +19,10 @@ interface Player {
   overall: number;
   speed: number;
   strength: number;
-  skill: number;
+  power: number;
+  passing: number;
   stamina: number;
-  defense: number;
+  tackling: number;
   kicking: number;
   fatigue: number;
   potential: number;
@@ -271,7 +272,7 @@ const getTeamAbbr = (teamName: string): string => {
 };
 
 // ============================================================================
-// CONSTANTS
+// CONSTANTS - UPDATED FOR 7 STATS
 // ============================================================================
 
 const TIER_NAMES: Record<number, string> = {
@@ -285,60 +286,61 @@ const TIER_NAMES: Record<number, string> = {
   8: 'World Class'
 };
 
+// Updated for 7 stats: speed, strength, power, passing, stamina, tackling, kicking
 const POSITION_STATS: Record<string, { primary: string[], secondary: string[], minor: string[], negligible: string[] }> = {
   'Prop': {
-    primary: ['strength', 'defense'],
-    secondary: ['stamina', 'skill'],
-    minor: ['speed'],
-    negligible: ['kicking']
+    primary: ['strength', 'power'],
+    secondary: ['tackling', 'stamina'],
+    minor: ['passing'],
+    negligible: ['speed', 'kicking']
   },
   'Hooker': {
-    primary: ['skill', 'stamina'],
-    secondary: ['defense', 'speed'],
+    primary: ['passing', 'stamina'],
+    secondary: ['tackling', 'speed'],
     minor: ['strength'],
-    negligible: ['kicking']
+    negligible: ['power', 'kicking']
   },
   'Second Row': {
-    primary: ['strength', 'defense'],
-    secondary: ['stamina', 'skill'],
-    minor: ['speed'],
-    negligible: ['kicking']
+    primary: ['strength', 'power'],
+    secondary: ['tackling', 'stamina'],
+    minor: ['passing'],
+    negligible: ['speed', 'kicking']
   },
   'Lock': {
-    primary: ['defense', 'stamina'],
-    secondary: ['strength', 'skill'],
-    minor: ['speed'],
-    negligible: ['kicking']
+    primary: ['tackling', 'stamina'],
+    secondary: ['strength', 'passing'],
+    minor: ['power'],
+    negligible: ['speed', 'kicking']
   },
   'Halfback': {
-    primary: ['skill', 'kicking'],
+    primary: ['passing', 'kicking'],
     secondary: ['speed', 'stamina'],
-    minor: ['defense'],
-    negligible: ['strength']
+    minor: ['tackling'],
+    negligible: ['strength', 'power']
   },
   'Five-Eighth': {
-    primary: ['skill', 'kicking'],
-    secondary: ['speed', 'defense'],
-    minor: ['stamina'],
-    negligible: ['strength']
+    primary: ['passing', 'kicking'],
+    secondary: ['speed', 'power'],
+    minor: ['tackling'],
+    negligible: ['strength', 'stamina']
   },
   'Centre': {
-    primary: ['defense', 'skill'],
-    secondary: ['speed', 'strength'],
+    primary: ['power', 'tackling'],
+    secondary: ['passing', 'speed'],
     minor: ['stamina'],
-    negligible: ['kicking']
+    negligible: ['strength', 'kicking']
   },
   'Winger': {
-    primary: ['speed', 'skill'],
-    secondary: ['stamina', 'defense'],
-    minor: ['strength'],
-    negligible: ['kicking']
+    primary: ['speed', 'power'],
+    secondary: ['stamina', 'tackling'],
+    minor: ['passing'],
+    negligible: ['strength', 'kicking']
   },
   'Fullback': {
-    primary: ['speed', 'skill'],
-    secondary: ['kicking', 'defense'],
-    minor: ['stamina'],
-    negligible: ['strength']
+    primary: ['speed', 'power'],
+    secondary: ['passing', 'stamina'],
+    minor: ['tackling'],
+    negligible: ['strength', 'kicking']
   }
 };
 
@@ -502,13 +504,15 @@ export default function SquadPage() {
     const tierColor = getTierColor(value);
     const barWidth = (value / 8) * 100;
     
+    // Updated colors for 7 stats
     const barColors: Record<string, string> = {
       speed: 'bg-blue-500',
       strength: 'bg-red-500',
-      skill: 'bg-yellow-500',
+      power: 'bg-orange-500',
+      passing: 'bg-yellow-500',
       stamina: 'bg-green-500',
-      defense: 'bg-purple-500',
-      kicking: 'bg-orange-500'
+      tackling: 'bg-purple-500',
+      kicking: 'bg-teal-500'
     };
 
     return (
@@ -754,13 +758,14 @@ export default function SquadPage() {
               <span>❌ Negligible</span>
             </div>
 
-            {/* Stats */}
+            {/* Stats - Updated for 7 stats */}
             <div className="space-y-3 mb-4">
               {renderStatBar('Speed', 'speed', selectedPlayer.speed, selectedPlayer.position)}
               {renderStatBar('Strength', 'strength', selectedPlayer.strength, selectedPlayer.position)}
-              {renderStatBar('Skill', 'skill', selectedPlayer.skill, selectedPlayer.position)}
+              {renderStatBar('Power', 'power', selectedPlayer.power, selectedPlayer.position)}
+              {renderStatBar('Passing', 'passing', selectedPlayer.passing, selectedPlayer.position)}
               {renderStatBar('Stamina', 'stamina', selectedPlayer.stamina, selectedPlayer.position)}
-              {renderStatBar('Defense', 'defense', selectedPlayer.defense, selectedPlayer.position)}
+              {renderStatBar('Tackling', 'tackling', selectedPlayer.tackling, selectedPlayer.position)}
               {renderStatBar('Kicking', 'kicking', selectedPlayer.kicking, selectedPlayer.position)}
             </div>
 
