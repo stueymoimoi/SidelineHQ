@@ -22,6 +22,7 @@ interface Player {
   goal_kick_successes: number;
   nationality: string;
   state: string | null;
+  dominant_side: string | null;
 }
 
 interface Team {
@@ -71,6 +72,46 @@ const DEFENSE_OPTIONS = [
   { value: 'brick_wall', label: 'Brick Wall', emoji: '🧱', desc: 'Stack the middle, stop forward momentum' },
   { value: 'shift_right', label: 'Shift Right', emoji: '🛡️', desc: 'Overload right side coverage' },
 ];
+
+// ============================================================================
+// DOMINANT SIDE HELPERS
+// ============================================================================
+
+const shouldShowSide = (position: string) => {
+  return ['Winger', 'Centre', 'Second Row'].includes(position);
+};
+
+const getSideBadge = (side: string | null) => {
+  switch (side) {
+    case 'left':
+      return { text: 'L', bg: 'bg-orange-500', title: 'Left-sided specialist' };
+    case 'right':
+      return { text: 'R', bg: 'bg-blue-500', title: 'Right-sided specialist' };
+    case 'both':
+      return { text: 'L/R', bg: 'bg-gray-500', title: 'Versatile - plays both sides' };
+    case 'none':
+    default:
+      return { text: '?', bg: 'bg-yellow-500', title: 'Developing - side not yet determined' };
+  }
+};
+
+// Check if player's side matches the position slot
+const getSideMatchStatus = (player: Player, posKey: string): 'match' | 'mismatch' | 'neutral' => {
+  if (!shouldShowSide(player.position)) return 'neutral';
+  if (player.dominant_side === 'both' || player.dominant_side === 'none') return 'neutral';
+  
+  const isLeftSlot = posKey.includes('_l') || posKey.includes('_left');
+  const isRightSlot = posKey.includes('_r') || posKey.includes('_right');
+  
+  if (!isLeftSlot && !isRightSlot) return 'neutral'; // bench or central position
+  
+  if (isLeftSlot && player.dominant_side === 'left') return 'match';
+  if (isRightSlot && player.dominant_side === 'right') return 'match';
+  if (isLeftSlot && player.dominant_side === 'right') return 'mismatch';
+  if (isRightSlot && player.dominant_side === 'left') return 'mismatch';
+  
+  return 'neutral';
+};
 
 export default function TacticsPage() {
   const [team, setTeam] = useState<Team | null>(null);
@@ -173,7 +214,7 @@ export default function TacticsPage() {
 
       const { data: playersData } = await supabase
         .from('players')
-        .select('id, first_name, last_name, position, age, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state')
+        .select('id, first_name, last_name, position, age, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state, dominant_side')
         .eq('team_id', coach.team_id)
         .order('overall', { ascending: false });
 
@@ -252,14 +293,33 @@ export default function TacticsPage() {
     };
   };
 
+  // Get position slot side (left/right/central)
+  const getSlotSide = (posKey: string): 'left' | 'right' | 'central' => {
+    if (posKey.includes('_l') || posKey.includes('_left')) return 'left';
+    if (posKey.includes('_r') || posKey.includes('_right')) return 'right';
+    return 'central';
+  };
+
   const PositionSlot = ({ posKey, label, number, natural }: { posKey: string; label: string; number: number; natural: string }) => {
     const player = getPlayerById((tactics as any)?.[posKey]);
     const status = getPositionStatus(player, natural);
     const isKicker = tactics?.goal_kicker === player?.id;
     const isCaptain = tactics?.captain === player?.id;
     
-    const borderColor = status === 'wrong' ? 'border-red-500' : 
-                        status === 'natural' ? 'border-green-500' : 'border-gray-600';
+    // Check side match for edge positions
+    const sideMatch = player ? getSideMatchStatus(player, posKey) : 'neutral';
+    const showSide = player && shouldShowSide(player.position);
+    const sideBadge = player ? getSideBadge(player.dominant_side) : null;
+    
+    // Border color: prioritize wrong position, then side mismatch
+    let borderColor = 'border-gray-600';
+    if (status === 'wrong') {
+      borderColor = 'border-red-500';
+    } else if (sideMatch === 'mismatch') {
+      borderColor = 'border-orange-500';
+    } else if (status === 'natural' && sideMatch !== 'mismatch') {
+      borderColor = 'border-green-500';
+    }
     
     return (
       <div
@@ -275,12 +335,24 @@ export default function TacticsPage() {
             </div>
             <div className="flex justify-center items-center gap-1">
               <span className={`text-xs font-bold ${
-                status === 'wrong' ? 'text-red-400' : 'text-green-400'
+                status === 'wrong' ? 'text-red-400' : 
+                sideMatch === 'mismatch' ? 'text-orange-400' : 'text-green-400'
               }`}>
                 {player.overall}
               </span>
               {isKicker && <span className="text-xs">🎯</span>}
+              {showSide && sideBadge && (
+                <span 
+                  className={`${sideBadge.bg} text-white text-[10px] px-1 rounded font-bold`}
+                  title={sideBadge.title}
+                >
+                  {sideBadge.text}
+                </span>
+              )}
             </div>
+            {sideMatch === 'mismatch' && (
+              <p className="text-orange-400 text-[10px]">Wrong side!</p>
+            )}
           </>
         ) : (
           <div className="text-gray-500 text-sm font-semibold">Empty</div>
@@ -416,6 +488,7 @@ export default function TacticsPage() {
             <li>• <strong>Raid edges:</strong> Need quality Halves to unlock your outside backs</li>
             <li>• <strong>Off the Cuff:</strong> High risk! Can win you games or blow them open</li>
             <li>• <strong>Brick Wall:</strong> Stops forward momentum, but leaves edges exposed</li>
+            <li>• <strong>Dominant Side:</strong> Put left-sided players on the left edge, right on right!</li>
           </ul>
         </div>
 
@@ -600,9 +673,30 @@ export default function TacticsPage() {
         </div>
 
         {/* Legend */}
-        <div className="flex justify-center gap-6 text-sm mb-6">
-          <span className="text-green-400">● Natural Position</span>
-          <span className="text-red-400">● Wrong Position</span>
+        <div className="bg-gray-800 rounded-lg p-3 mb-6">
+          <div className="flex flex-wrap justify-center gap-4 text-sm">
+            <span className="text-green-400">● Natural Position</span>
+            <span className="text-orange-400">● Wrong Side</span>
+            <span className="text-red-400">● Wrong Position</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3 mt-2 text-xs">
+            <span className="flex items-center gap-1">
+              <span className="bg-orange-500 text-white px-1.5 rounded font-bold">L</span>
+              <span className="text-gray-400">Left</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-blue-500 text-white px-1.5 rounded font-bold">R</span>
+              <span className="text-gray-400">Right</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-gray-500 text-white px-1.5 rounded font-bold">L/R</span>
+              <span className="text-gray-400">Versatile</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="bg-yellow-500 text-white px-1.5 rounded font-bold">?</span>
+              <span className="text-gray-400">Developing</span>
+            </span>
+          </div>
         </div>
 
       </div>
@@ -611,7 +705,16 @@ export default function TacticsPage() {
       {selectedPosition && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-4">Select Player</h3>
+            <h3 className="text-xl font-bold text-white mb-2">Select Player</h3>
+            
+            {/* Show slot side hint for edge positions */}
+            {(selectedPosition.includes('winger') || selectedPosition.includes('centre') || selectedPosition.includes('second_row')) && (
+              <p className="text-gray-400 text-sm mb-4">
+                {getSlotSide(selectedPosition) === 'left' ? '⬅️ Left side position' : '➡️ Right side position'}
+                {' — '}
+                <span className="text-yellow-400">match player's dominant side for best results!</span>
+              </p>
+            )}
             
             <div className="space-y-2">
               <button
@@ -623,6 +726,9 @@ export default function TacticsPage() {
               
               {players.map((p) => {
                 const alreadySelected = isPlayerSelected(p.id) && (tactics as any)?.[selectedPosition] !== p.id;
+                const showSide = shouldShowSide(p.position);
+                const sideBadge = getSideBadge(p.dominant_side);
+                const sideMatch = getSideMatchStatus(p, selectedPosition);
                 
                 return (
                   <button
@@ -632,14 +738,34 @@ export default function TacticsPage() {
                     className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
                       alreadySelected 
                         ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
+                        : sideMatch === 'mismatch'
+                        ? 'bg-orange-900/30 hover:bg-orange-900/50 text-white border border-orange-500/50'
+                        : sideMatch === 'match'
+                        ? 'bg-green-900/30 hover:bg-green-900/50 text-white border border-green-500/50'
                         : 'bg-gray-700 hover:bg-gray-600 text-white'
                     }`}
                   >
                     <div>
-                      <div className="font-bold">{p.first_name} {p.last_name}</div>
+                      <div className="font-bold flex items-center gap-2">
+                        {p.first_name} {p.last_name}
+                        {showSide && (
+                          <span 
+                            className={`${sideBadge.bg} text-white text-xs px-1.5 py-0.5 rounded font-bold`}
+                            title={sideBadge.title}
+                          >
+                            {sideBadge.text}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-gray-400">
                         {p.position} • Age {p.age} • {p.nationality}{p.state ? `, ${p.state}` : ''}
                       </div>
+                      {sideMatch === 'mismatch' && (
+                        <div className="text-orange-400 text-xs mt-1">⚠️ Wrong side — will underperform</div>
+                      )}
+                      {sideMatch === 'match' && (
+                        <div className="text-green-400 text-xs mt-1">✓ Correct side</div>
+                      )}
                     </div>
                     <span className="text-green-500 font-bold">{p.overall}</span>
                   </button>
