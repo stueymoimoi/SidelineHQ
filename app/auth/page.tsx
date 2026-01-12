@@ -13,7 +13,6 @@ export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [coachName, setCoachName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
@@ -33,15 +32,8 @@ export default function AuthPage() {
       if (authError) throw authError;
 
       if (authData.user) {
-        const { error: coachError } = await supabase
-          .from('coaches')
-          .insert({
-            user_id: authData.user.id,
-            name: coachName,
-          });
-
-        if (coachError) throw coachError;
-        router.push('/home');
+        // Just go to choose-team - coach record created there
+        router.push('/choose-team');
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -62,7 +54,27 @@ export default function AuthPage() {
       });
 
       if (authError) throw authError;
-      router.push('/home');
+
+      // Check if they have a coach record
+      const { data: coach } = await supabase
+        .from('coaches')
+        .select('team_id, approved')
+        .eq('user_id', data.user.id)
+        .single();
+
+      if (!coach) {
+        // No coach record - go to choose team
+        router.push('/choose-team');
+      } else if (!coach.team_id) {
+        // Has record but no team
+        router.push('/choose-team');
+      } else if (!coach.approved) {
+        // Has team but not approved
+        router.push('/pending');
+      } else {
+        // Approved - go to clubhouse
+        router.push('/clubhouse');
+      }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
     } finally {
@@ -104,20 +116,6 @@ export default function AuthPage() {
         )}
 
         <form onSubmit={isSignUp ? handleSignUp : handleSignIn}>
-          {isSignUp && (
-            <div className="mb-4">
-              <label className="block text-gray-300 mb-2">Coach Name</label>
-              <input
-                type="text"
-                value={coachName}
-                onChange={(e) => setCoachName(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500"
-                placeholder="Enter your coach name"
-                required
-              />
-            </div>
-          )}
-
           <div className="mb-4">
             <label className="block text-gray-300 mb-2">Email</label>
             <input
@@ -151,6 +149,10 @@ export default function AuthPage() {
             {loading ? 'Loading...' : isSignUp ? 'Create Account' : 'Sign In'}
           </button>
         </form>
+
+        <p className="text-gray-500 text-center text-sm mt-6">
+          Season 0 kicks off Tuesday 13th Jan, 6pm AEST
+        </p>
       </div>
     </div>
   );

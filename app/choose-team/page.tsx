@@ -30,7 +30,8 @@ export default function ChooseTeamPage() {
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
-  const [coachName, setCoachName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [showNameInput, setShowNameInput] = useState(false);
   
   const router = useRouter();
@@ -89,8 +90,12 @@ export default function ChooseTeamPage() {
   };
 
   const handleNameSubmit = () => {
-    if (!coachName.trim()) {
-      setError('Please enter your coach name');
+    if (!firstName.trim()) {
+      setError('Please enter your first name');
+      return;
+    }
+    if (!lastName.trim()) {
+      setError('Please enter your last name');
       return;
     }
     setError('');
@@ -99,9 +104,11 @@ export default function ChooseTeamPage() {
   };
 
   const handleConfirm = async () => {
-    if (!selectedTeam || !coachName.trim()) return;
+    if (!selectedTeam || !firstName.trim() || !lastName.trim()) return;
     setConfirming(true);
     setError('');
+
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -120,7 +127,7 @@ export default function ChooseTeamPage() {
           .from('coaches')
           .update({ 
             team_id: selectedTeam.id,
-            coach_name: coachName.trim(),
+            coach_name: fullName,
             approved: false
           })
           .eq('user_id', user.id);
@@ -133,7 +140,7 @@ export default function ChooseTeamPage() {
           .insert({
             user_id: user.id,
             team_id: selectedTeam.id,
-            coach_name: coachName.trim(),
+            coach_name: fullName,
             approved: false,
             xp: 0,
             level: 1,
@@ -155,7 +162,7 @@ export default function ChooseTeamPage() {
           team_id: adminCoach.team_id,
           type: 'new_signup',
           title: '🆕 New Signup',
-          message: `${coachName.trim()} wants to join ${selectedTeam.name}`,
+          message: `${fullName} wants to join ${selectedTeam.name}`,
           read: false
         });
       }
@@ -243,16 +250,28 @@ export default function ChooseTeamPage() {
               {selectedTeam.city} • Division 1
             </p>
 
-            <div className="mb-6">
-              <label className="block text-gray-400 text-sm mb-2">Your Coach Name</label>
-              <input
-                type="text"
-                value={coachName}
-                onChange={(e) => setCoachName(e.target.value)}
-                placeholder="Enter your name"
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500"
-                autoFocus
-              />
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">First Name</label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="John"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 text-sm mb-2">Last Name</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Smith"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500"
+                />
+              </div>
             </div>
 
             {error && (
@@ -266,7 +285,8 @@ export default function ChooseTeamPage() {
                 onClick={() => {
                   setShowNameInput(false);
                   setSelectedTeam(null);
-                  setCoachName('');
+                  setFirstName('');
+                  setLastName('');
                   setError('');
                 }}
                 className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
@@ -304,7 +324,7 @@ export default function ChooseTeamPage() {
             </p>
             
             <p className="text-green-400 text-center mb-6">
-              Coach: {coachName}
+              Coach: {firstName} {lastName}
             </p>
 
             <div className="bg-yellow-500/20 border border-yellow-500 text-yellow-400 px-4 py-3 rounded mb-6">
