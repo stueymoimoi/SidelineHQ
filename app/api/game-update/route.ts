@@ -37,7 +37,7 @@ export async function GET() {
     logs.push(`Simulating Round ${currentRound}`);
     
     // Get teams
-    const { data: teams } = await supabase.from('teams').select('*').eq('division', 1);
+    const { data: teams } = await supabase.from('teams').select('*');
     const teamsMap: Record<string, any> = {};
     teams?.forEach((t: any) => { teamsMap[t.id] = t; });
     
