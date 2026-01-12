@@ -50,23 +50,23 @@ function getPositionConfig(jerseyNumber: number) {
   return configs[jerseyNumber] || configs[14];
 }
 
-function getMissChance(defenseStat: number): number {
-  if (defenseStat >= 90) return 0.02;
-  if (defenseStat >= 80) return 0.04;
-  if (defenseStat >= 70) return 0.06;
-  if (defenseStat >= 60) return 0.09;
-  if (defenseStat >= 50) return 0.12;
-  if (defenseStat >= 40) return 0.15;
+function getMissChance(tacklingStat: number): number {
+  if (tacklingStat >= 90) return 0.02;
+  if (tacklingStat >= 80) return 0.04;
+  if (tacklingStat >= 70) return 0.06;
+  if (tacklingStat >= 60) return 0.09;
+  if (tacklingStat >= 50) return 0.12;
+  if (tacklingStat >= 40) return 0.15;
   return 0.20;
 }
 
-function getErrorChance(skillStat: number): number {
-  if (skillStat >= 90) return 0.01;
-  if (skillStat >= 80) return 0.02;
-  if (skillStat >= 70) return 0.03;
-  if (skillStat >= 60) return 0.05;
-  if (skillStat >= 50) return 0.07;
-  if (skillStat >= 40) return 0.10;
+function getErrorChance(passingStat: number): number {
+  if (passingStat >= 90) return 0.01;
+  if (passingStat >= 80) return 0.02;
+  if (passingStat >= 70) return 0.03;
+  if (passingStat >= 60) return 0.05;
+  if (passingStat >= 50) return 0.07;
+  if (passingStat >= 40) return 0.10;
   return 0.15;
 }
 
@@ -83,23 +83,26 @@ function generatePlayerStats(
   const config = getPositionConfig(jerseyNumber);
   const minutesFactor = minutes / 80;
 
+  // Metres based on speed + power (not strength)
   const speedBonus = ((player.speed || 50) - 50) / 5;
-  const strengthBonus = ((player.strength || 50) - 50) / 8;
+  const powerBonus = ((player.power || 50) - 50) / 6;
   const metresVariance = 0.7 + Math.random() * 0.6;
-  const metres = Math.max(0, Math.round((config.metresBase + speedBonus + strengthBonus) * minutesFactor * metresVariance));
+  const metres = Math.max(0, Math.round((config.metresBase + speedBonus + powerBonus) * minutesFactor * metresVariance));
 
   const staminaBonus = ((player.stamina || 50) - 50) / 10;
   const tacklesVariance = 0.75 + Math.random() * 0.5;
   const tackles = Math.max(0, Math.round((config.tacklesBase + staminaBonus) * minutesFactor * tacklesVariance));
 
-  const missChance = getMissChance(player.defense || 50);
+  // Missed tackles based on tackling stat (was defense)
+  const missChance = getMissChance(player.tackling || 50);
   let missedTackles = 0;
   const tackleAttempts = tackles + Math.floor(Math.random() * 5);
   for (let i = 0; i < tackleAttempts; i++) {
     if (Math.random() < missChance) missedTackles++;
   }
 
-  const errorChance = getErrorChance(player.skill || 50);
+  // Errors based on passing stat (was skill)
+  const errorChance = getErrorChance(player.passing || 50);
   let errors = 0;
   const touches = Math.round(config.touchesBase * minutesFactor);
   for (let i = 0; i < touches; i++) {
@@ -148,12 +151,13 @@ function distributeTries(
       const player = players.find(p => p.id === playerId);
       const baseWeight = baseWeights[jerseyNum] || 5;
       const modifier = modifiers[jerseyNum] || 1;
+      // Try scoring based on speed + power
       const speedBonus = ((player?.speed || 50) - 50) / 25;
-      const strengthBonus = ((player?.strength || 50) - 50) / 30;
+      const powerBonus = ((player?.power || 50) - 50) / 30;
       
       weightedPlayers.push({
         id: playerId,
-        weight: Math.max(1, (baseWeight * modifier) + speedBonus + strengthBonus)
+        weight: Math.max(1, (baseWeight * modifier) + speedBonus + powerBonus)
       });
     }
   });
@@ -353,16 +357,17 @@ export async function GET(request: Request) {
         .eq('team_id', fixture.away_team_id)
         .single();
 
+      // Updated to include power, passing (was skill), tackling (was defense)
       const { data: homePlayers } = await supabase
         .from('players')
-        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, skill, stamina, defense')
+        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking')
         .eq('team_id', fixture.home_team_id)
         .order('overall', { ascending: false })
         .limit(17);
       
       const { data: awayPlayers } = await supabase
         .from('players')
-        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, skill, stamina, defense')
+        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking')
         .eq('team_id', fixture.away_team_id)
         .order('overall', { ascending: false })
         .limit(17);
@@ -648,6 +653,10 @@ export async function GET(request: Request) {
       }
     }
     
+    // ============================================
+    // TRAINING - Updated for new stat names
+    // ============================================
+    
     const { data: trainingPlayers } = await supabase
       .from('players')
       .select('*')
@@ -656,7 +665,8 @@ export async function GET(request: Request) {
     let improvements = 0;
     const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
     const STAT_CHANCES: Record<string, number> = { 'NONE': 0, 'POOR': 15, 'FAIR': 35, 'GOOD': 55, 'VERY GOOD': 75, 'EXCELLENT': 90 };
-    const STAT_TRAINING = ['Speed', 'Strength', 'Skill', 'Stamina', 'Defense'];
+    // Updated stat names
+    const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'];
     
     for (const player of trainingPlayers || []) {
       const updates: Record<string, any> = {};
@@ -688,13 +698,16 @@ export async function GET(request: Request) {
             const gain = roll < 50 ? 1 : roll < 85 ? 2 : 3;
             const newStat = Math.min(99, current + gain);
             updates[statKey] = newStat;
+            // Updated OVR calculation for 7 stats
             const newOverall = Math.round((
               (updates.speed ?? player.speed) +
               (updates.strength ?? player.strength) +
-              (updates.skill ?? player.skill) +
+              (updates.power ?? player.power) +
+              (updates.passing ?? player.passing) +
               (updates.stamina ?? player.stamina) +
-              (updates.defense ?? player.defense)
-            ) / 5);
+              (updates.tackling ?? player.tackling) +
+              (updates.kicking ?? player.kicking)
+            ) / 7);
             updates.overall = newOverall;
             improvements++;
             
