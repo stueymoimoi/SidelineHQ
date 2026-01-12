@@ -53,11 +53,11 @@ interface ScoutReport {
 const getAttackHint = (attackFocus: string | null): string => {
   switch (attackFocus) {
     case 'raid_left':
-      return 'Likes to attack down the left edge';
+      return 'Strong on the LEFT edge';
     case 'raid_right':
-      return 'Favours the right side attack';
+      return 'Strong on the RIGHT edge';
     case 'up_the_guts':
-      return 'Runs hard through the middle';
+      return 'Runs hard through the MIDDLE';
     case 'off_the_cuff':
       return 'Unpredictable — plays off the cuff';
     case 'structured':
@@ -382,7 +382,7 @@ export default function FilmRoomPage() {
             {/* Key Threats */}
             <div className="bg-gray-800 rounded-lg p-4">
               <h3 className="text-white font-bold mb-3">⚠️ Key Threats</h3>
-              <p className="text-gray-500 text-sm mb-4">Watch out for these players</p>
+              <p className="text-gray-500 text-sm mb-4">Their top rated players</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {scoutReport.keyThreats.map((player, i) => {
                   const showSide = shouldShowSide(player.position);
@@ -469,31 +469,6 @@ export default function FilmRoomPage() {
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Tactical Advice */}
-            <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4">
-              <h3 className="text-yellow-400 font-bold mb-2">💡 Scout's Advice</h3>
-              <div className="text-gray-300 text-sm space-y-2">
-                {scoutReport.attackTendency.includes('left') && (
-                  <p>• They like the left edge — consider <strong>Shift Left</strong> defense to shut it down</p>
-                )}
-                {scoutReport.attackTendency.includes('right') && (
-                  <p>• They favour the right side — consider <strong>Shift Right</strong> defense to counter</p>
-                )}
-                {scoutReport.attackTendency.includes('middle') && (
-                  <p>• They run hard through the middle — a <strong>Brick Wall</strong> defense could frustrate them</p>
-                )}
-                {scoutReport.attackTendency.includes('Unpredictable') && (
-                  <p>• They play off the cuff — <strong>Line Speed</strong> pressure might force errors</p>
-                )}
-                {scoutReport.attackTendency.includes('structured') && (
-                  <p>• They play structured football — be patient and wait for your opportunity</p>
-                )}
-                {scoutReport.keyThreats[0] && (
-                  <p>• Keep an eye on <strong>{scoutReport.keyThreats[0].last_name}</strong> — they're the danger player</p>
-                )}
               </div>
             </div>
 
