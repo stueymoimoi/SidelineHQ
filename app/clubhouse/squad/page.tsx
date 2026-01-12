@@ -603,24 +603,28 @@ export default function SquadPage() {
       <div className="max-w-6xl mx-auto p-6">
         {/* Side Badge Legend - Only show if team has edge players */}
         {players.some(p => shouldShowSide(p.position)) && (
-          <div className="bg-gray-800 rounded-lg p-3 mb-6 flex flex-wrap items-center gap-4 text-sm">
-            <span className="text-gray-400">Side:</span>
-            <span className="flex items-center gap-1">
-              <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded font-bold">L</span>
-              <span className="text-gray-400">Left</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded font-bold">R</span>
-              <span className="text-gray-400">Right</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="bg-gray-500 text-white text-xs px-2 py-0.5 rounded font-bold">L/R</span>
-              <span className="text-gray-400">Versatile</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded font-bold">?</span>
-              <span className="text-gray-400">Developing</span>
-            </span>
+          <div className="bg-gray-800 rounded-lg p-3 mb-6">
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <span className="text-gray-400">Dominant Side</span>
+              <span className="text-gray-600">|</span>
+              <span className="flex items-center gap-1">
+                <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded font-bold">L</span>
+                <span className="text-gray-400">Left</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded font-bold">R</span>
+                <span className="text-gray-400">Right</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="bg-gray-500 text-white text-xs px-2 py-0.5 rounded font-bold">L/R</span>
+                <span className="text-gray-400">Versatile</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded font-bold">?</span>
+                <span className="text-gray-400">Developing</span>
+              </span>
+            </div>
+            <p className="text-gray-500 text-xs mt-2">Applies to edge positions: Wingers, Centres, Second Rows</p>
           </div>
         )}
 
