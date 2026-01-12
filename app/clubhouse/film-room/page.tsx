@@ -41,16 +41,6 @@ interface Fixture {
   played: boolean;
 }
 
-interface MatchResult {
-  id: string;
-  fixture_id: string;
-  home_team_id: string;
-  away_team_id: string;
-  home_score: number;
-  away_score: number;
-  fixtures: Fixture;
-}
-
 interface ScoutReport {
   team: Team;
   players: Player[];
@@ -91,15 +81,22 @@ const getPositionColor = (position: string) => {
   return colors[position] || 'bg-gray-600';
 };
 
-const getSideIcon = (side: string | undefined) => {
-  if (side === 'left') return '⬅️';
-  if (side === 'right') return '➡️';
-  if (side === 'both') return '↔️';
-  return '';
-};
-
 const shouldShowSide = (position: string) => {
   return ['Winger', 'Centre', 'Second Row'].includes(position);
+};
+
+const getSideBadge = (side: string | undefined) => {
+  switch (side) {
+    case 'left':
+      return { text: 'L', bg: 'bg-orange-500', title: 'Left-sided' };
+    case 'right':
+      return { text: 'R', bg: 'bg-blue-500', title: 'Right-sided' };
+    case 'both':
+      return { text: 'L/R', bg: 'bg-gray-500', title: 'Versatile' };
+    case 'none':
+    default:
+      return { text: '?', bg: 'bg-yellow-500', title: 'Developing' };
+  }
 };
 
 export default function FilmRoomPage() {
@@ -133,7 +130,6 @@ export default function FilmRoomPage() {
         return;
       }
 
-      // Get my team
       const { data: teamData } = await supabase
         .from('teams')
         .select('*')
@@ -142,13 +138,11 @@ export default function FilmRoomPage() {
 
       setMyTeam(teamData);
 
-      // Get all teams for lookup
       const { data: teamsData } = await supabase.from('teams').select('*');
       const teamsMap: Record<string, Team> = {};
       teamsData?.forEach(t => { teamsMap[t.id] = t; });
       setAllTeams(teamsMap);
 
-      // Get next fixture
       const { data: fixtures } = await supabase
         .from('fixtures')
         .select('*')
@@ -161,12 +155,10 @@ export default function FilmRoomPage() {
         const fixture = fixtures[0];
         setNextFixture(fixture);
 
-        // Determine opponent
         const opponentId = fixture.home_team_id === coach.team_id 
           ? fixture.away_team_id 
           : fixture.home_team_id;
 
-        // Scout the opponent
         await scoutOpponent(opponentId, coach.team_id, teamsMap);
       }
 
@@ -178,11 +170,9 @@ export default function FilmRoomPage() {
   };
 
   const scoutOpponent = async (opponentId: string, myTeamId: string, teamsMap: Record<string, Team>) => {
-    // Get opponent team
     const opponent = teamsMap[opponentId];
     if (!opponent) return;
 
-    // Get opponent players (top 17) - including dominant_side
     const { data: playersData } = await supabase
       .from('players')
       .select('id, first_name, last_name, position, overall, age, dominant_side')
@@ -190,14 +180,12 @@ export default function FilmRoomPage() {
       .order('overall', { ascending: false })
       .limit(17);
 
-    // Get opponent tactics (for attack hint)
     const { data: tactics } = await supabase
       .from('team_tactics')
       .select('attack_focus')
       .eq('team_id', opponentId)
       .single();
 
-    // Get opponent's recent results (last 5)
     const { data: recentResults } = await supabase
       .from('match_results')
       .select('*, fixtures(*)')
@@ -223,7 +211,6 @@ export default function FilmRoomPage() {
       });
     });
 
-    // Get head-to-head this season
     const { data: h2hResults } = await supabase
       .from('match_results')
       .select('*, fixtures(*)')
@@ -247,7 +234,6 @@ export default function FilmRoomPage() {
       });
     });
 
-    // Key threats (top 3 by overall)
     const keyThreats = (playersData || []).slice(0, 3);
 
     setScoutReport({
@@ -400,7 +386,7 @@ export default function FilmRoomPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {scoutReport.keyThreats.map((player, i) => {
                   const showSide = shouldShowSide(player.position);
-                  const sideIcon = getSideIcon(player.dominant_side);
+                  const sideBadge = getSideBadge(player.dominant_side);
                   
                   return (
                     <div 
@@ -419,10 +405,15 @@ export default function FilmRoomPage() {
                         <span className={`px-2 py-1 rounded text-xs font-bold text-white ${getPositionColor(player.position)}`}>
                           {player.position}
                         </span>
-                        <span className="text-gray-500 text-xs">Age {player.age}</span>
-                        {showSide && sideIcon && (
-                          <span className="text-sm" title={`${player.dominant_side}-sided`}>{sideIcon}</span>
+                        {showSide && (
+                          <span 
+                            className={`${sideBadge.bg} text-white text-xs px-2 py-1 rounded font-bold`}
+                            title={sideBadge.title}
+                          >
+                            {sideBadge.text}
+                          </span>
                         )}
+                        <span className="text-gray-500 text-xs">Age {player.age}</span>
                       </div>
                     </div>
                   );
@@ -437,7 +428,7 @@ export default function FilmRoomPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {scoutReport.players.map((player, i) => {
                   const showSide = shouldShowSide(player.position);
-                  const sideIcon = getSideIcon(player.dominant_side);
+                  const sideBadge = getSideBadge(player.dominant_side);
                   
                   return (
                     <div 
@@ -450,10 +441,22 @@ export default function FilmRoomPage() {
                           <p className="text-white font-medium">
                             {player.first_name} {player.last_name}
                           </p>
-                          <p className="text-gray-500 text-xs">
-                            {player.position} • {player.age}yo
-                            {showSide && sideIcon && <span className="ml-1">{sideIcon}</span>}
-                          </p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-gray-500 text-xs">{player.position}</span>
+                            <span className="text-gray-600 text-xs">•</span>
+                            <span className="text-gray-500 text-xs">{player.age}yo</span>
+                            {showSide && (
+                              <>
+                                <span className="text-gray-600 text-xs">•</span>
+                                <span 
+                                  className={`${sideBadge.bg} text-white text-xs px-1.5 py-0.5 rounded font-bold`}
+                                  title={sideBadge.title}
+                                >
+                                  {sideBadge.text}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <span className={`font-bold ${
