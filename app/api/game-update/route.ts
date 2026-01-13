@@ -49,13 +49,13 @@ function getMissChance(tacklingStat: number): number {
 }
 
 function getErrorChance(passingStat: number): number {
-  if (passingStat >= 90) return 0.01;
-  if (passingStat >= 80) return 0.02;
-  if (passingStat >= 70) return 0.03;
-  if (passingStat >= 60) return 0.04;
-  if (passingStat >= 50) return 0.05;
-  if (passingStat >= 40) return 0.07;
-  return 0.10;
+  if (passingStat >= 90) return 0.005;
+  if (passingStat >= 80) return 0.01;
+  if (passingStat >= 70) return 0.015;
+  if (passingStat >= 60) return 0.02;
+  if (passingStat >= 50) return 0.030;
+  if (passingStat >= 40) return 0.040;
+  return 0.05;
 }
 
 function generatePlayerStats(player: any, jerseyNumber: number, minutes: number) {
