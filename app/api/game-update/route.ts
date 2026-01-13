@@ -314,8 +314,23 @@ export async function GET(request: Request) {
         homeTactics.defense_focus || 'line_speed'
       );
       
-      const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus;
-      const awayStrength = awayBaseStrength + awayTacticalBonus.bonus;
+      // Check if teams have coaches
+const { data: homeCoach } = await supabase
+  .from('coaches')
+  .select('id')
+  .eq('team_id', fixture.home_team_id)
+  .single();
+
+const { data: awayCoach } = await supabase
+  .from('coaches')
+  .select('id')
+  .eq('team_id', fixture.away_team_id)
+  .single();
+
+const COACHING_BONUS = 8; // Huge advantage for managed teams!
+
+const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus + (homeCoach ? COACHING_BONUS : 0);
+const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? COACHING_BONUS : 0);
       
       // Find MOTM from starting players
       let motmPlayer: any = null;
