@@ -8,6 +8,7 @@ function getSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
+
 const SEASON = 0;
 const HOME_ADVANTAGE = 3;
 const BASE_TRIES = 4;
@@ -114,6 +115,78 @@ function calculatePlayerRating(stats: any, jerseyNumber: number, isMotm: boolean
   return Math.min(10, Math.max(1, Math.round(rating)));
 }
 
+// NEW: Context-aware MOTM scoring
+function calculateMotmInfluence(
+  stats: any, 
+  jerseyNumber: number, 
+  gameContext: { totalPoints: number; margin: number; teamWon: boolean }
+): number {
+  const { totalPoints, margin, teamWon } = gameContext;
+  
+  // Game type detection
+  const isLowScoring = totalPoints < 24;  // Grind (e.g. 12-10)
+  const isHighScoring = totalPoints > 44; // Shootout (e.g. 36-30)
+  const isCloseGame = margin <= 6;
+  
+  // Position type
+  const isForward = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(jerseyNumber);
+  const isPlaymaker = [6, 7, 9].includes(jerseyNumber); // 6, 7, hooker
+  const isOutsideBack = [1, 2, 3, 4, 5].includes(jerseyNumber);
+  
+  let influence = 0;
+  
+  // === TRIES ===
+  // Always huge, but context matters
+  let tryValue = 30;
+  if (isLowScoring) tryValue = 40;        // Tries are gold in a grind
+  if (isOutsideBack) tryValue *= 0.9;     // Expected from backs
+  if (isForward) tryValue *= 1.2;         // Rare from forwards = more impressive
+  influence += stats.tries * tryValue;
+  
+  // === GOALS ===
+  // Clutch in close games
+  let goalValue = 8;
+  if (isCloseGame) goalValue = 18;        // Could be match-winning
+  influence += stats.goals * goalValue;
+  
+  // === METRES ===
+  // Forwards in grinds = MOTM territory
+  const config = getPositionConfig(jerseyNumber);
+  const metresAboveExpected = stats.metres - config.metresBase;
+  let metresValue = 0.08;
+  if (isLowScoring) metresValue = 0.15;   // Hard yards matter in tight games
+  if (isForward) metresValue *= 1.3;
+  if (isHighScoring) metresValue *= 0.6;  // Less important in shootouts
+  influence += Math.max(0, metresAboveExpected) * metresValue;
+  
+  // === TACKLES ===
+  // Defensive effort, huge in grinds
+  const tacklesAboveExpected = stats.tackles - config.tacklesBase;
+  let tackleValue = 0.2;
+  if (isLowScoring) tackleValue = 0.4;    // Defense wins grinds
+  if (isForward) tackleValue *= 1.2;
+  if (isHighScoring) tackleValue *= 0.5;
+  influence += Math.max(0, tacklesAboveExpected) * tackleValue;
+  
+  // === NEGATIVE IMPACT ===
+  influence -= stats.errors * 8;
+  influence -= stats.missedTackles * 4;
+  
+  // === BONUSES ===
+  if (stats.errors === 0 && stats.tries > 0) influence += 8;        // Try + clean game
+  if (stats.missedTackles === 0 && stats.tackles > 30) influence += 10; // Defensive wall
+  if (teamWon) influence += 5;  // Slight edge to winners
+  
+  // === PLAYMAKER BONUS ===
+  // Playmakers who scored AND had low errors get a bump
+  // (proxy for "ran the game well")
+  if (isPlaymaker && stats.tries > 0 && stats.errors === 0) {
+    influence += 12;
+  }
+  
+  return influence;
+}
+
 function calculateTacticalBonus(attackFocus: string, defenseFocus: string) {
   let bonus = 0;
   let description = '';
@@ -192,7 +265,6 @@ export async function GET(request: Request) {
   }
   
   try {
-    // Load fixtures, teams, tactics, and ALL players in parallel
     const [fixturesRes, teamsRes, tacticsRes, players1, players2, players3] = await Promise.all([
       supabase.from('fixtures').select('*').eq('season', SEASON).eq('played', false).order('round', { ascending: true }),
       supabase.from('teams').select('*'),
@@ -216,7 +288,6 @@ export async function GET(request: Request) {
     
     logs.push(`Simulating Round ${currentRound} - ${allPlayers.length} players loaded`);
     
-    // Build lookup maps
     const teamsMap: Record<string, any> = {};
     teams.forEach(t => { teamsMap[t.id] = t; });
     
@@ -233,27 +304,23 @@ export async function GET(request: Request) {
     ];
     const minutesPlayed = [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 25, 20, 10, 0];
     
-    // Collect batch inserts
     const allPlayerStats: any[] = [];
     const allMatchResults: any[] = [];
     const allNotifications: any[] = [];
     const teamUpdates: Record<string, any> = {};
     const fatigueUpdates: Record<string, number> = {};
     
-    // Process each match
     for (const fixture of roundFixtures) {
       const homeTeam = teamsMap[fixture.home_team_id];
       const awayTeam = teamsMap[fixture.away_team_id];
       if (!homeTeam || !awayTeam) continue;
       
-      // Get or generate tactics
       let homeTactics = tacticsMap[fixture.home_team_id];
       let awayTactics = tacticsMap[fixture.away_team_id];
       
       const homePlayers = allPlayers.filter(p => p.team_id === fixture.home_team_id);
       const awayPlayers = allPlayers.filter(p => p.team_id === fixture.away_team_id);
       
-      // Auto-generate tactics if missing
       if (!homeTactics && homePlayers.length >= 13) {
         const sorted = [...homePlayers].sort((a, b) => b.overall - a.overall);
         homeTactics = {
@@ -288,7 +355,6 @@ export async function GET(request: Request) {
       
       if (!homeTactics || !awayTactics) continue;
       
-      // Calculate team strengths using playersMap for fast lookup
       let homeStrengthTotal = 0, homeCount = 0;
       let awayStrengthTotal = 0, awayCount = 0;
       
@@ -317,7 +383,6 @@ export async function GET(request: Request) {
         homeTactics.defense_focus || 'line_speed'
       );
       
-      // Check if teams have coaches
       const { data: homeCoach } = await supabase
         .from('coaches')
         .select('id')
@@ -333,13 +398,11 @@ export async function GET(request: Request) {
       const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus + (homeCoach ? COACHING_BONUS : 0);
       const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? COACHING_BONUS : 0);
       
-      // Kicking stats
       const homeKicker = playersMap[homeTactics.goal_kicker];
       const awayKicker = playersMap[awayTactics.goal_kicker];
       const homeKicking = homeKicker?.kicking || 60;
       const awayKicking = awayKicker?.kicking || 60;
       
-      // Calculate scores - strength diff matters more now
       const strengthDiff = homeStrength - awayStrength;
       const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 10) + (Math.random() - 0.5) * 3));
       const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 10) + (Math.random() - 0.5) * 3));
@@ -354,20 +417,22 @@ export async function GET(request: Request) {
       const homeScore = (homeTries * 4) + (homeConv * 2) + (homePen * 2);
       const awayScore = (awayTries * 4) + (awayConv * 2) + (awayPen * 2);
       
-      // Distribute tries
+      // Game context for MOTM calculation
+      const totalPoints = homeScore + awayScore;
+      const margin = Math.abs(homeScore - awayScore);
+      const homeWon = homeScore > awayScore;
+      const awayWon = awayScore > homeScore;
+      
       const homeTryScorers = distributeTries(allPlayers, homeTries, homeTactics);
       const awayTryScorers = distributeTries(allPlayers, awayTries, awayTactics);
       
-      // Track stats for this fixture to find MOTM later
       const fixtureStats: any[] = [];
       
-      // Generate player stats
       for (let i = 0; i < positionFields.length; i++) {
         const field = positionFields[i];
         const jerseyNumber = i + 1;
         const minutes = minutesPlayed[i];
         
-        // Home team
         const homePlayerId = homeTactics[field];
         if (homePlayerId) {
           const player = playersMap[homePlayerId];
@@ -377,8 +442,14 @@ export async function GET(request: Request) {
             const isKicker = homeTactics.goal_kicker === homePlayerId;
             const goals = isKicker ? homeConv + homePen : 0;
             const points = (tries * 4) + (goals * 2);
-            // Calculate rating WITHOUT motm bonus first
             const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, false);
+            
+            // Calculate MOTM influence score with game context
+            const motmInfluence = calculateMotmInfluence(
+              { ...stats, tries, goals },
+              jerseyNumber,
+              { totalPoints, margin, teamWon: homeWon }
+            );
             
             const statEntry = {
               fixture_id: fixture.id,
@@ -390,7 +461,8 @@ export async function GET(request: Request) {
               points, tries, goals_made: goals, goals_attempted: 0,
               metres: stats.metres, tackles: stats.tackles,
               missed_tackles: stats.missedTackles, errors: stats.errors,
-              minutes_played: minutes, rating
+              minutes_played: minutes, rating,
+              motm_influence: motmInfluence
             };
             
             fixtureStats.push(statEntry);
@@ -398,7 +470,6 @@ export async function GET(request: Request) {
           }
         }
         
-        // Away team
         const awayPlayerId = awayTactics[field];
         if (awayPlayerId) {
           const player = playersMap[awayPlayerId];
@@ -408,8 +479,13 @@ export async function GET(request: Request) {
             const isKicker = awayTactics.goal_kicker === awayPlayerId;
             const goals = isKicker ? awayConv + awayPen : 0;
             const points = (tries * 4) + (goals * 2);
-            // Calculate rating WITHOUT motm bonus first
             const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, false);
+            
+            const motmInfluence = calculateMotmInfluence(
+              { ...stats, tries, goals },
+              jerseyNumber,
+              { totalPoints, margin, teamWon: awayWon }
+            );
             
             const statEntry = {
               fixture_id: fixture.id,
@@ -421,7 +497,8 @@ export async function GET(request: Request) {
               points, tries, goals_made: goals, goals_attempted: 0,
               metres: stats.metres, tackles: stats.tackles,
               missed_tackles: stats.missedTackles, errors: stats.errors,
-              minutes_played: minutes, rating
+              minutes_played: minutes, rating,
+              motm_influence: motmInfluence
             };
             
             fixtureStats.push(statEntry);
@@ -430,15 +507,15 @@ export async function GET(request: Request) {
         }
       }
       
-      // Find MOTM based on actual match rating
+      // Find MOTM based on INFLUENCE score, not just rating
       let motmPlayer: any = null;
-      let motmScore = 0;
+      let motmInfluenceScore = -999;
       let motmStatIndex = -1;
       
       for (let i = 0; i < fixtureStats.length; i++) {
         const stat = fixtureStats[i];
-        if (stat.rating > motmScore) {
-          motmScore = stat.rating;
+        if (stat.motm_influence > motmInfluenceScore) {
+          motmInfluenceScore = stat.motm_influence;
           motmPlayer = playersMap[stat.player_id];
           motmStatIndex = i;
         }
@@ -449,10 +526,10 @@ export async function GET(request: Request) {
         fixtureStats[motmStatIndex].rating = Math.max(9, fixtureStats[motmStatIndex].rating);
       }
       
-      // Add fixture stats to all stats
-      allPlayerStats.push(...fixtureStats);
+      // Remove motm_influence before inserting (not a DB column)
+      const cleanStats = fixtureStats.map(({ motm_influence, ...rest }) => rest);
+      allPlayerStats.push(...cleanStats);
       
-      // Match result
       allMatchResults.push({
         fixture_id: fixture.id,
         season: SEASON,
@@ -462,10 +539,9 @@ export async function GET(request: Request) {
         home_score: homeScore,
         away_score: awayScore,
         motm_player_id: motmPlayer?.id || null,
-        motm_score: motmScore
+        motm_score: motmInfluenceScore
       });
       
-      // Team updates
       const homeWin = homeScore > awayScore;
       const awayWin = awayScore > homeScore;
       const draw = homeScore === awayScore;
@@ -488,17 +564,22 @@ export async function GET(request: Request) {
       teamUpdates[awayTeam.id].points_for += awayScore;
       teamUpdates[awayTeam.id].points_against += homeScore;
       
-      // Notifications
       const homeResult = homeWin ? 'win' : awayWin ? 'loss' : 'draw';
       const awayResult = awayWin ? 'win' : homeWin ? 'loss' : 'draw';
       const homeTitle = homeWin ? '🏆 Victory!' : awayWin ? '😢 Defeat' : '🤝 Draw';
       const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
       
+      // Game type description for notifications
+      let gameTypeDesc = '';
+      if (totalPoints < 24) gameTypeDesc = 'Defensive grind. ';
+      else if (totalPoints > 44) gameTypeDesc = 'High-scoring shootout! ';
+      if (margin <= 4) gameTypeDesc += 'Nail-biter finish!';
+      
       allNotifications.push({
         team_id: homeTeam.id,
         type: `match_${homeResult}`,
         title: homeTitle,
-        message: `${homeTeam.name} ${homeWin ? 'defeated' : awayWin ? 'lost to' : 'drew with'} ${awayTeam.name} ${homeScore}-${awayScore}. ${homeTacticalBonus.description}`,
+        message: `${homeTeam.name} ${homeWin ? 'defeated' : awayWin ? 'lost to' : 'drew with'} ${awayTeam.name} ${homeScore}-${awayScore}. ${gameTypeDesc}${homeTacticalBonus.description}`,
         fixture_id: fixture.id
       });
       
@@ -506,16 +587,26 @@ export async function GET(request: Request) {
         team_id: awayTeam.id,
         type: `match_${awayResult}`,
         title: awayTitle,
-        message: `${awayTeam.name} ${awayWin ? 'defeated' : homeWin ? 'lost to' : 'drew with'} ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`,
+        message: `${awayTeam.name} ${awayWin ? 'defeated' : homeWin ? 'lost to' : 'drew with'} ${homeTeam.name} ${awayScore}-${homeScore}. ${gameTypeDesc}${awayTacticalBonus.description}`,
         fixture_id: fixture.id
       });
       
       if (motmPlayer) {
+        // Describe WHY they got MOTM
+        const motmStats = fixtureStats[motmStatIndex];
+        let motmReason = '';
+        if (motmStats.tries >= 2) motmReason = `${motmStats.tries} tries`;
+        else if (motmStats.tries === 1 && motmStats.metres > 100) motmReason = `try + ${motmStats.metres}m`;
+        else if (motmStats.tackles > 40) motmReason = `${motmStats.tackles} tackles`;
+        else if (motmStats.metres > 150) motmReason = `${motmStats.metres} metres`;
+        else if (motmStats.goals_made > 0) motmReason = `${motmStats.goals_made} goals`;
+        else motmReason = 'dominant performance';
+        
         allNotifications.push({
           team_id: motmPlayer.team_id,
           type: 'motm',
           title: '⭐ Man of the Match!',
-          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmPlayer.position}) was awarded Man of the Match! +5 XP`,
+          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmPlayer.position}) won MOTM with ${motmReason}! +5 XP`,
           player_id: motmPlayer.id,
           fixture_id: fixture.id
         });
@@ -525,7 +616,7 @@ export async function GET(request: Request) {
           team_id: otherTeamId,
           type: 'motm_opponent',
           title: '⭐ Opponent MOTM',
-          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${teamsMap[motmPlayer.team_id]?.name}) was Man of the Match`,
+          message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${teamsMap[motmPlayer.team_id]?.name}) won MOTM`,
           player_id: motmPlayer.id,
           fixture_id: fixture.id
         });
@@ -534,10 +625,8 @@ export async function GET(request: Request) {
       logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name || 'N/A'} ${motmPlayer?.last_name || ''}`);
     }
     
-    // BATCH WRITES
     const fixtureIds = roundFixtures.map(f => f.id);
     
-    // Insert all at once
     if (allPlayerStats.length > 0) {
       await supabase.from('player_match_stats').insert(allPlayerStats);
     }
@@ -548,10 +637,8 @@ export async function GET(request: Request) {
       await supabase.from('notifications').insert(allNotifications);
     }
     
-    // Mark fixtures played
     await supabase.from('fixtures').update({ played: true }).in('id', fixtureIds);
     
-    // Update teams
     for (const [teamId, data] of Object.entries(teamUpdates)) {
       await supabase.from('teams').update({
         wins: data.wins,
@@ -562,7 +649,6 @@ export async function GET(request: Request) {
       }).eq('id', teamId);
     }
     
-    // Batch fatigue updates
     const fatiguePlayerIds = Object.keys(fatigueUpdates);
     if (fatiguePlayerIds.length > 0) {
       await supabase.rpc('increment_fatigue', { player_ids: fatiguePlayerIds, amount: 15 });
