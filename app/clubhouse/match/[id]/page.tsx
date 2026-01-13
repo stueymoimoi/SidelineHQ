@@ -112,13 +112,12 @@ export default function MatchPage() {
   const awayScore = matchResult?.away_score || 0;
   const motmTeamName = motmPlayer?.team_id === homeTeam?.id ? homeTeam?.name : awayTeam?.name;
 
-  // Calculate team average ratings
   const homeAvgRating = homeStats.length > 0 
-    ? (homeStats.reduce((sum, p) => sum + (p.rating || 6), 0) / homeStats.length).toFixed(1)
-    : '0.0';
+    ? Math.round(homeStats.reduce((sum, p) => sum + (p.rating || 6), 0) / homeStats.length)
+    : 0;
   const awayAvgRating = awayStats.length > 0 
-    ? (awayStats.reduce((sum, p) => sum + (p.rating || 6), 0) / awayStats.length).toFixed(1)
-    : '0.0';
+    ? Math.round(awayStats.reduce((sum, p) => sum + (p.rating || 6), 0) / awayStats.length)
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -218,7 +217,7 @@ function StatsTable({ stats, motmId }: { stats: any[], motmId?: string }) {
         <tbody>
           {stats.map((stat) => {
             const isMotm = stat.player_id === motmId;
-            const rating = stat.rating || 6.0;
+            const rating = Math.round(stat.rating || 6);
             return (
               <tr key={stat.id} className={`border-t border-gray-700 ${isMotm ? 'bg-yellow-900/20' : ''}`}>
                 <td className="py-2 pr-1 text-gray-500">{stat.jersey_number}</td>
@@ -227,7 +226,7 @@ function StatsTable({ stats, motmId }: { stats: any[], motmId?: string }) {
                   {isMotm && <span className="ml-1 text-yellow-500">⭐</span>}
                 </td>
                 <td className={`py-2 pr-1 text-center font-bold ${getRatingColor(rating)}`}>
-                  {rating.toFixed(1)}
+                  {rating}
                 </td>
                 <td className="py-2 pr-1 text-center text-gray-400">{stat.minutes_played || 0}</td>
                 <td className="py-2 pr-1 text-center">{stat.metres || 0}</td>
