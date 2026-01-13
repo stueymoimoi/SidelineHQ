@@ -367,8 +367,8 @@ export async function GET(request: Request) {
       
       if (!homeTeam || !awayTeam) continue;
       
-      const homePlayers = (playersByTeam[fixture.home_team_id] || []).slice(0, 17);
-      const awayPlayers = (playersByTeam[fixture.away_team_id] || []).slice(0, 17);
+      const homePlayers = playersByTeam[fixture.home_team_id] || [];
+const awayPlayers = playersByTeam[fixture.away_team_id] || [];
       
       // Get or generate tactics
       let homeTactics = tacticsMap[fixture.home_team_id];
