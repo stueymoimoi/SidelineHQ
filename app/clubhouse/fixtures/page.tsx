@@ -50,9 +50,8 @@ interface FixtureWithTeams extends Fixture {
 }
 
 // Season 0 schedule: Tues, Thurs, Sun at 6pm AEST
-const SEASON_0_START = new Date('2026-01-13T07:00:00Z'); // Tuesday 13th Jan 6pm AEST = 7am UTC
+const SEASON_0_START = new Date('2026-01-13T07:00:00Z');
 
-// Pre-calculate all 18 round dates
 function getRoundDates(): Date[] {
   const dates: Date[] = [];
   const start = new Date(SEASON_0_START);
@@ -61,11 +60,10 @@ function getRoundDates(): Date[] {
   for (let round = 1; round <= 18; round++) {
     dates.push(new Date(current));
     
-    // Move to next update day: Tue -> Thu (+2), Thu -> Sun (+3), Sun -> Tue (+2)
     const day = current.getDay();
-    if (day === 2) current.setDate(current.getDate() + 2);      // Tue -> Thu
-    else if (day === 4) current.setDate(current.getDate() + 3); // Thu -> Sun
-    else current.setDate(current.getDate() + 2);                // Sun -> Tue
+    if (day === 2) current.setDate(current.getDate() + 2);
+    else if (day === 4) current.setDate(current.getDate() + 3);
+    else current.setDate(current.getDate() + 2);
   }
   
   return dates;
@@ -76,27 +74,24 @@ const ROUND_DATES = getRoundDates();
 function getCurrentRoundFromSchedule(): number {
   const now = new Date();
   
-  // Find which round we're up to based on dates
   for (let i = ROUND_DATES.length - 1; i >= 0; i--) {
     if (now >= ROUND_DATES[i]) {
-      return i + 1; // Round numbers are 1-indexed
+      return i + 1;
     }
   }
   
-  return 0; // Season hasn't started yet
+  return 0;
 }
 
 function getNextUpdateTime(): { date: Date; round: number } {
   const now = new Date();
   
-  // Find next round that hasn't happened yet
   for (let i = 0; i < ROUND_DATES.length; i++) {
     if (now < ROUND_DATES[i]) {
       return { date: ROUND_DATES[i], round: i + 1 };
     }
   }
   
-  // All rounds done
   return { date: ROUND_DATES[ROUND_DATES.length - 1], round: 18 };
 }
 
@@ -136,7 +131,6 @@ export default function FixturesPage() {
     loadData();
   }, []);
 
-  // Countdown timer
   useEffect(() => {
     const updateCountdown = () => {
       const scheduleRound = getCurrentRoundFromSchedule();
@@ -148,21 +142,19 @@ export default function FixturesPage() {
     };
     
     updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    const interval = setInterval(updateCountdown, 60000);
     
     return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
     try {
-      // Check auth
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/auth');
         return;
       }
 
-      // Get coach
       const { data: coach } = await supabase
         .from('coaches')
         .select('team_id')
@@ -174,7 +166,6 @@ export default function FixturesPage() {
         return;
       }
 
-      // Get user's team FIRST to know their division
       const { data: myTeam } = await supabase
         .from('teams')
         .select('*')
@@ -186,7 +177,6 @@ export default function FixturesPage() {
       setTeam(myTeam);
       setUserDivision(myTeam.division);
 
-      // Get all teams in user's division
       const { data: teams } = await supabase
         .from('teams')
         .select('*')
@@ -198,7 +188,6 @@ export default function FixturesPage() {
       teams.forEach(t => { teamsMap[t.id] = t; });
       setAllTeams(teamsMap);
 
-      // Get fixtures for user's division only
       const { data: fixturesData } = await supabase
         .from('fixtures')
         .select('*')
@@ -206,7 +195,6 @@ export default function FixturesPage() {
         .eq('division', myTeam.division)
         .order('round', { ascending: true });
 
-      // Get all match results for this division's fixtures
       const fixtureIds = (fixturesData || []).map(f => f.id);
       let resultsMap: Record<string, MatchResult> = {};
       
@@ -219,9 +207,8 @@ export default function FixturesPage() {
         results?.forEach(r => { resultsMap[r.fixture_id] = r; });
       }
 
-      // Combine fixtures with teams and results
       const fixturesWithTeams: FixtureWithTeams[] = (fixturesData || [])
-        .filter(f => teamsMap[f.home_team_id] && teamsMap[f.away_team_id]) // Only include fixtures where both teams exist
+        .filter(f => teamsMap[f.home_team_id] && teamsMap[f.away_team_id])
         .map(f => ({
           ...f,
           home_team: teamsMap[f.home_team_id],
@@ -231,9 +218,17 @@ export default function FixturesPage() {
 
       setFixtures(fixturesWithTeams);
 
-      // Set current round based on schedule, not played status
+      // Set current round - if schedule round is complete, show next round
       const scheduleRound = getCurrentRoundFromSchedule();
-      const displayRound = scheduleRound > 0 ? scheduleRound : 1;
+      let displayRound = scheduleRound > 0 ? scheduleRound : 1;
+
+      // If all matches in this round are played, show next round as current
+      const scheduleRoundFixtures = fixturesWithTeams.filter(f => f.round === displayRound);
+      const allPlayed = scheduleRoundFixtures.length > 0 && scheduleRoundFixtures.every(f => f.played);
+      if (allPlayed && displayRound < 18) {
+        displayRound = displayRound + 1;
+      }
+
       setCurrentRound(displayRound);
       setSelectedRound(displayRound);
       setSeasonStarted(scheduleRound > 0);
@@ -245,7 +240,6 @@ export default function FixturesPage() {
     }
   };
 
-  // Get user's next match
   const getMyNextMatch = (): FixtureWithTeams | null => {
     if (!team) return null;
     return fixtures.find(f => 
@@ -254,12 +248,10 @@ export default function FixturesPage() {
     ) || null;
   };
 
-  // Get fixtures for a specific round
   const getFixturesForRound = (round: number): FixtureWithTeams[] => {
     return fixtures.filter(f => f.round === round);
   };
 
-  // Get user's results
   const getMyResults = (): FixtureWithTeams[] => {
     if (!team) return [];
     return fixtures.filter(f => 
@@ -272,11 +264,9 @@ export default function FixturesPage() {
   const roundFixtures = selectedRound ? getFixturesForRound(selectedRound) : [];
   const myResults = getMyResults();
 
-  // Calculate ladder standings
   const getLadder = () => {
     const teamsArray = Object.values(allTeams);
     return teamsArray.sort((a, b) => {
-      // Sort by: points (W*2 + D), then point diff, then points for
       const aPoints = (a.wins * 2) + a.draws;
       const bPoints = (b.wins * 2) + b.draws;
       if (bPoints !== aPoints) return bPoints - aPoints;
@@ -291,20 +281,17 @@ export default function FixturesPage() {
 
   const ladder = getLadder();
   
-  // Get ordinal suffix (1st, 2nd, 3rd, etc.)
   const getOrdinal = (n: number) => {
     const s = ['th', 'st', 'nd', 'rd'];
     const v = n % 100;
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   };
   
-  // Get ladder position for a team
   const getLadderPosition = (teamId: string): string => {
     const pos = ladder.findIndex(t => t.id === teamId) + 1;
     return getOrdinal(pos);
   };
 
-  // Determine result for user's team
   const getResultBadge = (fixture: FixtureWithTeams): { text: string; color: string } => {
     if (!fixture.result || !team) return { text: '', color: '' };
     
@@ -327,7 +314,6 @@ export default function FixturesPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header with team colors */}
       <div 
         className="p-6"
         style={{
@@ -347,7 +333,6 @@ export default function FixturesPage() {
 
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         
-        {/* Next Update Countdown */}
         <div className="bg-gray-800 rounded-lg p-4 border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
@@ -368,12 +353,10 @@ export default function FixturesPage() {
           </p>
         </div>
 
-        {/* My Next Match */}
         {myNextMatch && (
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-gray-400 text-sm mb-3">YOUR NEXT MATCH • Round {myNextMatch.round}</h2>
             <div className="flex items-center justify-between">
-              {/* Home Team */}
               <div className="flex-1 text-center">
                 <div 
                   className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
@@ -393,7 +376,6 @@ export default function FixturesPage() {
                 )}
               </div>
 
-              {/* VS */}
               <div className="px-6">
                 <div className="text-gray-500 text-2xl font-bold">VS</div>
                 <div className="text-gray-600 text-sm mt-1">
@@ -401,7 +383,6 @@ export default function FixturesPage() {
                 </div>
               </div>
 
-              {/* Away Team */}
               <div className="flex-1 text-center">
                 <div 
                   className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
@@ -424,7 +405,6 @@ export default function FixturesPage() {
           </div>
         )}
 
-        {/* Round Selector */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h2 className="text-white font-bold mb-3">Browse Rounds</h2>
           <div className="flex flex-wrap gap-2">
@@ -465,7 +445,6 @@ export default function FixturesPage() {
           </div>
         </div>
 
-        {/* Round Fixtures */}
         {selectedRound && (
           <div className="bg-gray-800 rounded-lg p-4">
             <h2 className="text-white font-bold mb-4">
@@ -485,7 +464,6 @@ export default function FixturesPage() {
                         isMyGame ? 'bg-gray-700 border border-green-500/50' : 'bg-gray-700/50'
                       } ${isClickable ? 'hover:bg-gray-600 cursor-pointer' : ''}`}
                     >
-                      {/* Home Team */}
                       <div className="flex-1 flex items-center gap-2">
                         <div 
                           className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
@@ -501,7 +479,6 @@ export default function FixturesPage() {
                         </span>
                       </div>
 
-                      {/* Score or VS */}
                       <div className="px-4 text-center min-w-[100px]">
                         {fixture.played && fixture.result ? (
                           <div>
@@ -515,7 +492,6 @@ export default function FixturesPage() {
                         )}
                       </div>
 
-                      {/* Away Team */}
                       <div className="flex-1 flex items-center gap-2 justify-end">
                         <span className={`${isMyGame && fixture.away_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
                           {fixture.away_team.city} <span className="text-gray-500">({getLadderPosition(fixture.away_team_id)})</span>
@@ -546,7 +522,6 @@ export default function FixturesPage() {
           </div>
         )}
 
-        {/* My Results History */}
         {myResults.length > 0 && (
           <div className="bg-gray-800 rounded-lg p-4">
             <h2 className="text-white font-bold mb-4">Your Results</h2>
@@ -593,11 +568,9 @@ export default function FixturesPage() {
           </div>
         )}
 
-        {/* Season Progress */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h2 className="text-white font-bold mb-3">Season Progress</h2>
           {(() => {
-            // Count rounds where ALL fixtures are played
             const completedRounds = new Set<number>();
             const roundCounts: Record<number, { total: number; played: number }> = {};
             
