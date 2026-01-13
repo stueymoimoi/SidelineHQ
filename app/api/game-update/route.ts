@@ -454,8 +454,8 @@ const awayPlayers = playersByTeam[fixture.away_team_id] || [];
       }
       
       // Kicking stats from player data
-      const homeKicker = homePlayers.find(p => p.id === homeTactics?.goal_kicker);
-      const awayKicker = awayPlayers.find(p => p.id === awayTactics?.goal_kicker);
+      const homeKicker = allPlayers.find(p => p.id === homeTactics?.goal_kicker);
+      const awayKicker = allPlayers.find(p => p.id === awayTactics?.goal_kicker);
       const homeKicking = homeKicker?.kicking || 60;
       const awayKicking = awayKicker?.kicking || 60;
       
