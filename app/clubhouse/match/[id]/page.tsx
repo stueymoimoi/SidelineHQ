@@ -19,13 +19,12 @@ export default function MatchPage() {
   const [awayTeam, setAwayTeam] = useState<any>(null);
   const [homeStats, setHomeStats] = useState<any[]>([]);
   const [awayStats, setAwayStats] = useState<any[]>([]);
-  const [homeScore, setHomeScore] = useState(0);
-  const [awayScore, setAwayScore] = useState(0);
+  const [matchResult, setMatchResult] = useState<any>(null);
+  const [motmPlayer, setMotmPlayer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchMatch() {
-      // Get fixture details
       const { data: fixtureData } = await supabase
         .from('fixtures')
         .select('*')
@@ -39,7 +38,6 @@ export default function MatchPage() {
 
       setFixture(fixtureData);
 
-      // Get team details
       const { data: home } = await supabase
         .from('teams')
         .select('*')
@@ -55,7 +53,27 @@ export default function MatchPage() {
       setHomeTeam(home);
       setAwayTeam(away);
 
-      // Get player stats for this fixture
+      // Get match result for official score and MOTM
+      const { data: result } = await supabase
+        .from('match_results')
+        .select('*')
+        .eq('fixture_id', fixtureId)
+        .single();
+
+      if (result) {
+        setMatchResult(result);
+        
+        // Get MOTM player details
+        if (result.motm_player_id) {
+          const { data: motm } = await supabase
+            .from('players')
+            .select('first_name, last_name, position, team_id')
+            .eq('id', result.motm_player_id)
+            .single();
+          setMotmPlayer(motm);
+        }
+      }
+
       const { data: playerStats } = await supabase
         .from('player_match_stats')
         .select('*')
@@ -68,10 +86,6 @@ export default function MatchPage() {
         
         setHomeStats(homePlayerStats);
         setAwayStats(awayPlayerStats);
-        
-        // Calculate scores from player points
-        setHomeScore(homePlayerStats.reduce((sum, p) => sum + (p.points || 0), 0));
-        setAwayScore(awayPlayerStats.reduce((sum, p) => sum + (p.points || 0), 0));
       }
 
       setLoading(false);
@@ -81,54 +95,81 @@ export default function MatchPage() {
   }, [fixtureId]);
 
   if (loading) {
-    return <div className="p-6 text-center">Loading match...</div>;
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading match...</div>
+      </div>
+    );
   }
 
   if (!fixture) {
-    return <div className="p-6 text-center">Match not found</div>;
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">Match not found</div>
+      </div>
+    );
   }
 
+  const homeScore = matchResult?.home_score || 0;
+  const awayScore = matchResult?.away_score || 0;
+  const motmTeamName = motmPlayer?.team_id === homeTeam?.id ? homeTeam?.name : awayTeam?.name;
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <Link
-        href="/clubhouse"
-        className="text-sm text-gray-400 hover:text-white mb-4 inline-block"
-      >
-        ← Back to Clubhouse
-      </Link>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="max-w-5xl mx-auto p-6">
+        <Link
+          href="/clubhouse"
+          className="text-sm text-gray-400 hover:text-white mb-4 inline-block"
+        >
+          ← Back to Clubhouse
+        </Link>
 
-      {/* Score Header */}
-      <div className="bg-gray-800 rounded-lg p-6 mb-6">
-        <p className="text-center text-gray-400 text-sm mb-2">
-          Round {fixture.round}
-        </p>
-        <div className="flex items-center justify-center gap-8">
-          <div className="text-right">
-            <p className="text-xl font-bold">{homeTeam?.name}</p>
+        {/* Score Header */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <p className="text-center text-gray-400 text-sm mb-2">
+            Round {fixture.round}
+          </p>
+          <div className="flex items-center justify-center gap-8">
+            <div className="text-right flex-1">
+              <p className="text-xl font-bold">{homeTeam?.name}</p>
+            </div>
+            <div className="text-center">
+              <span className="text-4xl font-bold">
+                {homeScore} - {awayScore}
+              </span>
+            </div>
+            <div className="text-left flex-1">
+              <p className="text-xl font-bold">{awayTeam?.name}</p>
+            </div>
           </div>
-          <div className="text-center">
-            <span className="text-4xl font-bold">
-              {homeScore} - {awayScore}
-            </span>
+          
+          {/* MOTM */}
+          {motmPlayer && (
+            <div className="text-center mt-4 pt-4 border-t border-gray-700">
+              <span className="text-yellow-500">⭐ Man of the Match</span>
+              <p className="text-white font-semibold">
+                {motmPlayer.first_name} {motmPlayer.last_name} ({motmPlayer.position}) — {motmTeamName}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Stats Tables */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="font-bold mb-3 text-lg">{homeTeam?.name}</h3>
+            <StatsTable stats={homeStats} />
           </div>
-          <div className="text-left">
-            <p className="text-xl font-bold">{awayTeam?.name}</p>
+
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="font-bold mb-3 text-lg">{awayTeam?.name}</h3>
+            <StatsTable stats={awayStats} />
           </div>
         </div>
-      </div>
 
-      {/* Stats Tables */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Home Team Stats */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="font-bold mb-3">{homeTeam?.name}</h3>
-          <StatsTable stats={homeStats} />
-        </div>
-
-        {/* Away Team Stats */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="font-bold mb-3">{awayTeam?.name}</h3>
-          <StatsTable stats={awayStats} />
+        {/* Legend */}
+        <div className="mt-4 text-center text-xs text-gray-500">
+          MIN = Minutes | MTR = Metres | TRY = Tries | GL = Goals | TKL = Tackles | MT = Missed Tackles | ERR = Errors | PTS = Points
         </div>
       </div>
     </div>
@@ -144,31 +185,36 @@ function StatsTable({ stats }: { stats: any[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-gray-400 text-left">
-            <th className="pb-2">#</th>
-            <th className="pb-2">Player</th>
-            <th className="pb-2">M</th>
-            <th className="pb-2">T</th>
-            <th className="pb-2">MT</th>
-            <th className="pb-2">Pts</th>
+          <tr className="text-gray-400 text-left text-xs">
+            <th className="pb-2 pr-2">#</th>
+            <th className="pb-2 pr-2">Player</th>
+            <th className="pb-2 pr-1 text-center">MIN</th>
+            <th className="pb-2 pr-1 text-center">MTR</th>
+            <th className="pb-2 pr-1 text-center">TRY</th>
+            <th className="pb-2 pr-1 text-center">GL</th>
+            <th className="pb-2 pr-1 text-center">TKL</th>
+            <th className="pb-2 pr-1 text-center">MT</th>
+            <th className="pb-2 pr-1 text-center">ERR</th>
+            <th className="pb-2 text-center">PTS</th>
           </tr>
         </thead>
         <tbody>
           {stats.map((stat) => (
             <tr key={stat.id} className="border-t border-gray-700">
-              <td className="py-2">{stat.jersey_number}</td>
-              <td className="py-2">{stat.player_name}</td>
-              <td className="py-2">{stat.metres}</td>
-              <td className="py-2">{stat.tackles}</td>
-              <td className="py-2">{stat.missed_tackles}</td>
-              <td className="py-2">{stat.points}</td>
+              <td className="py-2 pr-2 text-gray-500">{stat.jersey_number}</td>
+              <td className="py-2 pr-2 font-medium">{stat.player_name}</td>
+              <td className="py-2 pr-1 text-center text-gray-400">{stat.minutes_played || 0}</td>
+              <td className="py-2 pr-1 text-center">{stat.metres || 0}</td>
+              <td className="py-2 pr-1 text-center text-green-400">{stat.tries || 0}</td>
+              <td className="py-2 pr-1 text-center text-blue-400">{stat.goals_made || 0}</td>
+              <td className="py-2 pr-1 text-center">{stat.tackles || 0}</td>
+              <td className="py-2 pr-1 text-center text-red-400">{stat.missed_tackles || 0}</td>
+              <td className="py-2 pr-1 text-center text-orange-400">{stat.errors || 0}</td>
+              <td className="py-2 text-center font-bold text-yellow-400">{stat.points || 0}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="text-xs text-gray-500 mt-2">
-        M = Metres, T = Tackles, MT = Missed Tackles
-      </p>
     </div>
   );
 }
