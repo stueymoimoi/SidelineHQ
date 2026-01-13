@@ -58,13 +58,13 @@ export default function MatchPage() {
       // Get player stats for this fixture
       const { data: playerStats } = await supabase
         .from('player_match_stats')
-        .select('*, players(first_name, last_name, position, team_id)')
+        .select('*')
         .eq('fixture_id', fixtureId)
         .order('jersey_number', { ascending: true });
 
       if (playerStats) {
-        const homePlayerStats = playerStats.filter((p) => p.players?.team_id === fixtureData.home_team_id);
-        const awayPlayerStats = playerStats.filter((p) => p.players?.team_id === fixtureData.away_team_id);
+        const homePlayerStats = playerStats.filter((p) => p.team_id === fixtureData.home_team_id);
+        const awayPlayerStats = playerStats.filter((p) => p.team_id === fixtureData.away_team_id);
         
         setHomeStats(homePlayerStats);
         setAwayStats(awayPlayerStats);
@@ -155,11 +155,9 @@ function StatsTable({ stats }: { stats: any[] }) {
         </thead>
         <tbody>
           {stats.map((stat) => (
-            <tr key={stat.player_id} className="border-t border-gray-700">
+            <tr key={stat.id} className="border-t border-gray-700">
               <td className="py-2">{stat.jersey_number}</td>
-              <td className="py-2">
-                {stat.players?.first_name} {stat.players?.last_name}
-              </td>
+              <td className="py-2">{stat.player_name}</td>
               <td className="py-2">{stat.metres}</td>
               <td className="py-2">{stat.tackles}</td>
               <td className="py-2">{stat.missed_tackles}</td>
