@@ -10,6 +10,7 @@ const supabase = createClient(
 const SEASON = 0;
 const HOME_ADVANTAGE = 3;
 const BASE_TRIES = 4;
+const COACHING_BONUS = 12;
 
 function rollChance(pct: number) {
   return Math.random() * 100 < pct;
@@ -53,8 +54,8 @@ function getErrorChance(passingStat: number): number {
   if (passingStat >= 80) return 0.01;
   if (passingStat >= 70) return 0.015;
   if (passingStat >= 60) return 0.02;
-  if (passingStat >= 50) return 0.030;
-  if (passingStat >= 40) return 0.040;
+  if (passingStat >= 50) return 0.025;
+  if (passingStat >= 40) return 0.035;
   return 0.05;
 }
 
@@ -315,42 +316,20 @@ export async function GET(request: Request) {
       );
       
       // Check if teams have coaches
-const { data: homeCoach } = await supabase
-  .from('coaches')
-  .select('id')
-  .eq('team_id', fixture.home_team_id)
-  .maybeSingle();
+      const { data: homeCoach } = await supabase
+        .from('coaches')
+        .select('id')
+        .eq('team_id', fixture.home_team_id)
+        .maybeSingle();
 
-const { data: awayCoach } = await supabase
-  .from('coaches')
-  .select('id')
-  .eq('team_id', fixture.away_team_id)
-  .maybeSingle();
+      const { data: awayCoach } = await supabase
+        .from('coaches')
+        .select('id')
+        .eq('team_id', fixture.away_team_id)
+        .maybeSingle();
 
-const COACHING_BONUS = 12; // Huge advantage for managed teams!
-
-const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus + (homeCoach ? COACHING_BONUS : 0);
-const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? COACHING_BONUS : 0);
-      
-      // Find MOTM from starting players
-      let motmPlayer: any = null;
-      let motmScore = 0;
-      
-      for (let i = 0; i < 13; i++) {
-        const homePlayerId = homeTactics[positionFields[i]];
-        const awayPlayerId = awayTactics[positionFields[i]];
-        
-        if (homePlayerId && playersMap[homePlayerId]) {
-          const p = playersMap[homePlayerId];
-          const score = p.overall * (1 - (p.fatigue || 0) / 200) * (0.8 + Math.random() * 0.4);
-          if (score > motmScore) { motmScore = score; motmPlayer = p; }
-        }
-        if (awayPlayerId && playersMap[awayPlayerId]) {
-          const p = playersMap[awayPlayerId];
-          const score = p.overall * (1 - (p.fatigue || 0) / 200) * (0.8 + Math.random() * 0.4);
-          if (score > motmScore) { motmScore = score; motmPlayer = p; }
-        }
-      }
+      const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus + (homeCoach ? COACHING_BONUS : 0);
+      const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? COACHING_BONUS : 0);
       
       // Kicking stats
       const homeKicker = playersMap[homeTactics.goal_kicker];
@@ -358,7 +337,7 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? C
       const homeKicking = homeKicker?.kicking || 60;
       const awayKicking = awayKicker?.kicking || 60;
       
-      // Calculate scores
+      // Calculate scores - strength diff matters more now
       const strengthDiff = homeStrength - awayStrength;
       const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 10) + (Math.random() - 0.5) * 3));
       const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 10) + (Math.random() - 0.5) * 3));
@@ -377,6 +356,9 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? C
       const homeTryScorers = distributeTries(allPlayers, homeTries, homeTactics);
       const awayTryScorers = distributeTries(allPlayers, awayTries, awayTactics);
       
+      // Track stats for this fixture to find MOTM later
+      const fixtureStats: any[] = [];
+      
       // Generate player stats
       for (let i = 0; i < positionFields.length; i++) {
         const field = positionFields[i];
@@ -393,10 +375,10 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? C
             const isKicker = homeTactics.goal_kicker === homePlayerId;
             const goals = isKicker ? homeConv + homePen : 0;
             const points = (tries * 4) + (goals * 2);
-            const isMotm = motmPlayer?.id === homePlayerId;
-            const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, isMotm);
+            // Calculate rating WITHOUT motm bonus first
+            const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, false);
             
-            allPlayerStats.push({
+            const statEntry = {
               fixture_id: fixture.id,
               player_id: homePlayerId,
               team_id: fixture.home_team_id,
@@ -407,8 +389,9 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? C
               metres: stats.metres, tackles: stats.tackles,
               missed_tackles: stats.missedTackles, errors: stats.errors,
               minutes_played: minutes, rating
-            });
+            };
             
+            fixtureStats.push(statEntry);
             fatigueUpdates[homePlayerId] = Math.min(100, (player.fatigue || 0) + 15);
           }
         }
@@ -423,10 +406,10 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? C
             const isKicker = awayTactics.goal_kicker === awayPlayerId;
             const goals = isKicker ? awayConv + awayPen : 0;
             const points = (tries * 4) + (goals * 2);
-            const isMotm = motmPlayer?.id === awayPlayerId;
-            const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, isMotm);
+            // Calculate rating WITHOUT motm bonus first
+            const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, false);
             
-            allPlayerStats.push({
+            const statEntry = {
               fixture_id: fixture.id,
               player_id: awayPlayerId,
               team_id: fixture.away_team_id,
@@ -437,12 +420,35 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? C
               metres: stats.metres, tackles: stats.tackles,
               missed_tackles: stats.missedTackles, errors: stats.errors,
               minutes_played: minutes, rating
-            });
+            };
             
+            fixtureStats.push(statEntry);
             fatigueUpdates[awayPlayerId] = Math.min(100, (player.fatigue || 0) + 15);
           }
         }
       }
+      
+      // Find MOTM based on actual match rating
+      let motmPlayer: any = null;
+      let motmScore = 0;
+      let motmStatIndex = -1;
+      
+      for (let i = 0; i < fixtureStats.length; i++) {
+        const stat = fixtureStats[i];
+        if (stat.rating > motmScore) {
+          motmScore = stat.rating;
+          motmPlayer = playersMap[stat.player_id];
+          motmStatIndex = i;
+        }
+      }
+      
+      // Boost MOTM rating to 9 minimum
+      if (motmStatIndex >= 0) {
+        fixtureStats[motmStatIndex].rating = Math.max(9, fixtureStats[motmStatIndex].rating);
+      }
+      
+      // Add fixture stats to all stats
+      allPlayerStats.push(...fixtureStats);
       
       // Match result
       allMatchResults.push({
