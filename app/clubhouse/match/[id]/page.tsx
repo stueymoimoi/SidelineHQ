@@ -1,51 +1,83 @@
-import { createClient } from "@/utils/supabase/server";
-import { notFound } from "next/navigation";
-import Link from "next/link";
+'use client';
 
-export default async function MatchPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const supabase = await createClient();
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 
-  // Get match details
-  const { data: match, error: matchError } = await supabase
-    .from("matches")
-    .select("*")
-    .eq("id", params.id)
-    .single();
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-  if (matchError || !match) {
-    notFound();
+export default function MatchPage() {
+  const params = useParams();
+  const matchId = params.id as string;
+
+  const [match, setMatch] = useState<any>(null);
+  const [homeTeam, setHomeTeam] = useState<any>(null);
+  const [awayTeam, setAwayTeam] = useState<any>(null);
+  const [homeStats, setHomeStats] = useState<any[]>([]);
+  const [awayStats, setAwayStats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchMatch() {
+      // Get match details
+      const { data: matchData } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('id', matchId)
+        .single();
+
+      if (!matchData) {
+        setLoading(false);
+        return;
+      }
+
+      setMatch(matchData);
+
+      // Get team details
+      const { data: home } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', matchData.home_team_id)
+        .single();
+
+      const { data: away } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', matchData.away_team_id)
+        .single();
+
+      setHomeTeam(home);
+      setAwayTeam(away);
+
+      // Get player stats for this match
+      const { data: playerStats } = await supabase
+        .from('player_match_stats')
+        .select('*, players(first_name, last_name, position, team_id)')
+        .eq('match_id', matchId)
+        .order('jersey_number', { ascending: true });
+
+      if (playerStats) {
+        setHomeStats(playerStats.filter((p) => p.players?.team_id === matchData.home_team_id));
+        setAwayStats(playerStats.filter((p) => p.players?.team_id === matchData.away_team_id));
+      }
+
+      setLoading(false);
+    }
+
+    fetchMatch();
+  }, [matchId]);
+
+  if (loading) {
+    return <div className="p-6 text-center">Loading match...</div>;
   }
 
-  // Get team details
-  const { data: homeTeam } = await supabase
-    .from("teams")
-    .select("*")
-    .eq("id", match.home_team_id)
-    .single();
-
-  const { data: awayTeam } = await supabase
-    .from("teams")
-    .select("*")
-    .eq("id", match.away_team_id)
-    .single();
-
-  // Get player stats for this match
-  const { data: playerStats } = await supabase
-    .from("player_match_stats")
-    .select("*, players(first_name, last_name, position, team_id)")
-    .eq("match_id", params.id)
-    .order("jersey_number", { ascending: true });
-
-  const homeStats = playerStats?.filter(
-    (p) => p.players?.team_id === match.home_team_id
-  );
-  const awayStats = playerStats?.filter(
-    (p) => p.players?.team_id === match.away_team_id
-  );
+  if (!match) {
+    return <div className="p-6 text-center">Match not found</div>;
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -81,13 +113,13 @@ export default async function MatchPage({
         {/* Home Team Stats */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="font-bold mb-3">{homeTeam?.name}</h3>
-          <StatsTable stats={homeStats || []} />
+          <StatsTable stats={homeStats} />
         </div>
 
         {/* Away Team Stats */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="font-bold mb-3">{awayTeam?.name}</h3>
-          <StatsTable stats={awayStats || []} />
+          <StatsTable stats={awayStats} />
         </div>
       </div>
     </div>
