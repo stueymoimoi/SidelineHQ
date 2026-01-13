@@ -676,6 +676,9 @@ export default function SquadPage() {
               {renderStatRow('Stamina', selectedPlayer.stamina)}
               {renderStatRow('Tackling', selectedPlayer.tackling)}
               {renderStatRow('Kicking', selectedPlayer.kicking)}
+              <p className="text-gray-500 text-xs text-center mt-3 pt-2 border-t border-gray-600">
+    NONE → POOR → OK → GOOD → GREAT → EXCELLENT → ELITE → LEGEND
+  </p>
             </div>
 
             {/* Training Status */}
