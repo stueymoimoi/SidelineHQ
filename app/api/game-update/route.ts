@@ -45,13 +45,13 @@ function getPositionConfig(jerseyNumber: number) {
 }
 
 function getMissChance(tacklingStat: number): number {
-  if (tacklingStat >= 90) return 0.02;
-  if (tacklingStat >= 80) return 0.04;
-  if (tacklingStat >= 70) return 0.06;
-  if (tacklingStat >= 60) return 0.09;
-  if (tacklingStat >= 50) return 0.12;
-  if (tacklingStat >= 40) return 0.15;
-  return 0.20;
+  if (tacklingStat >= 90) return 0.01;
+  if (tacklingStat >= 80) return 0.02;
+  if (tacklingStat >= 70) return 0.03;
+  if (tacklingStat >= 60) return 0.04;
+  if (tacklingStat >= 50) return 0.05;
+  if (tacklingStat >= 40) return 0.07;
+  return 0.10;
 }
 
 function getErrorChance(passingStat: number): number {
@@ -109,15 +109,15 @@ function calculatePlayerRating(
 ): number {
   const config = getPositionConfig(jerseyNumber);
   
-  let rating = 6.0;
+  let rating = 6.5;
   const metresRatio = stats.metres / (config.metresBase * 0.9);
   rating += Math.min(1.5, (metresRatio - 1) * 1.5);
   const tacklesRatio = stats.tackles / (config.tacklesBase * 0.9);
   rating += Math.min(1.0, (tacklesRatio - 1) * 1.0);
   rating += stats.tries * 0.8;
   rating += stats.goals * 0.3;
-  rating -= stats.missedTackles * 0.15;
-  rating -= stats.errors * 0.25;
+  rating -= stats.missedTackles * 0.08;
+  rating -= stats.errors * 0.10;
   
   if (isMotm) {
     rating = Math.max(rating, 8.5);
@@ -311,7 +311,7 @@ export async function GET(request: Request) {
       supabase.from('fixtures').select('*').eq('season', SEASON).eq('played', false).order('round', { ascending: true }),
       supabase.from('teams').select('*'),
       supabase.from('team_tactics').select('*'),
-      supabase.from('players').select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking, potential, current_training, training_progress')
+      supabase.from('players').select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking, potential, current_training, training_progress'). limit(3000)
     ]);
     
     const fixtures = fixturesRes.data || [];
