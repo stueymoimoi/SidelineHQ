@@ -562,6 +562,8 @@ export async function GET(request: Request) {
       
       await supabase.from('match_results').insert({
         fixture_id: fixture.id,
+        season: SEASON,
+        round: currentRound,
         home_team_id: fixture.home_team_id,
         away_team_id: fixture.away_team_id,
         home_score: homeScore,
