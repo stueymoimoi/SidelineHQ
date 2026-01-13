@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/game-update",
-      "schedule": "0 7 * * 0,2,4"
+      "schedule": "0 8 * * 0,2,4"
     }
   ]
 }
