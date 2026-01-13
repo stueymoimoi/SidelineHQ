@@ -15,13 +15,19 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [inviteCode, setInviteCode] = useState('');
   const router = useRouter();
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    
+    if (inviteCode.toUpperCase() !== 'SIDELINEHQ26') {
+      setError('Invalid invite code');
+      setLoading(false);
+      return;
+    }
 
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -32,7 +38,6 @@ export default function AuthPage() {
       if (authError) throw authError;
 
       if (authData.user) {
-        // Just go to choose-team - coach record created there
         router.push('/choose-team');
       }
     } catch (err: any) {
@@ -55,7 +60,6 @@ export default function AuthPage() {
 
       if (authError) throw authError;
 
-      // Check if they have a coach record
       const { data: coach } = await supabase
         .from('coaches')
         .select('team_id, approved')
@@ -63,16 +67,12 @@ export default function AuthPage() {
         .single();
 
       if (!coach) {
-        // No coach record - go to choose team
         router.push('/choose-team');
       } else if (!coach.team_id) {
-        // Has record but no team
         router.push('/choose-team');
       } else if (!coach.approved) {
-        // Has team but not approved
         router.push('/pending');
       } else {
-        // Approved - go to clubhouse
         router.push('/clubhouse');
       }
     } catch (err: any) {
@@ -128,7 +128,7 @@ export default function AuthPage() {
             />
           </div>
 
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="block text-gray-300 mb-2">Password</label>
             <input
               type="password"
@@ -141,6 +141,20 @@ export default function AuthPage() {
             />
           </div>
 
+          {isSignUp && (
+            <div className="mb-6">
+              <label className="block text-gray-300 mb-2">Invite Code</label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-green-500"
+                placeholder="Enter invite code"
+                required
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -151,7 +165,7 @@ export default function AuthPage() {
         </form>
 
         <p className="text-gray-500 text-center text-sm mt-6">
-          Season 0 kicks off Tuesday 13th Jan, 6pm AEST
+          Season 0 • Invite Only
         </p>
       </div>
     </div>
