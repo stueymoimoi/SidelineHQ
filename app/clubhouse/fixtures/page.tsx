@@ -477,13 +477,13 @@ export default function FixturesPage() {
               ) : (
                 roundFixtures.map(fixture => {
                   const isMyGame = fixture.home_team_id === team?.id || fixture.away_team_id === team?.id;
+                  const isClickable = fixture.played && fixture.result;
                   
-                  return (
+                  const content = (
                     <div 
-                      key={fixture.id}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
+                      className={`flex items-center justify-between p-3 rounded-lg transition ${
                         isMyGame ? 'bg-gray-700 border border-green-500/50' : 'bg-gray-700/50'
-                      }`}
+                      } ${isClickable ? 'hover:bg-gray-600 cursor-pointer' : ''}`}
                     >
                       {/* Home Team */}
                       <div className="flex-1 flex items-center gap-2">
@@ -502,11 +502,14 @@ export default function FixturesPage() {
                       </div>
 
                       {/* Score or VS */}
-                      <div className="px-4 text-center min-w-[80px]">
+                      <div className="px-4 text-center min-w-[100px]">
                         {fixture.played && fixture.result ? (
-                          <span className="text-white font-bold">
-                            {fixture.result.home_score} - {fixture.result.away_score}
-                          </span>
+                          <div>
+                            <span className="text-white font-bold">
+                              {fixture.result.home_score} - {fixture.result.away_score}
+                            </span>
+                            <p className="text-green-400 text-xs">View Stats →</p>
+                          </div>
                         ) : (
                           <span className="text-gray-500">vs</span>
                         )}
@@ -529,6 +532,14 @@ export default function FixturesPage() {
                       </div>
                     </div>
                   );
+                  
+                  return isClickable ? (
+                    <Link key={fixture.id} href={`/clubhouse/fixtures/${fixture.id}`}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={fixture.id}>{content}</div>
+                  );
                 })
               )}
             </div>
@@ -546,9 +557,10 @@ export default function FixturesPage() {
                 const result = getResultBadge(fixture);
                 
                 return (
-                  <div 
+                  <Link 
                     key={fixture.id}
-                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg"
+                    href={`/clubhouse/fixtures/${fixture.id}`}
+                    className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition"
                   >
                     <div className="flex items-center gap-3">
                       <span className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm ${result.color}`}>
@@ -561,17 +573,20 @@ export default function FixturesPage() {
                         <p className="text-gray-500 text-sm">Round {fixture.round}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-white font-bold">
-                        {fixture.result && (
-                          isHome 
-                            ? `${fixture.result.home_score} - ${fixture.result.away_score}`
-                            : `${fixture.result.away_score} - ${fixture.result.home_score}`
-                        )}
-                      </p>
-                      <p className="text-gray-500 text-sm">{isHome ? 'Home' : 'Away'}</p>
+                    <div className="text-right flex items-center gap-3">
+                      <div>
+                        <p className="text-white font-bold">
+                          {fixture.result && (
+                            isHome 
+                              ? `${fixture.result.home_score} - ${fixture.result.away_score}`
+                              : `${fixture.result.away_score} - ${fixture.result.home_score}`
+                          )}
+                        </p>
+                        <p className="text-gray-500 text-sm">{isHome ? 'Home' : 'Away'}</p>
+                      </div>
+                      <span className="text-green-400">→</span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
