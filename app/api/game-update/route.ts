@@ -2,10 +2,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
 const SEASON = 0;
 const HOME_ADVANTAGE = 3;
@@ -179,6 +180,7 @@ function distributeTries(allPlayers: any[], totalTries: number, tactics: any): R
 }
 
 export async function GET(request: Request) {
+  const supabase = getSupabase();
   const logs: string[] = [];
   
   const url = new URL(request.url);
