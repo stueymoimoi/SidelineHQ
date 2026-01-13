@@ -345,13 +345,13 @@ export async function GET(request: Request) {
         continue;
       }
       
-      const { data: homeTactics } = await supabase
+      let { data: homeTactics } = await supabase
         .from('team_tactics')
         .select('*')
         .eq('team_id', fixture.home_team_id)
         .single();
       
-      const { data: awayTactics } = await supabase
+      let { data: awayTactics } = await supabase
         .from('team_tactics')
         .select('*')
         .eq('team_id', fixture.away_team_id)
@@ -371,6 +371,66 @@ export async function GET(request: Request) {
         .eq('team_id', fixture.away_team_id)
         .order('overall', { ascending: false })
         .limit(17);
+
+      // ============================================
+      // GENERATE DEFAULT TACTICS FOR UNMANAGED TEAMS
+      // ============================================
+      
+      if (!homeTactics && homePlayers && homePlayers.length >= 13) {
+        homeTactics = {
+          team_id: fixture.home_team_id,
+          attack_focus: 'structured',
+          defense_focus: 'line_speed',
+          pos_fullback: homePlayers[0]?.id,
+          pos_winger_r: homePlayers[1]?.id,
+          pos_centre_r: homePlayers[2]?.id,
+          pos_centre_l: homePlayers[3]?.id,
+          pos_winger_l: homePlayers[4]?.id,
+          pos_five_eighth: homePlayers[5]?.id,
+          pos_halfback: homePlayers[6]?.id,
+          pos_prop_l: homePlayers[7]?.id,
+          pos_hooker: homePlayers[8]?.id,
+          pos_prop_r: homePlayers[9]?.id,
+          pos_second_row_l: homePlayers[10]?.id,
+          pos_second_row_r: homePlayers[11]?.id,
+          pos_lock: homePlayers[12]?.id,
+          bench_1: homePlayers[13]?.id,
+          bench_2: homePlayers[14]?.id,
+          bench_3: homePlayers[15]?.id,
+          bench_4: homePlayers[16]?.id,
+          goal_kicker: homePlayers[6]?.id
+        };
+      }
+
+      if (!awayTactics && awayPlayers && awayPlayers.length >= 13) {
+        awayTactics = {
+          team_id: fixture.away_team_id,
+          attack_focus: 'structured',
+          defense_focus: 'line_speed',
+          pos_fullback: awayPlayers[0]?.id,
+          pos_winger_r: awayPlayers[1]?.id,
+          pos_centre_r: awayPlayers[2]?.id,
+          pos_centre_l: awayPlayers[3]?.id,
+          pos_winger_l: awayPlayers[4]?.id,
+          pos_five_eighth: awayPlayers[5]?.id,
+          pos_halfback: awayPlayers[6]?.id,
+          pos_prop_l: awayPlayers[7]?.id,
+          pos_hooker: awayPlayers[8]?.id,
+          pos_prop_r: awayPlayers[9]?.id,
+          pos_second_row_l: awayPlayers[10]?.id,
+          pos_second_row_r: awayPlayers[11]?.id,
+          pos_lock: awayPlayers[12]?.id,
+          bench_1: awayPlayers[13]?.id,
+          bench_2: awayPlayers[14]?.id,
+          bench_3: awayPlayers[15]?.id,
+          bench_4: awayPlayers[16]?.id,
+          goal_kicker: awayPlayers[6]?.id
+        };
+      }
+
+      // ============================================
+      // END DEFAULT TACTICS
+      // ============================================
       
       const homeBaseStrength = (homePlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
       const awayBaseStrength = (awayPlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
@@ -602,7 +662,9 @@ export async function GET(request: Request) {
         type: `match_${homeResult}`,
         title: homeTitle,
         message: homeMsg,
-        fixture_id: fixture.id
+        fixture_id: fixture.id,
+        points_for: homeScore,
+        points_against: awayScore
       });
       
       await supabase.from('notifications').insert({
@@ -610,7 +672,9 @@ export async function GET(request: Request) {
         type: `match_${awayResult}`,
         title: awayTitle,
         message: awayMsg,
-        fixture_id: fixture.id
+        fixture_id: fixture.id,
+        points_for: awayScore,
+        points_against: homeScore
       });
       
       if (motmPlayer) {
