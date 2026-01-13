@@ -33,19 +33,16 @@ export default function LadderPage() {
 
   const loadData = async () => {
     try {
-      // Get all Div 1 teams
       const { data: teamsData } = await supabase
         .from('teams')
         .select('*')
         .eq('division', 1)
         .order('wins', { ascending: false });
 
-      // Get all coaches
       const { data: coaches } = await supabase
         .from('coaches')
         .select('team_id, coach_name');
 
-      // Combine teams with coaches
       const teamsWithCoaches = (teamsData || []).map(team => {
         const coach = coaches?.find(c => c.team_id === team.id);
         return {
@@ -54,9 +51,11 @@ export default function LadderPage() {
         };
       });
 
-      // Sort by wins, then point diff
+      // Sort by Pts (W*2 + D), then +/- as tiebreaker
       teamsWithCoaches.sort((a, b) => {
-        if (b.wins !== a.wins) return b.wins - a.wins;
+        const ptsA = (a.wins * 2) + a.draws;
+        const ptsB = (b.wins * 2) + b.draws;
+        if (ptsB !== ptsA) return ptsB - ptsA;
         const diffA = a.points_for - a.points_against;
         const diffB = b.points_for - b.points_against;
         return diffB - diffA;
@@ -99,16 +98,18 @@ export default function LadderPage() {
           {/* Header Row */}
           <div className="grid grid-cols-12 gap-2 p-4 bg-gray-700 text-gray-300 text-sm font-bold">
             <div className="col-span-1 text-center">#</div>
-            <div className="col-span-4">Team</div>
+            <div className="col-span-3">Team</div>
             <div className="col-span-3">Coach</div>
             <div className="col-span-1 text-center">W</div>
             <div className="col-span-1 text-center">D</div>
             <div className="col-span-1 text-center">L</div>
+            <div className="col-span-1 text-center">Pts</div>
             <div className="col-span-1 text-center">+/-</div>
           </div>
 
           {/* Team Rows */}
           {teams.map((team, index) => {
+            const pts = (team.wins * 2) + team.draws;
             const pointDiff = team.points_for - team.points_against;
             
             return (
@@ -128,18 +129,18 @@ export default function LadderPage() {
                 </div>
 
                 {/* Team */}
-                <div className="col-span-4 flex items-center gap-2">
+                <div className="col-span-3 flex items-center gap-2">
                   <div 
-                    className="w-4 h-4 rounded-full"
+                    className="w-4 h-4 rounded-full flex-shrink-0"
                     style={{ backgroundColor: team.primary_color }}
                   ></div>
-                  <span className="text-white font-semibold">{team.name}</span>
+                  <span className="text-white font-semibold truncate">{team.name}</span>
                 </div>
 
                 {/* Coach */}
                 <div className="col-span-3">
                   {team.coach_name ? (
-                    <span className="text-yellow-400">👤 {team.coach_name}</span>
+                    <span className="text-yellow-400 truncate">👤 {team.coach_name}</span>
                   ) : (
                     <span className="text-gray-500 italic">Available</span>
                   )}
@@ -153,6 +154,9 @@ export default function LadderPage() {
                 
                 {/* L */}
                 <div className="col-span-1 text-center text-white">{team.losses}</div>
+                
+                {/* Pts */}
+                <div className="col-span-1 text-center text-green-400 font-bold">{pts}</div>
                 
                 {/* +/- */}
                 <div className={`col-span-1 text-center font-bold ${
