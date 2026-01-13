@@ -327,7 +327,7 @@ const { data: awayCoach } = await supabase
   .eq('team_id', fixture.away_team_id)
   .maybeSingle();
 
-const COACHING_BONUS = 8; // Huge advantage for managed teams!
+const COACHING_BONUS = 12; // Huge advantage for managed teams!
 
 const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus + (homeCoach ? COACHING_BONUS : 0);
 const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? COACHING_BONUS : 0);
@@ -360,8 +360,8 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? C
       
       // Calculate scores
       const strengthDiff = homeStrength - awayStrength;
-      const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 15) + (Math.random() - 0.5) * 4));
-      const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 15) + (Math.random() - 0.5) * 4));
+      const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 10) + (Math.random() - 0.5) * 3));
+      const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 10) + (Math.random() - 0.5) * 3));
       
       let homeConv = 0, awayConv = 0;
       for (let i = 0; i < homeTries; i++) if (rollChance(homeKicking)) homeConv++;
