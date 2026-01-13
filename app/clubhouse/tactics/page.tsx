@@ -73,10 +73,6 @@ const DEFENSE_OPTIONS = [
   { value: 'shift_right', label: 'Shift Right', emoji: '🛡️', desc: 'Overload right side coverage' },
 ];
 
-// ============================================================================
-// DOMINANT SIDE HELPERS - Information only, no warnings
-// ============================================================================
-
 const shouldShowSide = (position: string) => {
   return ['Winger', 'Centre', 'Second Row'].includes(position);
 };
@@ -89,7 +85,6 @@ const getSideBadge = (side: string | null) => {
       return { text: 'R', bg: 'bg-blue-500', title: 'Right-sided specialist' };
     case 'both':
       return { text: 'L/R', bg: 'bg-gray-500', title: 'Versatile - plays both sides' };
-    case 'none':
     default:
       return { text: '?', bg: 'bg-yellow-500', title: 'Developing - side not yet determined' };
   }
@@ -272,7 +267,6 @@ export default function TacticsPage() {
     return 'central';
   };
 
-  // Position Slot - Clean design, no warnings, just information
   const PositionSlot = ({ posKey, label, number }: { posKey: string; label: string; number: number }) => {
     const player = getPlayerById((tactics as any)?.[posKey]);
     const isKicker = tactics?.goal_kicker === player?.id;
@@ -378,10 +372,8 @@ export default function TacticsPage() {
 
         {/* ATTACK & DEFENSE FOCUS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Attack Focus */}
           <div className="bg-gray-800 rounded-xl p-4">
             <h3 className="text-white font-bold mb-3">⚔️ Attack Style</h3>
-            <p className="text-gray-500 text-xs mb-3">How will you attack the opposition?</p>
             <div className="space-y-2">
               {ATTACK_OPTIONS.map(option => (
                 <button
@@ -405,10 +397,8 @@ export default function TacticsPage() {
             </div>
           </div>
 
-          {/* Defense Focus */}
           <div className="bg-gray-800 rounded-xl p-4">
             <h3 className="text-white font-bold mb-3">🛡️ Defense Style</h3>
-            <p className="text-gray-500 text-xs mb-3">How will you shut them down?</p>
             <div className="space-y-2">
               {DEFENSE_OPTIONS.map(option => (
                 <button
@@ -433,97 +423,48 @@ export default function TacticsPage() {
           </div>
         </div>
 
-        {/* Tactical Tips */}
-        <div className="bg-gray-800/50 rounded-lg p-4 mb-6 border border-gray-700">
-          <h4 className="text-yellow-400 font-bold text-sm mb-2">💡 Tactical Tips</h4>
-          <ul className="text-gray-400 text-xs space-y-1">
-            <li>• <strong>Counter the opposition:</strong> Raid Left vs their Shift Right = you win the edge</li>
-            <li>• <strong>Up the Guts:</strong> Works best with strong Props, Hooker & Lock</li>
-            <li>• <strong>Raid edges:</strong> Need quality Halves to unlock your outside backs</li>
-            <li>• <strong>Off the Cuff:</strong> High risk! Can win you games or blow them open</li>
-            <li>• <strong>Brick Wall:</strong> Stops forward momentum, but leaves edges exposed</li>
-            <li>• <strong>Dominant Side:</strong> Consider putting left-sided players on the left edge</li>
-          </ul>
-        </div>
-
-        {/* Football Field */}
+        {/* Football Field - FLIPPED: Forwards at top, Fullback at bottom */}
         <div 
           className="rounded-xl p-6 mb-6 relative overflow-hidden border-4 border-white/50"
           style={{
             background: 'linear-gradient(to bottom, #2d5a27 0%, #3d7a37 50%, #2d5a27 100%)',
-            minHeight: '750px'
+            minHeight: '700px'
           }}
         >
-          {/* Top Goalpost */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2">
-            <div className="absolute -left-10 top-0 w-2 h-20 bg-white shadow-lg"></div>
-            <div className="absolute left-8 top-0 w-2 h-20 bg-white shadow-lg"></div>
-            <div className="absolute -left-10 top-10 w-[76px] h-2 bg-white shadow-lg"></div>
+          {/* Direction Arrow */}
+          <div className="absolute top-4 right-4 text-white/50 text-xs flex items-center gap-1">
+            <span>Attack</span>
+            <span className="text-lg">⬆️</span>
           </div>
-          
-          {/* Top Try Line */}
-          <div className="absolute top-24 inset-x-0 border-t-4 border-white"></div>
+
+          {/* Opposition Goal (top) */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2">
+            <div className="text-center text-white/30 text-xs mt-1">OPPOSITION TRY LINE</div>
+          </div>
+          <div className="absolute top-8 inset-x-0 border-t-4 border-white/60"></div>
 
           {/* Field Lines */}
-          <div className="absolute top-[28%] inset-x-0 border-t-2 border-white/40"></div>
-          <div className="absolute top-[28%] left-4 -translate-y-1/2 text-white/30 text-xs">20m</div>
-          
-          <div className="absolute top-[40%] inset-x-0 border-t-2 border-white/40"></div>
-          <div className="absolute top-[40%] left-4 -translate-y-1/2 text-white/30 text-xs">40m</div>
-          
-          <div className="absolute top-1/2 inset-x-0 border-t-2 border-white/60"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 border-2 border-white/40 rounded-full"></div>
-          <div className="absolute top-1/2 left-4 -translate-y-1/2 text-white/40 text-xs font-bold">HALFWAY</div>
-          
-          <div className="absolute top-[60%] inset-x-0 border-t-2 border-white/40"></div>
-          <div className="absolute top-[60%] left-4 -translate-y-1/2 text-white/30 text-xs">40m</div>
-          
-          <div className="absolute top-[72%] inset-x-0 border-t-2 border-white/40"></div>
-          <div className="absolute top-[72%] left-4 -translate-y-1/2 text-white/30 text-xs">20m</div>
+          <div className="absolute top-[25%] inset-x-0 border-t-2 border-white/30"></div>
+          <div className="absolute top-[40%] inset-x-0 border-t-2 border-white/30"></div>
+          <div className="absolute top-1/2 inset-x-0 border-t-2 border-white/50"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 border-2 border-white/30 rounded-full"></div>
+          <div className="absolute top-[60%] inset-x-0 border-t-2 border-white/30"></div>
+          <div className="absolute top-[75%] inset-x-0 border-t-2 border-white/30"></div>
 
-          {/* Bottom Try Line */}
-          <div className="absolute bottom-24 inset-x-0 border-t-4 border-white"></div>
-          
-          {/* Bottom Goalpost */}
+          {/* Your Goal (bottom) */}
+          <div className="absolute bottom-8 inset-x-0 border-t-4 border-white/60"></div>
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
-            <div className="absolute -left-10 bottom-0 w-2 h-20 bg-white shadow-lg"></div>
-            <div className="absolute left-8 bottom-0 w-2 h-20 bg-white shadow-lg"></div>
-            <div className="absolute -left-10 bottom-10 w-[76px] h-2 bg-white shadow-lg"></div>
+            <div className="text-center text-white/30 text-xs mb-1">YOUR TRY LINE</div>
           </div>
 
-          {/* Positions Layout */}
-          <div className="relative z-10 flex flex-col items-center gap-3 pt-28 pb-28">
+          {/* Positions Layout - FLIPPED */}
+          <div className="relative z-10 flex flex-col items-center gap-3 pt-16 pb-16">
             
-            {/* Fullback */}
-            <div className="flex justify-center">
-              <PositionSlot posKey="pos_fullback" label="FB" number={1} />
-            </div>
-
-            {/* Wingers */}
-            <div className="flex justify-between w-full max-w-lg px-4">
-              <PositionSlot posKey="pos_winger_l" label="LW" number={2} />
-              <PositionSlot posKey="pos_winger_r" label="RW" number={5} />
-            </div>
-
-            {/* Centres */}
-            <div className="flex justify-center gap-24">
-              <PositionSlot posKey="pos_centre_l" label="LC" number={3} />
-              <PositionSlot posKey="pos_centre_r" label="RC" number={4} />
-            </div>
-
-            {/* Five-Eighth */}
-            <div className="flex justify-center">
-              <PositionSlot posKey="pos_five_eighth" label="FE" number={6} />
-            </div>
-
-            {/* Halfback */}
-            <div className="flex justify-center">
-              <PositionSlot posKey="pos_halfback" label="HB" number={7} />
-            </div>
-
-            {/* Lock */}
-            <div className="flex justify-center">
-              <PositionSlot posKey="pos_lock" label="LK" number={13} />
+            {/* Props & Hooker (TOP - closest to opposition) */}
+            <div className="flex justify-center gap-4">
+              <PositionSlot posKey="pos_prop_l" label="PR" number={8} />
+              <PositionSlot posKey="pos_hooker" label="HK" number={9} />
+              <PositionSlot posKey="pos_prop_r" label="PR" number={10} />
             </div>
 
             {/* Second Row */}
@@ -532,11 +473,36 @@ export default function TacticsPage() {
               <PositionSlot posKey="pos_second_row_r" label="2R" number={12} />
             </div>
 
-            {/* Props & Hooker */}
-            <div className="flex justify-center gap-4">
-              <PositionSlot posKey="pos_prop_l" label="PR" number={8} />
-              <PositionSlot posKey="pos_hooker" label="HK" number={9} />
-              <PositionSlot posKey="pos_prop_r" label="PR" number={10} />
+            {/* Lock */}
+            <div className="flex justify-center">
+              <PositionSlot posKey="pos_lock" label="LK" number={13} />
+            </div>
+
+            {/* Halfback */}
+            <div className="flex justify-center">
+              <PositionSlot posKey="pos_halfback" label="HB" number={7} />
+            </div>
+
+            {/* Five-Eighth */}
+            <div className="flex justify-center">
+              <PositionSlot posKey="pos_five_eighth" label="FE" number={6} />
+            </div>
+
+            {/* Centres */}
+            <div className="flex justify-center gap-24">
+              <PositionSlot posKey="pos_centre_l" label="LC" number={3} />
+              <PositionSlot posKey="pos_centre_r" label="RC" number={4} />
+            </div>
+
+            {/* Wingers */}
+            <div className="flex justify-between w-full max-w-lg px-4">
+              <PositionSlot posKey="pos_winger_l" label="LW" number={2} />
+              <PositionSlot posKey="pos_winger_r" label="RW" number={5} />
+            </div>
+
+            {/* Fullback (BOTTOM - your try line) */}
+            <div className="flex justify-center">
+              <PositionSlot posKey="pos_fullback" label="FB" number={1} />
             </div>
           </div>
         </div>
@@ -582,31 +548,10 @@ export default function TacticsPage() {
 
           <button
             onClick={() => setShowKickerModal(true)}
-            className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg transition mb-4"
+            className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg transition"
           >
             Change Goal Kicker
           </button>
-
-          {otherKickers.length > 0 && (
-            <div>
-              <p className="text-gray-500 text-xs mb-2">Other Options:</p>
-              <div className="space-y-1">
-                {otherKickers.slice(0, 3).map(p => {
-                  const stats = getConversionDisplay(p);
-                  return (
-                    <div key={p.id} className="flex justify-between text-sm">
-                      <span className="text-gray-400">{p.first_name} {p.last_name} ({p.age})</span>
-                      <span className={stats.color}>{stats.rate}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          
-          <p className="text-gray-600 text-xs mt-3">
-            * Small sample size • Conversion rates update after matches
-          </p>
         </div>
 
         {/* Captain Section */}
@@ -620,16 +565,15 @@ export default function TacticsPage() {
             <option value="">-- Select Captain --</option>
             {players.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.first_name} {p.last_name} ({p.position}, Age {p.age}, {p.overall} OVR)
+                {p.first_name} {p.last_name} ({p.position}, {p.overall} OVR)
               </option>
             ))}
           </select>
         </div>
 
-        {/* Legend - Simplified */}
+        {/* Legend */}
         <div className="bg-gray-800 rounded-lg p-3 mb-6">
-          <p className="text-gray-400 text-xs text-center mb-2">Dominant Side (for edge positions)</p>
-          <div className="flex flex-wrap justify-center gap-3 text-xs">
+          <div className="flex flex-wrap justify-center gap-4 text-xs">
             <span className="flex items-center gap-1">
               <span className="bg-orange-500 text-white px-1.5 rounded font-bold">L</span>
               <span className="text-gray-400">Left</span>
@@ -639,29 +583,21 @@ export default function TacticsPage() {
               <span className="text-gray-400">Right</span>
             </span>
             <span className="flex items-center gap-1">
-              <span className="bg-gray-500 text-white px-1.5 rounded font-bold">L/R</span>
-              <span className="text-gray-400">Versatile</span>
+              <span className="text-gray-400">🎯 Kicker</span>
             </span>
             <span className="flex items-center gap-1">
-              <span className="bg-yellow-500 text-white px-1.5 rounded font-bold">?</span>
-              <span className="text-gray-400">Developing</span>
+              <span className="text-gray-400">👑 Captain</span>
             </span>
           </div>
         </div>
 
       </div>
 
-      {/* Player Selection Modal - Clean, no warnings */}
+      {/* Player Selection Modal */}
       {selectedPosition && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-2">Select Player</h3>
-            
-            {(selectedPosition.includes('winger') || selectedPosition.includes('centre') || selectedPosition.includes('second_row')) && (
-              <p className="text-gray-400 text-sm mb-4">
-                {getSlotSide(selectedPosition) === 'left' ? '⬅️ Left side position' : '➡️ Right side position'}
-              </p>
-            )}
+            <h3 className="text-xl font-bold text-white mb-4">Select Player</h3>
             
             <div className="space-y-2">
               <button
@@ -691,17 +627,12 @@ export default function TacticsPage() {
                       <div className="font-bold flex items-center gap-2">
                         {p.first_name} {p.last_name}
                         {showSide && (
-                          <span 
-                            className={`${sideBadge.bg} text-white text-xs px-1.5 py-0.5 rounded font-bold`}
-                            title={sideBadge.title}
-                          >
+                          <span className={`${sideBadge.bg} text-white text-xs px-1.5 py-0.5 rounded font-bold`}>
                             {sideBadge.text}
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-400">
-                        {p.position} • Age {p.age} • {p.nationality}{p.state ? `, ${p.state}` : ''}
-                      </div>
+                      <div className="text-sm text-gray-400">{p.position} • Age {p.age}</div>
                     </div>
                     <span className="font-bold text-green-500">{p.overall}</span>
                   </button>
@@ -719,26 +650,15 @@ export default function TacticsPage() {
         </div>
       )}
 
-      {/* Goal Kicker Selection Modal */}
+      {/* Goal Kicker Modal */}
       {showKickerModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-2">Select Goal Kicker</h3>
-            <p className="text-gray-400 text-sm mb-4">
-              Choose who takes conversions and penalties. Test different players to discover hidden talent!
-            </p>
+            <h3 className="text-xl font-bold text-white mb-4">Select Goal Kicker</h3>
             
             <div className="space-y-2">
               {players
-                .sort((a, b) => {
-                  const aAttempts = a.goal_kick_attempts || 0;
-                  const bAttempts = b.goal_kick_attempts || 0;
-                  if (bAttempts !== aAttempts) return bAttempts - aAttempts;
-                  
-                  const aRate = aAttempts > 0 ? (a.goal_kick_successes || 0) / aAttempts : 0;
-                  const bRate = bAttempts > 0 ? (b.goal_kick_successes || 0) / bAttempts : 0;
-                  return bRate - aRate;
-                })
+                .sort((a, b) => b.kicking - a.kicking)
                 .map((p) => {
                   const stats = getConversionDisplay(p);
                   const isCurrentKicker = tactics?.goal_kicker === p.id;
@@ -757,15 +677,10 @@ export default function TacticsPage() {
                       }`}
                     >
                       <div>
-                        <div className="text-white font-bold">
-                          {p.first_name} {p.last_name}
-                          {isCurrentKicker && <span className="text-green-400 ml-2">✓</span>}
-                        </div>
-                        <div className="text-sm text-gray-400">{p.position} • Age {p.age}</div>
+                        <div className="text-white font-bold">{p.first_name} {p.last_name}</div>
+                        <div className="text-sm text-gray-400">{p.position} • Kicking: {p.kicking}</div>
                       </div>
-                      <div className="text-right">
-                        <span className={`font-bold ${stats.color}`}>{stats.rate}</span>
-                      </div>
+                      <span className={`font-bold ${stats.color}`}>{stats.rate}</span>
                     </button>
                   );
                 })}
