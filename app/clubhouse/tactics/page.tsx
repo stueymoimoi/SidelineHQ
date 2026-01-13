@@ -90,6 +90,27 @@ const getSideBadge = (side: string | null) => {
   }
 };
 
+// Goal Posts Component
+const GoalPosts = ({ flipped = false }: { flipped?: boolean }) => (
+  <svg 
+    width="80" 
+    height="40" 
+    viewBox="0 0 80 40" 
+    className={flipped ? 'rotate-180' : ''}
+  >
+    {/* Left post */}
+    <rect x="15" y="20" width="4" height="20" fill="white" opacity="0.9" />
+    {/* Right post */}
+    <rect x="61" y="20" width="4" height="20" fill="white" opacity="0.9" />
+    {/* Crossbar */}
+    <rect x="15" y="16" width="50" height="4" fill="white" opacity="0.9" />
+    {/* Left upright */}
+    <rect x="16" y="0" width="2" height="16" fill="white" opacity="0.9" />
+    {/* Right upright */}
+    <rect x="62" y="0" width="2" height="16" fill="white" opacity="0.9" />
+  </svg>
+);
+
 export default function TacticsPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -261,12 +282,6 @@ export default function TacticsPage() {
     };
   };
 
-  const getSlotSide = (posKey: string): 'left' | 'right' | 'central' => {
-    if (posKey.includes('_l')) return 'left';
-    if (posKey.includes('_r')) return 'right';
-    return 'central';
-  };
-
   const PositionSlot = ({ posKey, label, number }: { posKey: string; label: string; number: number }) => {
     const player = getPlayerById((tactics as any)?.[posKey]);
     const isKicker = tactics?.goal_kicker === player?.id;
@@ -312,16 +327,6 @@ export default function TacticsPage() {
 
   const currentKicker = getPlayerById(tactics?.goal_kicker || null);
   const currentKickerStats = currentKicker ? getConversionDisplay(currentKicker) : null;
-
-  const otherKickers = players
-    .filter(p => p.id !== tactics?.goal_kicker)
-    .sort((a, b) => {
-      if ((b.goal_kick_attempts || 0) !== (a.goal_kick_attempts || 0)) {
-        return (b.goal_kick_attempts || 0) - (a.goal_kick_attempts || 0);
-      }
-      return b.kicking - a.kicking;
-    })
-    .slice(0, 5);
 
   if (loading) {
     return (
@@ -423,42 +428,51 @@ export default function TacticsPage() {
           </div>
         </div>
 
-        {/* Football Field - FLIPPED: Forwards at top, Fullback at bottom */}
+        {/* Football Field */}
         <div 
           className="rounded-xl p-6 mb-6 relative overflow-hidden border-4 border-white/50"
           style={{
             background: 'linear-gradient(to bottom, #2d5a27 0%, #3d7a37 50%, #2d5a27 100%)',
-            minHeight: '700px'
+            minHeight: '750px'
           }}
         >
-          {/* Direction Arrow */}
-          <div className="absolute top-4 right-4 text-white/50 text-xs flex items-center gap-1">
-            <span>Attack</span>
-            <span className="text-lg">⬆️</span>
+          {/* Direction Indicator - Left Side */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
+            <div className="w-1 h-24 bg-gradient-to-t from-transparent via-white/60 to-white rounded-full"></div>
+            <span className="text-white/80 text-xs font-bold tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+              ATTACK
+            </span>
+            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-white/80"></div>
           </div>
 
-          {/* Opposition Goal (top) */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2">
-            <div className="text-center text-white/30 text-xs mt-1">OPPOSITION TRY LINE</div>
+          {/* Opposition Goal Posts (top) */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <GoalPosts />
+            <div className="text-white/50 text-xs font-bold mt-1">OPPOSITION</div>
           </div>
-          <div className="absolute top-8 inset-x-0 border-t-4 border-white/60"></div>
+          
+          {/* Opposition Try Line */}
+          <div className="absolute top-16 inset-x-4 border-t-4 border-white/70 border-dashed"></div>
 
           {/* Field Lines */}
-          <div className="absolute top-[25%] inset-x-0 border-t-2 border-white/30"></div>
-          <div className="absolute top-[40%] inset-x-0 border-t-2 border-white/30"></div>
-          <div className="absolute top-1/2 inset-x-0 border-t-2 border-white/50"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 border-2 border-white/30 rounded-full"></div>
-          <div className="absolute top-[60%] inset-x-0 border-t-2 border-white/30"></div>
-          <div className="absolute top-[75%] inset-x-0 border-t-2 border-white/30"></div>
+          <div className="absolute top-[25%] inset-x-4 border-t-2 border-white/30"></div>
+          <div className="absolute top-[40%] inset-x-4 border-t-2 border-white/30"></div>
+          <div className="absolute top-1/2 inset-x-4 border-t-2 border-white/50"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 border-2 border-white/40 rounded-full"></div>
+          <div className="absolute top-[60%] inset-x-4 border-t-2 border-white/30"></div>
+          <div className="absolute top-[75%] inset-x-4 border-t-2 border-white/30"></div>
 
-          {/* Your Goal (bottom) */}
-          <div className="absolute bottom-8 inset-x-0 border-t-4 border-white/60"></div>
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
-            <div className="text-center text-white/30 text-xs mb-1">YOUR TRY LINE</div>
+          {/* Your Try Line */}
+          <div className="absolute bottom-16 inset-x-4 border-t-4 border-white/70 border-dashed"></div>
+          
+          {/* Your Goal Posts (bottom) */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <div className="text-white/50 text-xs font-bold mb-1">YOUR GOAL</div>
+            <GoalPosts flipped />
           </div>
 
-          {/* Positions Layout - FLIPPED */}
-          <div className="relative z-10 flex flex-col items-center gap-3 pt-16 pb-16">
+          {/* Positions Layout */}
+          <div className="relative z-10 flex flex-col items-center gap-3 pt-24 pb-24">
             
             {/* Props & Hooker (TOP - closest to opposition) */}
             <div className="flex justify-center gap-4">
