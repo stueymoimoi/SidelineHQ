@@ -12,70 +12,79 @@ const supabase = createClient(
 
 export default function MatchPage() {
   const params = useParams();
-  const matchId = params.id as string;
+  const fixtureId = params.id as string;
 
-  const [match, setMatch] = useState<any>(null);
+  const [fixture, setFixture] = useState<any>(null);
   const [homeTeam, setHomeTeam] = useState<any>(null);
   const [awayTeam, setAwayTeam] = useState<any>(null);
   const [homeStats, setHomeStats] = useState<any[]>([]);
   const [awayStats, setAwayStats] = useState<any[]>([]);
+  const [homeScore, setHomeScore] = useState(0);
+  const [awayScore, setAwayScore] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchMatch() {
-      // Get match details
-      const { data: matchData } = await supabase
-        .from('matches')
+      // Get fixture details
+      const { data: fixtureData } = await supabase
+        .from('fixtures')
         .select('*')
-        .eq('id', matchId)
+        .eq('id', fixtureId)
         .single();
 
-      if (!matchData) {
+      if (!fixtureData) {
         setLoading(false);
         return;
       }
 
-      setMatch(matchData);
+      setFixture(fixtureData);
 
       // Get team details
       const { data: home } = await supabase
         .from('teams')
         .select('*')
-        .eq('id', matchData.home_team_id)
+        .eq('id', fixtureData.home_team_id)
         .single();
 
       const { data: away } = await supabase
         .from('teams')
         .select('*')
-        .eq('id', matchData.away_team_id)
+        .eq('id', fixtureData.away_team_id)
         .single();
 
       setHomeTeam(home);
       setAwayTeam(away);
 
-      // Get player stats for this match
+      // Get player stats for this fixture
       const { data: playerStats } = await supabase
         .from('player_match_stats')
         .select('*, players(first_name, last_name, position, team_id)')
-        .eq('match_id', matchId)
+        .eq('fixture_id', fixtureId)
         .order('jersey_number', { ascending: true });
 
       if (playerStats) {
-        setHomeStats(playerStats.filter((p) => p.players?.team_id === matchData.home_team_id));
-        setAwayStats(playerStats.filter((p) => p.players?.team_id === matchData.away_team_id));
+        const homePlayerStats = playerStats.filter((p) => p.players?.team_id === fixtureData.home_team_id);
+        const awayPlayerStats = playerStats.filter((p) => p.players?.team_id === fixtureData.away_team_id);
+        
+        setHomeStats(homePlayerStats);
+        setAwayStats(awayPlayerStats);
+        
+        // Calculate scores from player points
+        setHomeScore(homePlayerStats.reduce((sum, p) => sum + (p.points || 0), 0));
+        setAwayScore(awayPlayerStats.reduce((sum, p) => sum + (p.points || 0), 0));
       }
 
       setLoading(false);
     }
 
     fetchMatch();
-  }, [matchId]);
+  }, [fixtureId]);
 
   if (loading) {
     return <div className="p-6 text-center">Loading match...</div>;
   }
 
-  if (!match) {
+  if (!fixture) {
     return <div className="p-6 text-center">Match not found</div>;
   }
 
@@ -91,7 +100,7 @@ export default function MatchPage() {
       {/* Score Header */}
       <div className="bg-gray-800 rounded-lg p-6 mb-6">
         <p className="text-center text-gray-400 text-sm mb-2">
-          Round {match.round}
+          Round {fixture.round}
         </p>
         <div className="flex items-center justify-center gap-8">
           <div className="text-right">
@@ -99,7 +108,7 @@ export default function MatchPage() {
           </div>
           <div className="text-center">
             <span className="text-4xl font-bold">
-              {match.home_score} - {match.away_score}
+              {homeScore} - {awayScore}
             </span>
           </div>
           <div className="text-left">
