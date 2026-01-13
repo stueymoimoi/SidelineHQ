@@ -7,7 +7,7 @@ function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-
+}
 const SEASON = 0;
 const HOME_ADVANTAGE = 3;
 const BASE_TRIES = 4;
