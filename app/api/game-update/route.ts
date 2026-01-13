@@ -402,6 +402,7 @@ export async function GET(request: Request) {
         };
       }
 
+      console.log('DEBUG:', awayTeam.name, 'players:', awayPlayers?.length, 'tactics:', !!awayTactics);
       if (!awayTactics && awayPlayers && awayPlayers.length >= 13) {
         awayTactics = {
           team_id: fixture.away_team_id,
