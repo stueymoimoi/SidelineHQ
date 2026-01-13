@@ -686,6 +686,10 @@ export async function GET(request: Request) {
       }
     }
     
+    // ============================================
+    // TRAINING
+    // ============================================
+    
     const { data: trainingPlayers } = await supabase
       .from('players')
       .select('*')
@@ -737,6 +741,12 @@ export async function GET(request: Request) {
             ) / 7);
             updates.overall = newOverall;
             improvements++;
+            
+            // Track OVR change for UI arrows
+            if (newOverall !== player.overall) {
+              updates.ovr_change = newOverall - player.overall;
+              updates.ovr_changed_at = new Date().toISOString();
+            }
             
             if (newOverall > player.overall) {
               await supabase.from('notifications').insert({
