@@ -20,23 +20,26 @@ function rollChance(pct: number) {
 
 function getPositionConfig(jerseyNumber: number) {
   const configs: Record<number, { metresBase: number; tacklesBase: number; touchesBase: number }> = {
-    1:  { metresBase: 120, tacklesBase: 8, touchesBase: 18 },
-    2:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },
-    3:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },
-    4:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },
-    5:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },
-    6:  { metresBase: 80, tacklesBase: 22, touchesBase: 22 },
-    7:  { metresBase: 50, tacklesBase: 28, touchesBase: 35 },
-    8:  { metresBase: 140, tacklesBase: 32, touchesBase: 14 },
-    9:  { metresBase: 60, tacklesBase: 48, touchesBase: 40 },
-    10: { metresBase: 140, tacklesBase: 32, touchesBase: 14 },
-    11: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },
-    12: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },
-    13: { metresBase: 130, tacklesBase: 42, touchesBase: 16 },
-    14: { metresBase: 60, tacklesBase: 18, touchesBase: 8 },
-    15: { metresBase: 55, tacklesBase: 16, touchesBase: 8 },
-    16: { metresBase: 50, tacklesBase: 14, touchesBase: 6 },
-    17: { metresBase: 45, tacklesBase: 12, touchesBase: 5 },
+    // Backs - need 150+ for excellent
+    1:  { metresBase: 160, tacklesBase: 8, touchesBase: 18 },   // Fullback
+    2:  { metresBase: 140, tacklesBase: 10, touchesBase: 12 },  // Winger
+    3:  { metresBase: 150, tacklesBase: 18, touchesBase: 14 },  // Centre
+    4:  { metresBase: 150, tacklesBase: 18, touchesBase: 14 },  // Centre
+    5:  { metresBase: 140, tacklesBase: 10, touchesBase: 12 },  // Winger
+    6:  { metresBase: 120, tacklesBase: 22, touchesBase: 22 },  // Five-eighth
+    7:  { metresBase: 70, tacklesBase: 28, touchesBase: 35 },   // Halfback
+    // Forwards - need 180+ for excellent
+    8:  { metresBase: 190, tacklesBase: 32, touchesBase: 14 },  // Prop
+    9:  { metresBase: 80, tacklesBase: 48, touchesBase: 40 },   // Hooker
+    10: { metresBase: 190, tacklesBase: 32, touchesBase: 14 },  // Prop
+    11: { metresBase: 170, tacklesBase: 36, touchesBase: 14 },  // Second Row
+    12: { metresBase: 170, tacklesBase: 36, touchesBase: 14 },  // Second Row
+    13: { metresBase: 180, tacklesBase: 42, touchesBase: 16 },  // Lock
+    // Bench (reduced minutes = lower base)
+    14: { metresBase: 80, tacklesBase: 18, touchesBase: 8 },
+    15: { metresBase: 70, tacklesBase: 16, touchesBase: 8 },
+    16: { metresBase: 60, tacklesBase: 14, touchesBase: 6 },
+    17: { metresBase: 50, tacklesBase: 12, touchesBase: 5 },
   };
   return configs[jerseyNumber] || configs[14];
 }
