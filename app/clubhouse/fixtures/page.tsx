@@ -534,7 +534,7 @@ export default function FixturesPage() {
                   );
                   
                   return isClickable ? (
-                    <Link key={fixture.id} href={`/clubhouse/fixtures/${fixture.id}`}>
+                    <Link key={fixture.id} href={`/clubhouse/match/${fixture.id}`}>
                       {content}
                     </Link>
                   ) : (
@@ -559,7 +559,7 @@ export default function FixturesPage() {
                 return (
                   <Link 
                     key={fixture.id}
-                    href={`/clubhouse/fixtures/${fixture.id}`}
+                    href={`/clubhouse/match/${fixture.id}`}
                     className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition"
                   >
                     <div className="flex items-center gap-3">
