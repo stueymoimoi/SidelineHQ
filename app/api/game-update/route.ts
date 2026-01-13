@@ -311,7 +311,7 @@ export async function GET(request: Request) {
       supabase.from('fixtures').select('*').eq('season', SEASON).eq('played', false).order('round', { ascending: true }),
       supabase.from('teams').select('*'),
       supabase.from('team_tactics').select('*'),
-      supabase.from('players').select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking, potential, current_training, training_progress'). limit(3000)
+      supabase.from('players').select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking, potential, current_training, training_progress').range(0, 2999)
     ]);
     
     const fixtures = fixturesRes.data || [];
