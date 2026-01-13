@@ -699,8 +699,8 @@ export async function GET(request: Request) {
         const chance = (STAT_CHANCES[effectiveProgress] || 0) + potentialBonus;
         
         if (chance > 0 && rollChance(chance) && STAT_TRAINING.includes(training)) {
-          const statKey = training.toLowerCase();
-          const current = player[statKey];
+          const statKey = training.toLowerCase() as keyof typeof player;
+          const current = player[statKey] as number;
           if (current < 99) {
             const roll = Math.random() * 100;
             const gain = roll < 50 ? 1 : roll < 85 ? 2 : 3;
