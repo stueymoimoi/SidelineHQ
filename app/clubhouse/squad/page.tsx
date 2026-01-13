@@ -43,10 +43,6 @@ interface Team {
   tertiary_color: string;
 }
 
-// ============================================================================
-// HELPER: Check if OVR change is recent (within 7 days)
-// ============================================================================
-
 const isRecentChange = (changedAt: string | null): boolean => {
   if (!changedAt) return false;
   const changed = new Date(changedAt);
@@ -54,10 +50,6 @@ const isRecentChange = (changedAt: string | null): boolean => {
   const daysDiff = (now.getTime() - changed.getTime()) / (1000 * 60 * 60 * 24);
   return daysDiff <= 7;
 };
-
-// ============================================================================
-// TEAM SHIELD COMPONENT
-// ============================================================================
 
 interface ShieldProps {
   primaryColor: string;
@@ -104,10 +96,6 @@ const Shield = ({ primaryColor, secondaryColor, tertiaryColor = '#FFFFFF', teamA
     </svg>
   );
 };
-
-// ============================================================================
-// JERSEY COMPONENT
-// ============================================================================
 
 type JerseyPattern = 'solid' | 'hoops' | 'vstripes' | 'chevron' | 'diagonal';
 
@@ -286,21 +274,31 @@ const getTeamAbbr = (teamName: string): string => {
 };
 
 // ============================================================================
-// CONSTANTS - UPDATED FOR 7 STATS
+// NEW TIER SYSTEM
 // ============================================================================
 
-const TIER_NAMES: Record<number, string> = {
-  1: 'None',
-  2: 'Poor',
-  3: 'Fair',
-  4: 'Good',
-  5: 'Very Good',
-  6: 'Excellent',
-  7: 'Elite',
-  8: 'World Class'
+const TIER_LABELS: Record<number, string> = {
+  1: 'NONE',
+  2: 'POOR',
+  3: 'OK',
+  4: 'GOOD',
+  5: 'GREAT',
+  6: 'EXCELLENT',
+  7: 'ELITE',
+  8: 'LEGEND'
 };
 
-// Updated for 7 stats: speed, strength, power, passing, stamina, tackling, kicking
+const TIER_COLORS: Record<number, string> = {
+  1: 'text-gray-600 bg-gray-800',
+  2: 'text-red-400 bg-red-900/30',
+  3: 'text-orange-400 bg-orange-900/30',
+  4: 'text-yellow-400 bg-yellow-900/30',
+  5: 'text-green-400 bg-green-900/30',
+  6: 'text-blue-400 bg-blue-900/30',
+  7: 'text-purple-400 bg-purple-900/30',
+  8: 'text-yellow-300 bg-yellow-900/40'
+};
+
 const POSITION_STATS: Record<string, { primary: string[], secondary: string[], minor: string[], negligible: string[] }> = {
   'Prop': {
     primary: ['strength', 'power'],
@@ -358,10 +356,6 @@ const POSITION_STATS: Record<string, { primary: string[], secondary: string[], m
   }
 };
 
-// ============================================================================
-// DOMINANT SIDE HELPERS
-// ============================================================================
-
 const shouldShowSide = (position: string) => {
   return ['Winger', 'Centre', 'Second Row'].includes(position);
 };
@@ -379,10 +373,6 @@ const getSideBadge = (side: string | null) => {
       return { text: '?', bg: 'bg-yellow-500', title: 'Developing - side not yet determined' };
   }
 };
-
-// ============================================================================
-// OVR CHANGE ARROW COMPONENT
-// ============================================================================
 
 const OvrChangeArrow = ({ change, changedAt }: { change: number | null, changedAt: string | null }) => {
   if (!change || !isRecentChange(changedAt)) return null;
@@ -498,19 +488,12 @@ export default function SquadPage() {
     return 'text-red-500';
   };
 
-  const getTierName = (value: number) => {
-    return TIER_NAMES[value] || 'None';
+  const getTierLabel = (value: number) => {
+    return TIER_LABELS[value] || 'NONE';
   };
 
-  const getTierColor = (value: number) => {
-    if (value >= 8) return 'text-purple-400';
-    if (value >= 7) return 'text-yellow-400';
-    if (value >= 6) return 'text-green-400';
-    if (value >= 5) return 'text-blue-400';
-    if (value >= 4) return 'text-white';
-    if (value >= 3) return 'text-gray-400';
-    if (value >= 2) return 'text-orange-400';
-    return 'text-red-400';
+  const getTierColorClass = (value: number) => {
+    return TIER_COLORS[value] || TIER_COLORS[1];
   };
 
   const getStatImportance = (position: string, stat: string): 'primary' | 'secondary' | 'minor' | 'negligible' => {
@@ -525,14 +508,14 @@ export default function SquadPage() {
 
   const getImportanceIndicator = (importance: 'primary' | 'secondary' | 'minor' | 'negligible') => {
     switch (importance) {
-      case 'primary': return { icon: '⭐', color: 'text-yellow-400', opacity: 'opacity-100' };
-      case 'secondary': return { icon: '🔵', color: 'text-blue-400', opacity: 'opacity-100' };
-      case 'minor': return { icon: '⚪', color: 'text-gray-400', opacity: 'opacity-70' };
-      case 'negligible': return { icon: '❌', color: 'text-gray-600', opacity: 'opacity-50' };
+      case 'primary': return { icon: '⭐', opacity: 'opacity-100' };
+      case 'secondary': return { icon: '🔵', opacity: 'opacity-100' };
+      case 'minor': return { icon: '⚪', opacity: 'opacity-70' };
+      case 'negligible': return { icon: '❌', opacity: 'opacity-50' };
     }
   };
 
-  const renderStatBar = (
+  const renderStatRow = (
     label: string, 
     statKey: string, 
     value: number, 
@@ -540,36 +523,18 @@ export default function SquadPage() {
   ) => {
     const importance = getStatImportance(position, statKey);
     const indicator = getImportanceIndicator(importance);
-    const tierName = getTierName(value);
-    const tierColor = getTierColor(value);
-    const barWidth = (value / 8) * 100;
-    
-    // Updated colors for 7 stats
-    const barColors: Record<string, string> = {
-      speed: 'bg-blue-500',
-      strength: 'bg-red-500',
-      power: 'bg-orange-500',
-      passing: 'bg-yellow-500',
-      stamina: 'bg-green-500',
-      tackling: 'bg-purple-500',
-      kicking: 'bg-teal-500'
-    };
+    const tierLabel = getTierLabel(value);
+    const tierColorClass = getTierColorClass(value);
 
     return (
-      <div className={indicator.opacity}>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-400 flex items-center gap-1">
-            <span className="text-xs">{indicator.icon}</span>
-            {label}
-          </span>
-          <span className={tierColor}>{tierName}</span>
-        </div>
-        <div className="bg-gray-700 rounded-full h-2">
-          <div 
-            className={`${barColors[statKey]} h-2 rounded-full transition-all`} 
-            style={{ width: `${barWidth}%` }}
-          ></div>
-        </div>
+      <div className={`flex items-center justify-between py-2 border-b border-gray-700 ${indicator.opacity}`}>
+        <span className="text-gray-400 flex items-center gap-2">
+          <span className="text-xs">{indicator.icon}</span>
+          {label}
+        </span>
+        <span className={`px-3 py-1 rounded font-bold text-sm ${tierColorClass}`}>
+          {tierLabel}
+        </span>
       </div>
     );
   };
@@ -645,7 +610,7 @@ export default function SquadPage() {
       </div>
 
       <div className="max-w-6xl mx-auto p-6">
-        {/* Side Badge Legend - Only show if team has edge players */}
+        {/* Side Badge Legend */}
         {players.some(p => shouldShowSide(p.position)) && (
           <div className="bg-gray-800 rounded-lg p-3 mb-6">
             <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -708,13 +673,13 @@ export default function SquadPage() {
                     </div>
                   </div>
                   <div className="text-right">
+                    <p className="text-gray-500 text-xs mb-1">OVR</p>
                     <div className="flex items-center justify-end">
                       <span className={`${getOvrColor(player.overall)} text-white px-3 py-1 rounded-lg font-bold text-lg inline-block`}>
                         {player.overall}
                       </span>
                       <OvrChangeArrow change={player.ovr_change} changedAt={player.ovr_changed_at} />
                     </div>
-                    <p className="text-yellow-500 text-sm mt-1">{getOvrStars(player.overall)}</p>
                   </div>
                 </div>
                 
@@ -759,13 +724,13 @@ export default function SquadPage() {
                 </div>
               </div>
               <div className="text-right">
+                <p className="text-gray-500 text-xs mb-1">OVR</p>
                 <div className="flex items-center justify-end">
                   <span className={`${getOvrColor(selectedPlayer.overall)} text-white px-4 py-2 rounded-lg font-bold text-2xl inline-block`}>
                     {selectedPlayer.overall}
                   </span>
                   <OvrChangeArrow change={selectedPlayer.ovr_change} changedAt={selectedPlayer.ovr_changed_at} />
                 </div>
-                <p className="text-yellow-500 text-sm mt-1">{getOvrStars(selectedPlayer.overall)}</p>
               </div>
             </div>
 
@@ -804,15 +769,15 @@ export default function SquadPage() {
               <span>❌ Negligible</span>
             </div>
 
-            {/* Stats - Updated for 7 stats */}
-            <div className="space-y-3 mb-4">
-              {renderStatBar('Speed', 'speed', selectedPlayer.speed, selectedPlayer.position)}
-              {renderStatBar('Strength', 'strength', selectedPlayer.strength, selectedPlayer.position)}
-              {renderStatBar('Power', 'power', selectedPlayer.power, selectedPlayer.position)}
-              {renderStatBar('Passing', 'passing', selectedPlayer.passing, selectedPlayer.position)}
-              {renderStatBar('Stamina', 'stamina', selectedPlayer.stamina, selectedPlayer.position)}
-              {renderStatBar('Tackling', 'tackling', selectedPlayer.tackling, selectedPlayer.position)}
-              {renderStatBar('Kicking', 'kicking', selectedPlayer.kicking, selectedPlayer.position)}
+            {/* Stats - Tier Labels Only */}
+            <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+              {renderStatRow('Speed', 'speed', selectedPlayer.speed, selectedPlayer.position)}
+              {renderStatRow('Strength', 'strength', selectedPlayer.strength, selectedPlayer.position)}
+              {renderStatRow('Power', 'power', selectedPlayer.power, selectedPlayer.position)}
+              {renderStatRow('Passing', 'passing', selectedPlayer.passing, selectedPlayer.position)}
+              {renderStatRow('Stamina', 'stamina', selectedPlayer.stamina, selectedPlayer.position)}
+              {renderStatRow('Tackling', 'tackling', selectedPlayer.tackling, selectedPlayer.position)}
+              {renderStatRow('Kicking', 'kicking', selectedPlayer.kicking, selectedPlayer.position)}
             </div>
 
             {/* Training Status */}
