@@ -109,18 +109,9 @@ function calculatePlayerRating(stats: any, jerseyNumber: number, isMotm: boolean
   return Math.min(10, Math.max(1, Math.round(rating * 10) / 10));
 }
 
-function calculateTacticalBonus(attackFocus: string, defenseFocus: string, players: any[], tactics: any) {
+function calculateTacticalBonus(attackFocus: string, defenseFocus: string) {
   let bonus = 0;
   let description = '';
-
-  const getOvr = (id: string | null) => {
-    if (!id) return 50;
-    const p = players.find(x => x.id === id);
-    return p?.overall || 50;
-  };
-
-  const spineAvg = (getOvr(tactics?.pos_halfback) + getOvr(tactics?.pos_five_eighth)) / 2;
-  const forwardAvg = (getOvr(tactics?.pos_prop_l) + getOvr(tactics?.pos_prop_r) + getOvr(tactics?.pos_hooker) + getOvr(tactics?.pos_lock)) / 4;
 
   if (attackFocus === 'off_the_cuff') {
     const roll = Math.random() * 100;
@@ -150,7 +141,7 @@ function calculateTacticalBonus(attackFocus: string, defenseFocus: string, playe
   return { bonus, description };
 }
 
-function distributeTries(players: any[], totalTries: number, tactics: any): Record<string, number> {
+function distributeTries(allPlayers: any[], totalTries: number, tactics: any): Record<string, number> {
   const tryScorers: Record<string, number> = {};
   const positionFields = [
     'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
@@ -163,7 +154,7 @@ function distributeTries(players: any[], totalTries: number, tactics: any): Reco
   positionFields.forEach((field, i) => {
     const playerId = tactics?.[field];
     if (playerId) {
-      const player = players.find(p => p.id === playerId);
+      const player = allPlayers.find(p => p.id === playerId);
       const speedBonus = ((player?.speed || 50) - 50) / 25;
       weighted.push({ id: playerId, weight: Math.max(1, baseWeights[i] + speedBonus) });
     }
@@ -195,26 +186,39 @@ export async function GET(request: Request) {
   }
   
   try {
-    // Load fixtures and teams
-    const { data: fixtures } = await supabase
-      .from('fixtures')
-      .select('*')
-      .eq('season', SEASON)
-      .eq('played', false)
-      .order('round', { ascending: true });
+    // Load fixtures, teams, tactics, and ALL players in parallel
+    const [fixturesRes, teamsRes, tacticsRes, players1, players2, players3] = await Promise.all([
+      supabase.from('fixtures').select('*').eq('season', SEASON).eq('played', false).order('round', { ascending: true }),
+      supabase.from('teams').select('*'),
+      supabase.from('team_tactics').select('*'),
+      supabase.from('players').select('*').range(0, 999),
+      supabase.from('players').select('*').range(1000, 1999),
+      supabase.from('players').select('*').range(2000, 2999)
+    ]);
     
-    if (!fixtures || fixtures.length === 0) {
+    const fixtures = fixturesRes.data || [];
+    const teams = teamsRes.data || [];
+    const allTactics = tacticsRes.data || [];
+    const allPlayers = [...(players1.data || []), ...(players2.data || []), ...(players3.data || [])];
+    
+    if (fixtures.length === 0) {
       return NextResponse.json({ success: true, message: 'Season complete!' });
     }
     
     const currentRound = fixtures[0].round;
     const roundFixtures = fixtures.filter(f => f.round === currentRound);
     
-    logs.push(`Simulating Round ${currentRound}`);
+    logs.push(`Simulating Round ${currentRound} - ${allPlayers.length} players loaded`);
     
-    const { data: teams } = await supabase.from('teams').select('*');
+    // Build lookup maps
     const teamsMap: Record<string, any> = {};
-    teams?.forEach(t => { teamsMap[t.id] = t; });
+    teams.forEach(t => { teamsMap[t.id] = t; });
+    
+    const tacticsMap: Record<string, any> = {};
+    allTactics.forEach(t => { tacticsMap[t.team_id] = t; });
+    
+    const playersMap: Record<string, any> = {};
+    allPlayers.forEach(p => { playersMap[p.id] = p; });
     
     const positionFields = [
       'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
@@ -223,100 +227,116 @@ export async function GET(request: Request) {
     ];
     const minutesPlayed = [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 25, 20, 10, 0];
     
+    // Collect batch inserts
+    const allPlayerStats: any[] = [];
+    const allMatchResults: any[] = [];
+    const allNotifications: any[] = [];
+    const teamUpdates: Record<string, any> = {};
+    const fatigueUpdates: Record<string, number> = {};
+    
     // Process each match
     for (const fixture of roundFixtures) {
       const homeTeam = teamsMap[fixture.home_team_id];
       const awayTeam = teamsMap[fixture.away_team_id];
       if (!homeTeam || !awayTeam) continue;
       
-      // Fetch players for BOTH teams
-      const { data: allMatchPlayers } = await supabase
-        .from('players')
-        .select('*')
-        .in('team_id', [fixture.home_team_id, fixture.away_team_id]);
+      // Get or generate tactics
+      let homeTactics = tacticsMap[fixture.home_team_id];
+      let awayTactics = tacticsMap[fixture.away_team_id];
       
-      const homePlayers = (allMatchPlayers || []).filter(p => p.team_id === fixture.home_team_id);
-      const awayPlayers = (allMatchPlayers || []).filter(p => p.team_id === fixture.away_team_id);
-      
-      // Fetch tactics
-      const { data: homeTacticsData } = await supabase
-        .from('team_tactics')
-        .select('*')
-        .eq('team_id', fixture.home_team_id)
-        .single();
-      
-      const { data: awayTacticsData } = await supabase
-        .from('team_tactics')
-        .select('*')
-        .eq('team_id', fixture.away_team_id)
-        .single();
+      const homePlayers = allPlayers.filter(p => p.team_id === fixture.home_team_id);
+      const awayPlayers = allPlayers.filter(p => p.team_id === fixture.away_team_id);
       
       // Auto-generate tactics if missing
-      const sortedHome = [...homePlayers].sort((a, b) => b.overall - a.overall);
-      const sortedAway = [...awayPlayers].sort((a, b) => b.overall - a.overall);
+      if (!homeTactics && homePlayers.length >= 13) {
+        const sorted = [...homePlayers].sort((a, b) => b.overall - a.overall);
+        homeTactics = {
+          attack_focus: 'structured', defense_focus: 'line_speed',
+          pos_fullback: sorted[0]?.id, pos_winger_r: sorted[1]?.id,
+          pos_centre_r: sorted[2]?.id, pos_centre_l: sorted[3]?.id,
+          pos_winger_l: sorted[4]?.id, pos_five_eighth: sorted[5]?.id,
+          pos_halfback: sorted[6]?.id, pos_prop_l: sorted[7]?.id,
+          pos_hooker: sorted[8]?.id, pos_prop_r: sorted[9]?.id,
+          pos_second_row_l: sorted[10]?.id, pos_second_row_r: sorted[11]?.id,
+          pos_lock: sorted[12]?.id, bench_1: sorted[13]?.id,
+          bench_2: sorted[14]?.id, bench_3: sorted[15]?.id, bench_4: sorted[16]?.id,
+          goal_kicker: sorted[6]?.id
+        };
+      }
       
-      const homeTactics = homeTacticsData || {
-        attack_focus: 'structured', defense_focus: 'line_speed',
-        pos_fullback: sortedHome[0]?.id, pos_winger_r: sortedHome[1]?.id,
-        pos_centre_r: sortedHome[2]?.id, pos_centre_l: sortedHome[3]?.id,
-        pos_winger_l: sortedHome[4]?.id, pos_five_eighth: sortedHome[5]?.id,
-        pos_halfback: sortedHome[6]?.id, pos_prop_l: sortedHome[7]?.id,
-        pos_hooker: sortedHome[8]?.id, pos_prop_r: sortedHome[9]?.id,
-        pos_second_row_l: sortedHome[10]?.id, pos_second_row_r: sortedHome[11]?.id,
-        pos_lock: sortedHome[12]?.id, bench_1: sortedHome[13]?.id,
-        bench_2: sortedHome[14]?.id, bench_3: sortedHome[15]?.id, bench_4: sortedHome[16]?.id,
-        goal_kicker: sortedHome[6]?.id
-      };
+      if (!awayTactics && awayPlayers.length >= 13) {
+        const sorted = [...awayPlayers].sort((a, b) => b.overall - a.overall);
+        awayTactics = {
+          attack_focus: 'structured', defense_focus: 'line_speed',
+          pos_fullback: sorted[0]?.id, pos_winger_r: sorted[1]?.id,
+          pos_centre_r: sorted[2]?.id, pos_centre_l: sorted[3]?.id,
+          pos_winger_l: sorted[4]?.id, pos_five_eighth: sorted[5]?.id,
+          pos_halfback: sorted[6]?.id, pos_prop_l: sorted[7]?.id,
+          pos_hooker: sorted[8]?.id, pos_prop_r: sorted[9]?.id,
+          pos_second_row_l: sorted[10]?.id, pos_second_row_r: sorted[11]?.id,
+          pos_lock: sorted[12]?.id, bench_1: sorted[13]?.id,
+          bench_2: sorted[14]?.id, bench_3: sorted[15]?.id, bench_4: sorted[16]?.id,
+          goal_kicker: sorted[6]?.id
+        };
+      }
       
-      const awayTactics = awayTacticsData || {
-        attack_focus: 'structured', defense_focus: 'line_speed',
-        pos_fullback: sortedAway[0]?.id, pos_winger_r: sortedAway[1]?.id,
-        pos_centre_r: sortedAway[2]?.id, pos_centre_l: sortedAway[3]?.id,
-        pos_winger_l: sortedAway[4]?.id, pos_five_eighth: sortedAway[5]?.id,
-        pos_halfback: sortedAway[6]?.id, pos_prop_l: sortedAway[7]?.id,
-        pos_hooker: sortedAway[8]?.id, pos_prop_r: sortedAway[9]?.id,
-        pos_second_row_l: sortedAway[10]?.id, pos_second_row_r: sortedAway[11]?.id,
-        pos_lock: sortedAway[12]?.id, bench_1: sortedAway[13]?.id,
-        bench_2: sortedAway[14]?.id, bench_3: sortedAway[15]?.id, bench_4: sortedAway[16]?.id,
-        goal_kicker: sortedAway[6]?.id
-      };
+      if (!homeTactics || !awayTactics) continue;
       
-      // Calculate team strengths
-      const homeStarterIds = positionFields.slice(0, 13).map(f => homeTactics[f]).filter(Boolean);
-      const awayStarterIds = positionFields.slice(0, 13).map(f => awayTactics[f]).filter(Boolean);
+      // Calculate team strengths using playersMap for fast lookup
+      let homeStrengthTotal = 0, homeCount = 0;
+      let awayStrengthTotal = 0, awayCount = 0;
       
-      const homeBaseStrength = homeStarterIds.length > 0 
-        ? homeStarterIds.reduce((sum, id) => sum + (homePlayers.find(p => p.id === id)?.overall || 30), 0) / homeStarterIds.length
-        : 30;
-      const awayBaseStrength = awayStarterIds.length > 0
-        ? awayStarterIds.reduce((sum, id) => sum + (awayPlayers.find(p => p.id === id)?.overall || 30), 0) / awayStarterIds.length
-        : 30;
+      for (let i = 0; i < 13; i++) {
+        const homePlayerId = homeTactics[positionFields[i]];
+        const awayPlayerId = awayTactics[positionFields[i]];
+        if (homePlayerId && playersMap[homePlayerId]) {
+          homeStrengthTotal += playersMap[homePlayerId].overall;
+          homeCount++;
+        }
+        if (awayPlayerId && playersMap[awayPlayerId]) {
+          awayStrengthTotal += playersMap[awayPlayerId].overall;
+          awayCount++;
+        }
+      }
+      
+      const homeBaseStrength = homeCount > 0 ? homeStrengthTotal / homeCount : 30;
+      const awayBaseStrength = awayCount > 0 ? awayStrengthTotal / awayCount : 30;
       
       const homeTacticalBonus = calculateTacticalBonus(
         homeTactics.attack_focus || 'structured',
-        awayTactics.defense_focus || 'line_speed',
-        homePlayers, homeTactics
+        awayTactics.defense_focus || 'line_speed'
       );
       const awayTacticalBonus = calculateTacticalBonus(
         awayTactics.attack_focus || 'structured',
-        homeTactics.defense_focus || 'line_speed',
-        awayPlayers, awayTactics
+        homeTactics.defense_focus || 'line_speed'
       );
       
       const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus;
       const awayStrength = awayBaseStrength + awayTacticalBonus.bonus;
       
-      // Find MOTM
+      // Find MOTM from starting players
       let motmPlayer: any = null;
       let motmScore = 0;
-      for (const p of [...homePlayers, ...awayPlayers]) {
-        const score = p.overall * (1 - p.fatigue / 200) * (0.8 + Math.random() * 0.4);
-        if (score > motmScore) { motmScore = score; motmPlayer = p; }
+      
+      for (let i = 0; i < 13; i++) {
+        const homePlayerId = homeTactics[positionFields[i]];
+        const awayPlayerId = awayTactics[positionFields[i]];
+        
+        if (homePlayerId && playersMap[homePlayerId]) {
+          const p = playersMap[homePlayerId];
+          const score = p.overall * (1 - (p.fatigue || 0) / 200) * (0.8 + Math.random() * 0.4);
+          if (score > motmScore) { motmScore = score; motmPlayer = p; }
+        }
+        if (awayPlayerId && playersMap[awayPlayerId]) {
+          const p = playersMap[awayPlayerId];
+          const score = p.overall * (1 - (p.fatigue || 0) / 200) * (0.8 + Math.random() * 0.4);
+          if (score > motmScore) { motmScore = score; motmPlayer = p; }
+        }
       }
       
       // Kicking stats
-      const homeKicker = homePlayers.find(p => p.id === homeTactics.goal_kicker);
-      const awayKicker = awayPlayers.find(p => p.id === awayTactics.goal_kicker);
+      const homeKicker = playersMap[homeTactics.goal_kicker];
+      const awayKicker = playersMap[awayTactics.goal_kicker];
       const homeKicking = homeKicker?.kicking || 60;
       const awayKicking = awayKicker?.kicking || 60;
       
@@ -336,12 +356,10 @@ export async function GET(request: Request) {
       const awayScore = (awayTries * 4) + (awayConv * 2) + (awayPen * 2);
       
       // Distribute tries
-      const homeTryScorers = distributeTries(homePlayers, homeTries, homeTactics);
-      const awayTryScorers = distributeTries(awayPlayers, awayTries, awayTactics);
+      const homeTryScorers = distributeTries(allPlayers, homeTries, homeTactics);
+      const awayTryScorers = distributeTries(allPlayers, awayTries, awayTactics);
       
       // Generate player stats
-      const allPlayerStats: any[] = [];
-      
       for (let i = 0; i < positionFields.length; i++) {
         const field = positionFields[i];
         const jerseyNumber = i + 1;
@@ -350,7 +368,7 @@ export async function GET(request: Request) {
         // Home team
         const homePlayerId = homeTactics[field];
         if (homePlayerId) {
-          const player = homePlayers.find(p => p.id === homePlayerId);
+          const player = playersMap[homePlayerId];
           if (player) {
             const stats = generatePlayerStats(player, jerseyNumber, minutes);
             const tries = homeTryScorers[homePlayerId] || 0;
@@ -372,13 +390,15 @@ export async function GET(request: Request) {
               missed_tackles: stats.missedTackles, errors: stats.errors,
               minutes_played: minutes, rating
             });
+            
+            fatigueUpdates[homePlayerId] = Math.min(100, (player.fatigue || 0) + 15);
           }
         }
         
         // Away team
         const awayPlayerId = awayTactics[field];
         if (awayPlayerId) {
-          const player = awayPlayers.find(p => p.id === awayPlayerId);
+          const player = playersMap[awayPlayerId];
           if (player) {
             const stats = generatePlayerStats(player, jerseyNumber, minutes);
             const tries = awayTryScorers[awayPlayerId] || 0;
@@ -400,17 +420,14 @@ export async function GET(request: Request) {
               missed_tackles: stats.missedTackles, errors: stats.errors,
               minutes_played: minutes, rating
             });
+            
+            fatigueUpdates[awayPlayerId] = Math.min(100, (player.fatigue || 0) + 15);
           }
         }
       }
       
-      // Insert player stats
-      if (allPlayerStats.length > 0) {
-        await supabase.from('player_match_stats').insert(allPlayerStats);
-      }
-      
-      // Insert match result
-      await supabase.from('match_results').insert({
+      // Match result
+      allMatchResults.push({
         fixture_id: fixture.id,
         season: SEASON,
         round: currentRound,
@@ -422,42 +439,28 @@ export async function GET(request: Request) {
         motm_score: motmScore
       });
       
-      // Mark fixture as played
-      await supabase.from('fixtures').update({ played: true }).eq('id', fixture.id);
-      
-      // Update team standings
+      // Team updates
       const homeWin = homeScore > awayScore;
       const awayWin = awayScore > homeScore;
       const draw = homeScore === awayScore;
       
-      await supabase.from('teams').update({
-        wins: homeTeam.wins + (homeWin ? 1 : 0),
-        draws: homeTeam.draws + (draw ? 1 : 0),
-        losses: homeTeam.losses + (awayWin ? 1 : 0),
-        points_for: homeTeam.points_for + homeScore,
-        points_against: homeTeam.points_against + awayScore
-      }).eq('id', homeTeam.id);
-      
-      await supabase.from('teams').update({
-        wins: awayTeam.wins + (awayWin ? 1 : 0),
-        draws: awayTeam.draws + (draw ? 1 : 0),
-        losses: awayTeam.losses + (homeWin ? 1 : 0),
-        points_for: awayTeam.points_for + awayScore,
-        points_against: awayTeam.points_against + homeScore
-      }).eq('id', awayTeam.id);
-      
-      // Update fatigue for players who played
-      const playedIds = allPlayerStats.map(s => s.player_id);
-      if (playedIds.length > 0) {
-        for (const pid of playedIds) {
-          const p = [...homePlayers, ...awayPlayers].find(x => x.id === pid);
-          if (p) {
-            await supabase.from('players').update({ 
-              fatigue: Math.min(100, (p.fatigue || 0) + 15) 
-            }).eq('id', pid);
-          }
-        }
+      if (!teamUpdates[homeTeam.id]) {
+        teamUpdates[homeTeam.id] = { ...homeTeam };
       }
+      teamUpdates[homeTeam.id].wins += homeWin ? 1 : 0;
+      teamUpdates[homeTeam.id].draws += draw ? 1 : 0;
+      teamUpdates[homeTeam.id].losses += awayWin ? 1 : 0;
+      teamUpdates[homeTeam.id].points_for += homeScore;
+      teamUpdates[homeTeam.id].points_against += awayScore;
+      
+      if (!teamUpdates[awayTeam.id]) {
+        teamUpdates[awayTeam.id] = { ...awayTeam };
+      }
+      teamUpdates[awayTeam.id].wins += awayWin ? 1 : 0;
+      teamUpdates[awayTeam.id].draws += draw ? 1 : 0;
+      teamUpdates[awayTeam.id].losses += homeWin ? 1 : 0;
+      teamUpdates[awayTeam.id].points_for += awayScore;
+      teamUpdates[awayTeam.id].points_against += homeScore;
       
       // Notifications
       const homeResult = homeWin ? 'win' : awayWin ? 'loss' : 'draw';
@@ -465,25 +468,24 @@ export async function GET(request: Request) {
       const homeTitle = homeWin ? '🏆 Victory!' : awayWin ? '😢 Defeat' : '🤝 Draw';
       const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
       
-      await supabase.from('notifications').insert([
-        {
-          team_id: homeTeam.id,
-          type: `match_${homeResult}`,
-          title: homeTitle,
-          message: `${homeTeam.name} ${homeWin ? 'defeated' : awayWin ? 'lost to' : 'drew with'} ${awayTeam.name} ${homeScore}-${awayScore}. ${homeTacticalBonus.description}`,
-          fixture_id: fixture.id
-        },
-        {
-          team_id: awayTeam.id,
-          type: `match_${awayResult}`,
-          title: awayTitle,
-          message: `${awayTeam.name} ${awayWin ? 'defeated' : homeWin ? 'lost to' : 'drew with'} ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`,
-          fixture_id: fixture.id
-        }
-      ]);
+      allNotifications.push({
+        team_id: homeTeam.id,
+        type: `match_${homeResult}`,
+        title: homeTitle,
+        message: `${homeTeam.name} ${homeWin ? 'defeated' : awayWin ? 'lost to' : 'drew with'} ${awayTeam.name} ${homeScore}-${awayScore}. ${homeTacticalBonus.description}`,
+        fixture_id: fixture.id
+      });
+      
+      allNotifications.push({
+        team_id: awayTeam.id,
+        type: `match_${awayResult}`,
+        title: awayTitle,
+        message: `${awayTeam.name} ${awayWin ? 'defeated' : homeWin ? 'lost to' : 'drew with'} ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`,
+        fixture_id: fixture.id
+      });
       
       if (motmPlayer) {
-        await supabase.from('notifications').insert({
+        allNotifications.push({
           team_id: motmPlayer.team_id,
           type: 'motm',
           title: '⭐ Man of the Match!',
@@ -493,7 +495,7 @@ export async function GET(request: Request) {
         });
         
         const otherTeamId = motmPlayer.team_id === fixture.home_team_id ? fixture.away_team_id : fixture.home_team_id;
-        await supabase.from('notifications').insert({
+        allNotifications.push({
           team_id: otherTeamId,
           type: 'motm_opponent',
           title: '⭐ Opponent MOTM',
@@ -501,26 +503,55 @@ export async function GET(request: Request) {
           player_id: motmPlayer.id,
           fixture_id: fixture.id
         });
-        
-        // Coach XP
-        await supabase.rpc('increment_coach_xp', { p_team_id: motmPlayer.team_id, amount: 5 });
       }
       
       logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name || 'N/A'} ${motmPlayer?.last_name || ''}`);
     }
     
-    // TRAINING
-    const { data: trainingPlayers } = await supabase
-      .from('players')
-      .select('*')
-      .not('current_training', 'is', null);
+    // BATCH WRITES
+    const fixtureIds = roundFixtures.map(f => f.id);
     
+    // Insert all at once
+    if (allPlayerStats.length > 0) {
+      await supabase.from('player_match_stats').insert(allPlayerStats);
+    }
+    if (allMatchResults.length > 0) {
+      await supabase.from('match_results').insert(allMatchResults);
+    }
+    if (allNotifications.length > 0) {
+      await supabase.from('notifications').insert(allNotifications);
+    }
+    
+    // Mark fixtures played
+    await supabase.from('fixtures').update({ played: true }).in('id', fixtureIds);
+    
+    // Update teams
+    for (const [teamId, data] of Object.entries(teamUpdates)) {
+      await supabase.from('teams').update({
+        wins: data.wins,
+        draws: data.draws,
+        losses: data.losses,
+        points_for: data.points_for,
+        points_against: data.points_against
+      }).eq('id', teamId);
+    }
+    
+    // Batch fatigue updates
+    const fatiguePlayerIds = Object.keys(fatigueUpdates);
+    if (fatiguePlayerIds.length > 0) {
+      await supabase.rpc('increment_fatigue', { player_ids: fatiguePlayerIds, amount: 15 });
+    }
+    
+    // TRAINING
     let improvements = 0;
     const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
     const STAT_CHANCES: Record<string, number> = { 'NONE': 0, 'POOR': 15, 'FAIR': 35, 'GOOD': 55, 'VERY GOOD': 75, 'EXCELLENT': 90 };
     const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'];
     
-    for (const player of trainingPlayers || []) {
+    const trainingPlayers = allPlayers.filter(p => p.current_training);
+    const trainingNotifications: any[] = [];
+    
+    for (const player of trainingPlayers) {
       const updates: Record<string, any> = {};
       const training = player.current_training;
       const progress = player.training_progress || 'NONE';
@@ -543,8 +574,8 @@ export async function GET(request: Request) {
         const chance = (STAT_CHANCES[effectiveProgress] || 0) + potentialBonus;
         
         if (chance > 0 && rollChance(chance) && STAT_TRAINING.includes(training)) {
-          const statKey = training.toLowerCase() as keyof typeof player;
-          const current = player[statKey] as number;
+          const statKey = training.toLowerCase();
+          const current = player[statKey];
           if (current < 99) {
             const gain = Math.random() < 0.5 ? 1 : Math.random() < 0.85 ? 2 : 3;
             const newStat = Math.min(99, current + gain);
@@ -568,7 +599,7 @@ export async function GET(request: Request) {
               updates.ovr_changed_at = new Date().toISOString();
               
               if (newOverall > player.overall) {
-                await supabase.from('notifications').insert({
+                trainingNotifications.push({
                   team_id: player.team_id,
                   type: 'player_improvement',
                   title: '⭐ Player Improved!',
@@ -586,13 +617,18 @@ export async function GET(request: Request) {
       }
     }
     
+    if (trainingNotifications.length > 0) {
+      await supabase.from('notifications').insert(trainingNotifications);
+    }
+    
     logs.push(`Training: ${improvements} players improved`);
     
     return NextResponse.json({
       success: true,
       round: currentRound,
       matches: logs,
-      improvements
+      improvements,
+      playersLoaded: allPlayers.length
     });
     
   } catch (error) {
