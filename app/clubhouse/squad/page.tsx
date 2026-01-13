@@ -31,6 +31,8 @@ interface Player {
   current_training: string | null;
   training_progress: string | null;
   dominant_side: string | null;
+  ovr_change: number | null;
+  ovr_changed_at: string | null;
 }
 
 interface Team {
@@ -40,6 +42,18 @@ interface Team {
   secondary_color: string;
   tertiary_color: string;
 }
+
+// ============================================================================
+// HELPER: Check if OVR change is recent (within 7 days)
+// ============================================================================
+
+const isRecentChange = (changedAt: string | null): boolean => {
+  if (!changedAt) return false;
+  const changed = new Date(changedAt);
+  const now = new Date();
+  const daysDiff = (now.getTime() - changed.getTime()) / (1000 * 60 * 60 * 24);
+  return daysDiff <= 7;
+};
 
 // ============================================================================
 // TEAM SHIELD COMPONENT
@@ -366,6 +380,32 @@ const getSideBadge = (side: string | null) => {
   }
 };
 
+// ============================================================================
+// OVR CHANGE ARROW COMPONENT
+// ============================================================================
+
+const OvrChangeArrow = ({ change, changedAt }: { change: number | null, changedAt: string | null }) => {
+  if (!change || !isRecentChange(changedAt)) return null;
+  
+  if (change > 0) {
+    return (
+      <span className="text-green-400 text-sm ml-1 animate-pulse" title={`+${change} OVR recently`}>
+        ▲+{change}
+      </span>
+    );
+  }
+  
+  if (change < 0) {
+    return (
+      <span className="text-yellow-400 text-sm ml-1" title={`${change} OVR recently`}>
+        ▼{change}
+      </span>
+    );
+  }
+  
+  return null;
+};
+
 export default function SquadPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -668,9 +708,12 @@ export default function SquadPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className={`${getOvrColor(player.overall)} text-white px-3 py-1 rounded-lg font-bold text-lg inline-block`}>
-                      {player.overall}
-                    </span>
+                    <div className="flex items-center justify-end">
+                      <span className={`${getOvrColor(player.overall)} text-white px-3 py-1 rounded-lg font-bold text-lg inline-block`}>
+                        {player.overall}
+                      </span>
+                      <OvrChangeArrow change={player.ovr_change} changedAt={player.ovr_changed_at} />
+                    </div>
                     <p className="text-yellow-500 text-sm mt-1">{getOvrStars(player.overall)}</p>
                   </div>
                 </div>
@@ -716,9 +759,12 @@ export default function SquadPage() {
                 </div>
               </div>
               <div className="text-right">
-                <span className={`${getOvrColor(selectedPlayer.overall)} text-white px-4 py-2 rounded-lg font-bold text-2xl inline-block`}>
-                  {selectedPlayer.overall}
-                </span>
+                <div className="flex items-center justify-end">
+                  <span className={`${getOvrColor(selectedPlayer.overall)} text-white px-4 py-2 rounded-lg font-bold text-2xl inline-block`}>
+                    {selectedPlayer.overall}
+                  </span>
+                  <OvrChangeArrow change={selectedPlayer.ovr_change} changedAt={selectedPlayer.ovr_changed_at} />
+                </div>
                 <p className="text-yellow-500 text-sm mt-1">{getOvrStars(selectedPlayer.overall)}</p>
               </div>
             </div>
