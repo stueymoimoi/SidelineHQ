@@ -15,17 +15,12 @@ function rollChance(pct: number) {
   return Math.random() * 100 < pct;
 }
 
-// Calculate match performance for MOTM
 function calculateMatchPerformance(player: any): number {
   const baseScore = player.overall;
   const fatigueMultiplier = 1 - (player.fatigue / 200);
   const variance = 0.8 + (Math.random() * 0.4);
   return baseScore * fatigueMultiplier * variance;
 }
-
-// ============================================
-// PLAYER MATCH STATS GENERATION
-// ============================================
 
 function getPositionConfig(jerseyNumber: number) {
   const configs: Record<number, { metresBase: number; tacklesBase: number; touchesBase: number }> = {
@@ -366,10 +361,6 @@ export async function GET(request: Request) {
         .order('overall', { ascending: false })
         .limit(17);
 
-      // ============================================
-      // GENERATE DEFAULT TACTICS FOR UNMANAGED TEAMS
-      // ============================================
-      
       if (!homeTactics && homePlayers && homePlayers.length >= 13) {
         homeTactics = {
           team_id: fixture.home_team_id,
@@ -421,10 +412,6 @@ export async function GET(request: Request) {
           goal_kicker: awayPlayers[6]?.id
         };
       }
-
-      // ============================================
-      // END DEFAULT TACTICS
-      // ============================================
       
       const homeBaseStrength = (homePlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
       const awayBaseStrength = (awayPlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
@@ -478,10 +465,6 @@ export async function GET(request: Request) {
       
       const homeScore = (homeTries * 4) + (homeConv * 2) + (homePen * 2);
       const awayScore = (awayTries * 4) + (awayConv * 2) + (awayPen * 2);
-
-      // ============================================
-      // GENERATE PLAYER MATCH STATS
-      // ============================================
 
       const positionFields = [
         'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
@@ -576,10 +559,6 @@ export async function GET(request: Request) {
       if (awayPlayerStats.length > 0) {
         await supabase.from('player_match_stats').insert(awayPlayerStats);
       }
-
-      // ============================================
-      // END PLAYER MATCH STATS
-      // ============================================
       
       await supabase.from('match_results').insert({
         fixture_id: fixture.id,
@@ -651,19 +630,20 @@ export async function GET(request: Request) {
         ? `${awayTeam.name} lost to ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`
         : `${awayTeam.name} drew with ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`;
       
-      // FIXED: Removed fixture_id, points_for, points_against (columns don't exist)
       await supabase.from('notifications').insert({
         team_id: homeTeam.id,
         type: `match_${homeResult}`,
         title: homeTitle,
-        message: homeMsg
+        message: homeMsg,
+        fixture_id: fixture.id
       });
       
       await supabase.from('notifications').insert({
         team_id: awayTeam.id,
         type: `match_${awayResult}`,
         title: awayTitle,
-        message: awayMsg
+        message: awayMsg,
+        fixture_id: fixture.id
       });
       
       if (motmPlayer) {
@@ -674,7 +654,8 @@ export async function GET(request: Request) {
           type: 'motm',
           title: '⭐ Man of the Match!',
           message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmPlayer.position}) was awarded Man of the Match! +5 XP`,
-          player_id: motmPlayer.id
+          player_id: motmPlayer.id,
+          fixture_id: fixture.id
         });
         
         const { data: motmCoach } = await supabase
@@ -699,14 +680,11 @@ export async function GET(request: Request) {
           type: 'motm_opponent',
           title: '⭐ Opponent MOTM',
           message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmTeam?.name}) was Man of the Match`,
-          player_id: motmPlayer.id
+          player_id: motmPlayer.id,
+          fixture_id: fixture.id
         });
       }
     }
-    
-    // ============================================
-    // TRAINING
-    // ============================================
     
     const { data: trainingPlayers } = await supabase
       .from('players')
