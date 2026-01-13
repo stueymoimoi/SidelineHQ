@@ -83,7 +83,6 @@ function generatePlayerStats(
   const config = getPositionConfig(jerseyNumber);
   const minutesFactor = minutes / 80;
 
-  // Metres based on speed + power (not strength)
   const speedBonus = ((player.speed || 50) - 50) / 5;
   const powerBonus = ((player.power || 50) - 50) / 6;
   const metresVariance = 0.7 + Math.random() * 0.6;
@@ -93,7 +92,6 @@ function generatePlayerStats(
   const tacklesVariance = 0.75 + Math.random() * 0.5;
   const tackles = Math.max(0, Math.round((config.tacklesBase + staminaBonus) * minutesFactor * tacklesVariance));
 
-  // Missed tackles based on tackling stat (was defense)
   const missChance = getMissChance(player.tackling || 50);
   let missedTackles = 0;
   const tackleAttempts = tackles + Math.floor(Math.random() * 5);
@@ -101,7 +99,6 @@ function generatePlayerStats(
     if (Math.random() < missChance) missedTackles++;
   }
 
-  // Errors based on passing stat (was skill)
   const errorChance = getErrorChance(player.passing || 50);
   let errors = 0;
   const touches = Math.round(config.touchesBase * minutesFactor);
@@ -151,7 +148,6 @@ function distributeTries(
       const player = players.find(p => p.id === playerId);
       const baseWeight = baseWeights[jerseyNum] || 5;
       const modifier = modifiers[jerseyNum] || 1;
-      // Try scoring based on speed + power
       const speedBonus = ((player?.speed || 50) - 50) / 25;
       const powerBonus = ((player?.power || 50) - 50) / 30;
       
@@ -178,7 +174,6 @@ function distributeTries(
   return tryScorers;
 }
 
-// Calculate tactical bonus/penalty
 function calculateTacticalBonus(
   attackFocus: string,
   defenseFocus: string,
@@ -357,7 +352,6 @@ export async function GET(request: Request) {
         .eq('team_id', fixture.away_team_id)
         .single();
 
-      // Updated to include power, passing (was skill), tackling (was defense)
       const { data: homePlayers } = await supabase
         .from('players')
         .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking')
@@ -402,7 +396,6 @@ export async function GET(request: Request) {
         };
       }
 
-      console.log('DEBUG:', awayTeam.name, 'players:', awayPlayers?.length, 'tactics:', !!awayTactics);
       if (!awayTactics && awayPlayers && awayPlayers.length >= 13) {
         awayTactics = {
           team_id: fixture.away_team_id,
@@ -658,24 +651,19 @@ export async function GET(request: Request) {
         ? `${awayTeam.name} lost to ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`
         : `${awayTeam.name} drew with ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`;
       
+      // FIXED: Removed fixture_id, points_for, points_against (columns don't exist)
       await supabase.from('notifications').insert({
         team_id: homeTeam.id,
         type: `match_${homeResult}`,
         title: homeTitle,
-        message: homeMsg,
-        fixture_id: fixture.id,
-        points_for: homeScore,
-        points_against: awayScore
+        message: homeMsg
       });
       
       await supabase.from('notifications').insert({
         team_id: awayTeam.id,
         type: `match_${awayResult}`,
         title: awayTitle,
-        message: awayMsg,
-        fixture_id: fixture.id,
-        points_for: awayScore,
-        points_against: homeScore
+        message: awayMsg
       });
       
       if (motmPlayer) {
@@ -686,8 +674,7 @@ export async function GET(request: Request) {
           type: 'motm',
           title: '⭐ Man of the Match!',
           message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmPlayer.position}) was awarded Man of the Match! +5 XP`,
-          player_id: motmPlayer.id,
-          fixture_id: fixture.id
+          player_id: motmPlayer.id
         });
         
         const { data: motmCoach } = await supabase
@@ -712,14 +699,13 @@ export async function GET(request: Request) {
           type: 'motm_opponent',
           title: '⭐ Opponent MOTM',
           message: `${motmPlayer.first_name} ${motmPlayer.last_name} (${motmTeam?.name}) was Man of the Match`,
-          player_id: motmPlayer.id,
-          fixture_id: fixture.id
+          player_id: motmPlayer.id
         });
       }
     }
     
     // ============================================
-    // TRAINING - Updated for new stat names
+    // TRAINING
     // ============================================
     
     const { data: trainingPlayers } = await supabase
@@ -730,7 +716,6 @@ export async function GET(request: Request) {
     let improvements = 0;
     const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
     const STAT_CHANCES: Record<string, number> = { 'NONE': 0, 'POOR': 15, 'FAIR': 35, 'GOOD': 55, 'VERY GOOD': 75, 'EXCELLENT': 90 };
-    // Updated stat names
     const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'];
     
     for (const player of trainingPlayers || []) {
@@ -763,7 +748,6 @@ export async function GET(request: Request) {
             const gain = roll < 50 ? 1 : roll < 85 ? 2 : 3;
             const newStat = Math.min(99, current + gain);
             updates[statKey] = newStat;
-            // Updated OVR calculation for 7 stats
             const newOverall = Math.round((
               (updates.speed ?? player.speed) +
               (updates.strength ?? player.strength) +
