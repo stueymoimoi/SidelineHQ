@@ -53,7 +53,6 @@ export default function MatchPage() {
       setHomeTeam(home);
       setAwayTeam(away);
 
-      // Get match result for official score and MOTM
       const { data: result } = await supabase
         .from('match_results')
         .select('*')
@@ -63,7 +62,6 @@ export default function MatchPage() {
       if (result) {
         setMatchResult(result);
         
-        // Get MOTM player details
         if (result.motm_player_id) {
           const { data: motm } = await supabase
             .from('players')
@@ -114,9 +112,17 @@ export default function MatchPage() {
   const awayScore = matchResult?.away_score || 0;
   const motmTeamName = motmPlayer?.team_id === homeTeam?.id ? homeTeam?.name : awayTeam?.name;
 
+  // Calculate team average ratings
+  const homeAvgRating = homeStats.length > 0 
+    ? (homeStats.reduce((sum, p) => sum + (p.rating || 6), 0) / homeStats.length).toFixed(1)
+    : '0.0';
+  const awayAvgRating = awayStats.length > 0 
+    ? (awayStats.reduce((sum, p) => sum + (p.rating || 6), 0) / awayStats.length).toFixed(1)
+    : '0.0';
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <div className="max-w-5xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6">
         <Link
           href="/clubhouse"
           className="text-sm text-gray-400 hover:text-white mb-4 inline-block"
@@ -132,6 +138,7 @@ export default function MatchPage() {
           <div className="flex items-center justify-center gap-8">
             <div className="text-right flex-1">
               <p className="text-xl font-bold">{homeTeam?.name}</p>
+              <p className="text-gray-400 text-sm">Avg Rating: {homeAvgRating}</p>
             </div>
             <div className="text-center">
               <span className="text-4xl font-bold">
@@ -140,10 +147,10 @@ export default function MatchPage() {
             </div>
             <div className="text-left flex-1">
               <p className="text-xl font-bold">{awayTeam?.name}</p>
+              <p className="text-gray-400 text-sm">Avg Rating: {awayAvgRating}</p>
             </div>
           </div>
           
-          {/* MOTM */}
           {motmPlayer && (
             <div className="text-center mt-4 pt-4 border-t border-gray-700">
               <span className="text-yellow-500">⭐ Man of the Match</span>
@@ -158,25 +165,34 @@ export default function MatchPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <div className="bg-gray-800 rounded-lg p-4">
             <h3 className="font-bold mb-3 text-lg">{homeTeam?.name}</h3>
-            <StatsTable stats={homeStats} />
+            <StatsTable stats={homeStats} motmId={matchResult?.motm_player_id} />
           </div>
 
           <div className="bg-gray-800 rounded-lg p-4">
             <h3 className="font-bold mb-3 text-lg">{awayTeam?.name}</h3>
-            <StatsTable stats={awayStats} />
+            <StatsTable stats={awayStats} motmId={matchResult?.motm_player_id} />
           </div>
         </div>
 
         {/* Legend */}
         <div className="mt-4 text-center text-xs text-gray-500">
-          MIN = Minutes | MTR = Metres | TRY = Tries | GL = Goals | TKL = Tackles | MT = Missed Tackles | ERR = Errors | PTS = Points
+          RTG = Match Rating | MIN = Minutes | MTR = Metres | TRY = Tries | GL = Goals | TKL = Tackles | MT = Missed Tackles | ERR = Errors | PTS = Points
         </div>
       </div>
     </div>
   );
 }
 
-function StatsTable({ stats }: { stats: any[] }) {
+function getRatingColor(rating: number): string {
+  if (rating >= 9) return 'text-purple-400';
+  if (rating >= 8) return 'text-green-400';
+  if (rating >= 7) return 'text-lime-400';
+  if (rating >= 6) return 'text-yellow-400';
+  if (rating >= 5) return 'text-orange-400';
+  return 'text-red-400';
+}
+
+function StatsTable({ stats, motmId }: { stats: any[], motmId?: string }) {
   if (!stats.length) {
     return <p className="text-gray-400 text-sm">No stats available</p>;
   }
@@ -186,8 +202,9 @@ function StatsTable({ stats }: { stats: any[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-gray-400 text-left text-xs">
-            <th className="pb-2 pr-2">#</th>
-            <th className="pb-2 pr-2">Player</th>
+            <th className="pb-2 pr-1">#</th>
+            <th className="pb-2 pr-1">Player</th>
+            <th className="pb-2 pr-1 text-center">RTG</th>
             <th className="pb-2 pr-1 text-center">MIN</th>
             <th className="pb-2 pr-1 text-center">MTR</th>
             <th className="pb-2 pr-1 text-center">TRY</th>
@@ -199,20 +216,30 @@ function StatsTable({ stats }: { stats: any[] }) {
           </tr>
         </thead>
         <tbody>
-          {stats.map((stat) => (
-            <tr key={stat.id} className="border-t border-gray-700">
-              <td className="py-2 pr-2 text-gray-500">{stat.jersey_number}</td>
-              <td className="py-2 pr-2 font-medium">{stat.player_name}</td>
-              <td className="py-2 pr-1 text-center text-gray-400">{stat.minutes_played || 0}</td>
-              <td className="py-2 pr-1 text-center">{stat.metres || 0}</td>
-              <td className="py-2 pr-1 text-center text-green-400">{stat.tries || 0}</td>
-              <td className="py-2 pr-1 text-center text-blue-400">{stat.goals_made || 0}</td>
-              <td className="py-2 pr-1 text-center">{stat.tackles || 0}</td>
-              <td className="py-2 pr-1 text-center text-red-400">{stat.missed_tackles || 0}</td>
-              <td className="py-2 pr-1 text-center text-orange-400">{stat.errors || 0}</td>
-              <td className="py-2 text-center font-bold text-yellow-400">{stat.points || 0}</td>
-            </tr>
-          ))}
+          {stats.map((stat) => {
+            const isMotm = stat.player_id === motmId;
+            const rating = stat.rating || 6.0;
+            return (
+              <tr key={stat.id} className={`border-t border-gray-700 ${isMotm ? 'bg-yellow-900/20' : ''}`}>
+                <td className="py-2 pr-1 text-gray-500">{stat.jersey_number}</td>
+                <td className="py-2 pr-1 font-medium">
+                  {stat.player_name}
+                  {isMotm && <span className="ml-1 text-yellow-500">⭐</span>}
+                </td>
+                <td className={`py-2 pr-1 text-center font-bold ${getRatingColor(rating)}`}>
+                  {rating.toFixed(1)}
+                </td>
+                <td className="py-2 pr-1 text-center text-gray-400">{stat.minutes_played || 0}</td>
+                <td className="py-2 pr-1 text-center">{stat.metres || 0}</td>
+                <td className="py-2 pr-1 text-center text-green-400">{stat.tries || 0}</td>
+                <td className="py-2 pr-1 text-center text-blue-400">{stat.goals_made || 0}</td>
+                <td className="py-2 pr-1 text-center">{stat.tackles || 0}</td>
+                <td className="py-2 pr-1 text-center text-red-400">{stat.missed_tackles || 0}</td>
+                <td className="py-2 pr-1 text-center text-orange-400">{stat.errors || 0}</td>
+                <td className="py-2 text-center font-bold text-yellow-400">{stat.points || 0}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
