@@ -65,7 +65,7 @@ function getErrorChance(passingStat: number): number {
 }
 
 function generatePlayerStats(player: any, jerseyNumber: number, minutes: number) {
-  if (minutes === 0) return { metres: 0, tackles: 0, missedTackles: 0, errors: 0 };
+  if (minutes === 0) return { metres: 0, tackles: 0, missedTackles: 0, errors: 0, lineBreaks: 0, tackleBreaks: 0 };
 
   const config = getPositionConfig(jerseyNumber);
   const minutesFactor = minutes / 80;
@@ -92,10 +92,28 @@ function generatePlayerStats(player: any, jerseyNumber: number, minutes: number)
     if (Math.random() < errorChance) errors++;
   }
 
-  return { metres, tackles, missedTackles, errors };
+  // LINE BREAKS - based on speed + power, more likely for backs
+  const isBack = [1, 2, 3, 4, 5, 6].includes(jerseyNumber);
+  const lineBreakChance = ((player.speed || 50) + (player.power || 50) - 80) / 300;
+  const lineBreakOpportunities = isBack ? Math.floor(touches * 0.4) : Math.floor(touches * 0.2);
+  let lineBreaks = 0;
+  for (let i = 0; i < lineBreakOpportunities; i++) {
+    if (Math.random() < lineBreakChance) lineBreaks++;
+  }
+
+  // TACKLE BREAKS - based on power + strength, more likely for forwards
+  const isForward = [8, 9, 10, 11, 12, 13].includes(jerseyNumber);
+  const tackleBreakChance = ((player.power || 50) + (player.strength || 50) - 80) / 200;
+  const tackleBreakOpportunities = isForward ? Math.floor(touches * 0.5) : Math.floor(touches * 0.3);
+  let tackleBreaks = 0;
+  for (let i = 0; i < tackleBreakOpportunities; i++) {
+    if (Math.random() < tackleBreakChance) tackleBreaks++;
+  }
+
+  return { metres, tackles, missedTackles, errors, lineBreaks, tackleBreaks };
 }
 
-function calculatePlayerRating(stats: any, jerseyNumber: number, isMotm: boolean): number {
+function calculatePlayerRating(stats: any, jerseyNumber: number, isMotm: boolean, isCaptain: boolean): number {
   const config = getPositionConfig(jerseyNumber);
   let rating = 7.0;
   
@@ -106,85 +124,103 @@ function calculatePlayerRating(stats: any, jerseyNumber: number, isMotm: boolean
   rating += Math.min(1.0, (tacklesRatio - 1) * 0.8);
   
   rating += stats.tries * 0.7;
+  rating += stats.tryAssists * 0.5;
   rating += stats.goals * 0.25;
+  rating += stats.lineBreaks * 0.3;
+  rating += stats.tackleBreaks * 0.2;
   rating -= stats.missedTackles * 0.05;
   rating -= stats.errors * 0.08;
   
   if (stats.missedTackles === 0) rating += 0.3;
   if (stats.errors === 0) rating += 0.2;
   
+  // Captain gets slight bump
+  if (isCaptain) rating += 0.2;
+  
   if (isMotm) rating = Math.max(rating, 9);
   
-  return Math.min(10, Math.max(1, Math.round(rating)));
+  return Math.min(10, Math.max(1, Math.round(rating * 10) / 10));
 }
 
-// NEW: Context-aware MOTM scoring
+// Context-aware MOTM scoring
 function calculateMotmInfluence(
   stats: any, 
   jerseyNumber: number, 
-  gameContext: { totalPoints: number; margin: number; teamWon: boolean }
+  gameContext: { totalPoints: number; margin: number; teamWon: boolean },
+  isCaptain: boolean
 ): number {
   const { totalPoints, margin, teamWon } = gameContext;
   
   // Game type detection
-  const isLowScoring = totalPoints < 24;  // Grind (e.g. 12-10)
-  const isHighScoring = totalPoints > 44; // Shootout (e.g. 36-30)
+  const isLowScoring = totalPoints < 24;
+  const isHighScoring = totalPoints > 44;
   const isCloseGame = margin <= 6;
   
   // Position type
   const isForward = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(jerseyNumber);
-  const isPlaymaker = [6, 7, 9].includes(jerseyNumber); // 6, 7, hooker
+  const isPlaymaker = [6, 7, 9].includes(jerseyNumber);
   const isOutsideBack = [1, 2, 3, 4, 5].includes(jerseyNumber);
   
   let influence = 0;
   
   // === TRIES ===
-  // Always huge, but context matters
   let tryValue = 30;
-  if (isLowScoring) tryValue = 40;        // Tries are gold in a grind
-  if (isOutsideBack) tryValue *= 0.9;     // Expected from backs
-  if (isForward) tryValue *= 1.2;         // Rare from forwards = more impressive
+  if (isLowScoring) tryValue = 40;
+  if (isOutsideBack) tryValue *= 0.9;
+  if (isForward) tryValue *= 1.2;
   influence += stats.tries * tryValue;
   
+  // === TRY ASSISTS === (NEW)
+  let assistValue = 20;
+  if (isPlaymaker) assistValue *= 0.9; // Expected from playmakers
+  influence += stats.tryAssists * assistValue;
+  
   // === GOALS ===
-  // Clutch in close games
   let goalValue = 8;
-  if (isCloseGame) goalValue = 18;        // Could be match-winning
+  if (isCloseGame) goalValue = 18;
   influence += stats.goals * goalValue;
   
   // === METRES ===
-  // Forwards in grinds = MOTM territory
   const config = getPositionConfig(jerseyNumber);
   const metresAboveExpected = stats.metres - config.metresBase;
   let metresValue = 0.08;
-  if (isLowScoring) metresValue = 0.15;   // Hard yards matter in tight games
+  if (isLowScoring) metresValue = 0.15;
   if (isForward) metresValue *= 1.3;
-  if (isHighScoring) metresValue *= 0.6;  // Less important in shootouts
+  if (isHighScoring) metresValue *= 0.6;
   influence += Math.max(0, metresAboveExpected) * metresValue;
   
   // === TACKLES ===
-  // Defensive effort, huge in grinds
   const tacklesAboveExpected = stats.tackles - config.tacklesBase;
   let tackleValue = 0.2;
-  if (isLowScoring) tackleValue = 0.4;    // Defense wins grinds
+  if (isLowScoring) tackleValue = 0.4;
   if (isForward) tackleValue *= 1.2;
   if (isHighScoring) tackleValue *= 0.5;
   influence += Math.max(0, tacklesAboveExpected) * tackleValue;
+  
+  // === LINE BREAKS === (NEW)
+  influence += stats.lineBreaks * 8;
+  
+  // === TACKLE BREAKS === (NEW)
+  influence += stats.tackleBreaks * 5;
   
   // === NEGATIVE IMPACT ===
   influence -= stats.errors * 8;
   influence -= stats.missedTackles * 4;
   
   // === BONUSES ===
-  if (stats.errors === 0 && stats.tries > 0) influence += 8;        // Try + clean game
-  if (stats.missedTackles === 0 && stats.tackles > 30) influence += 10; // Defensive wall
-  if (teamWon) influence += 5;  // Slight edge to winners
+  if (stats.errors === 0 && stats.tries > 0) influence += 8;
+  if (stats.missedTackles === 0 && stats.tackles > 30) influence += 10;
+  if (teamWon) influence += 5;
   
   // === PLAYMAKER BONUS ===
-  // Playmakers who scored AND had low errors get a bump
-  // (proxy for "ran the game well")
   if (isPlaymaker && stats.tries > 0 && stats.errors === 0) {
     influence += 12;
+  }
+  
+  // === CAPTAIN BONUS === (NEW)
+  if (isCaptain) {
+    influence += 3; // Leadership edge
+    if (teamWon) influence += 2; // Led team to victory
   }
   
   return influence;
@@ -222,37 +258,67 @@ function calculateTacticalBonus(attackFocus: string, defenseFocus: string) {
   return { bonus, description };
 }
 
-function distributeTries(allPlayers: any[], totalTries: number, tactics: any): Record<string, number> {
+function distributeTries(allPlayers: any[], totalTries: number, tactics: any): { tryScorers: Record<string, number>; tryAssisters: Record<string, number> } {
   const tryScorers: Record<string, number> = {};
+  const tryAssisters: Record<string, number> = {};
+  
   const positionFields = [
     'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
     'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_hooker', 'pos_prop_r',
     'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'
   ];
-  const baseWeights = [15, 20, 12, 12, 20, 10, 8, 5, 8, 4, 10, 10, 8, 3, 3, 2, 2];
   
-  const weighted: { id: string; weight: number }[] = [];
+  // Try scoring weights (backs score more)
+  const scorerWeights = [15, 20, 12, 12, 20, 10, 8, 5, 8, 4, 10, 10, 8, 3, 3, 2, 2];
+  
+  // Try assist weights (playmakers assist more)
+  const assisterWeights = [8, 5, 10, 10, 5, 20, 25, 2, 15, 2, 5, 5, 5, 2, 2, 1, 1];
+  
+  const scorerPool: { id: string; weight: number }[] = [];
+  const assisterPool: { id: string; weight: number }[] = [];
+  
   positionFields.forEach((field, i) => {
     const playerId = tactics?.[field];
     if (playerId) {
       const player = allPlayers.find(p => p.id === playerId);
       const speedBonus = ((player?.speed || 50) - 50) / 25;
-      weighted.push({ id: playerId, weight: Math.max(1, baseWeights[i] + speedBonus) });
+      const passingBonus = ((player?.passing || 50) - 50) / 25;
+      
+      scorerPool.push({ id: playerId, weight: Math.max(1, scorerWeights[i] + speedBonus) });
+      assisterPool.push({ id: playerId, weight: Math.max(1, assisterWeights[i] + passingBonus) });
     }
   });
 
   for (let i = 0; i < totalTries; i++) {
-    const total = weighted.reduce((s, w) => s + w.weight, 0);
-    let rand = Math.random() * total;
-    for (const w of weighted) {
+    // Pick scorer
+    const scorerTotal = scorerPool.reduce((s, w) => s + w.weight, 0);
+    let rand = Math.random() * scorerTotal;
+    let scorerId = '';
+    for (const w of scorerPool) {
       rand -= w.weight;
       if (rand <= 0) {
+        scorerId = w.id;
         tryScorers[w.id] = (tryScorers[w.id] || 0) + 1;
         break;
       }
     }
+    
+    // Pick assister (can't be the same as scorer, 80% chance someone gets credit)
+    if (Math.random() < 0.8) {
+      const filteredAssisters = assisterPool.filter(a => a.id !== scorerId);
+      const assisterTotal = filteredAssisters.reduce((s, w) => s + w.weight, 0);
+      rand = Math.random() * assisterTotal;
+      for (const w of filteredAssisters) {
+        rand -= w.weight;
+        if (rand <= 0) {
+          tryAssisters[w.id] = (tryAssisters[w.id] || 0) + 1;
+          break;
+        }
+      }
+    }
   }
-  return tryScorers;
+  
+  return { tryScorers, tryAssisters };
 }
 
 export async function GET(request: Request) {
@@ -426,8 +492,9 @@ export async function GET(request: Request) {
       const homeWon = homeScore > awayScore;
       const awayWon = awayScore > homeScore;
       
-      const homeTryScorers = distributeTries(allPlayers, homeTries, homeTactics);
-      const awayTryScorers = distributeTries(allPlayers, awayTries, awayTactics);
+      // Distribute tries AND assists
+      const { tryScorers: homeTryScorers, tryAssisters: homeTryAssisters } = distributeTries(allPlayers, homeTries, homeTactics);
+      const { tryScorers: awayTryScorers, tryAssisters: awayTryAssisters } = distributeTries(allPlayers, awayTries, awayTactics);
       
       const fixtureStats: any[] = [];
       
@@ -442,16 +509,20 @@ export async function GET(request: Request) {
           if (player) {
             const stats = generatePlayerStats(player, jerseyNumber, minutes);
             const tries = homeTryScorers[homePlayerId] || 0;
+            const tryAssists = homeTryAssisters[homePlayerId] || 0;
             const isKicker = homeTactics.goal_kicker === homePlayerId;
+            const isCaptain = homeTactics.captain === homePlayerId;
             const goals = isKicker ? homeConv + homePen : 0;
             const points = (tries * 4) + (goals * 2);
-            const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, false);
             
-            // Calculate MOTM influence score with game context
+            const fullStats = { ...stats, tries, tryAssists, goals };
+            const rating = calculatePlayerRating(fullStats, jerseyNumber, false, isCaptain);
+            
             const motmInfluence = calculateMotmInfluence(
-              { ...stats, tries, goals },
+              fullStats,
               jerseyNumber,
-              { totalPoints, margin, teamWon: homeWon }
+              { totalPoints, margin, teamWon: homeWon },
+              isCaptain
             );
             
             const statEntry = {
@@ -461,11 +532,14 @@ export async function GET(request: Request) {
               jersey_number: jerseyNumber,
               player_name: `${player.first_name.charAt(0)}. ${player.last_name}`,
               ovr: player.overall,
-              points, tries, goals_made: goals, goals_attempted: 0,
+              points, tries, try_assists: tryAssists,
+              goals_made: goals, goals_attempted: 0,
               metres: stats.metres, tackles: stats.tackles,
               missed_tackles: stats.missedTackles, errors: stats.errors,
+              line_breaks: stats.lineBreaks, tackle_breaks: stats.tackleBreaks,
               minutes_played: minutes, rating,
-              motm_influence: motmInfluence
+              motm_influence: motmInfluence,
+              is_captain: isCaptain
             };
             
             fixtureStats.push(statEntry);
@@ -479,15 +553,20 @@ export async function GET(request: Request) {
           if (player) {
             const stats = generatePlayerStats(player, jerseyNumber, minutes);
             const tries = awayTryScorers[awayPlayerId] || 0;
+            const tryAssists = awayTryAssisters[awayPlayerId] || 0;
             const isKicker = awayTactics.goal_kicker === awayPlayerId;
+            const isCaptain = awayTactics.captain === awayPlayerId;
             const goals = isKicker ? awayConv + awayPen : 0;
             const points = (tries * 4) + (goals * 2);
-            const rating = calculatePlayerRating({ ...stats, tries, goals }, jerseyNumber, false);
+            
+            const fullStats = { ...stats, tries, tryAssists, goals };
+            const rating = calculatePlayerRating(fullStats, jerseyNumber, false, isCaptain);
             
             const motmInfluence = calculateMotmInfluence(
-              { ...stats, tries, goals },
+              fullStats,
               jerseyNumber,
-              { totalPoints, margin, teamWon: awayWon }
+              { totalPoints, margin, teamWon: awayWon },
+              isCaptain
             );
             
             const statEntry = {
@@ -497,11 +576,14 @@ export async function GET(request: Request) {
               jersey_number: jerseyNumber,
               player_name: `${player.first_name.charAt(0)}. ${player.last_name}`,
               ovr: player.overall,
-              points, tries, goals_made: goals, goals_attempted: 0,
+              points, tries, try_assists: tryAssists,
+              goals_made: goals, goals_attempted: 0,
               metres: stats.metres, tackles: stats.tackles,
               missed_tackles: stats.missedTackles, errors: stats.errors,
+              line_breaks: stats.lineBreaks, tackle_breaks: stats.tackleBreaks,
               minutes_played: minutes, rating,
-              motm_influence: motmInfluence
+              motm_influence: motmInfluence,
+              is_captain: isCaptain
             };
             
             fixtureStats.push(statEntry);
@@ -510,7 +592,7 @@ export async function GET(request: Request) {
         }
       }
       
-      // Find MOTM based on INFLUENCE score, not just rating
+      // Find MOTM based on INFLUENCE score
       let motmPlayer: any = null;
       let motmInfluenceScore = -999;
       let motmStatIndex = -1;
@@ -529,8 +611,25 @@ export async function GET(request: Request) {
         fixtureStats[motmStatIndex].rating = Math.max(9, fixtureStats[motmStatIndex].rating);
       }
       
-      // Remove motm_influence before inserting (not a DB column)
-      const cleanStats = fixtureStats.map(({ motm_influence, ...rest }) => rest);
+      // Build MOTM reason
+      let motmReason = '';
+      if (motmStatIndex >= 0) {
+        const ms = fixtureStats[motmStatIndex];
+        const parts: string[] = [];
+        if (ms.tries >= 1) parts.push(`${ms.tries} ${ms.tries === 1 ? 'try' : 'tries'}`);
+        if (ms.try_assists >= 1) parts.push(`${ms.try_assists} ${ms.try_assists === 1 ? 'assist' : 'assists'}`);
+        if (ms.line_breaks >= 2) parts.push(`${ms.line_breaks} line breaks`);
+        if (ms.tackle_breaks >= 4) parts.push(`${ms.tackle_breaks} tackle breaks`);
+        if (ms.metres >= 150) parts.push(`${ms.metres}m`);
+        if (ms.tackles >= 40) parts.push(`${ms.tackles} tackles`);
+        if (ms.goals_made >= 3) parts.push(`${ms.goals_made} goals`);
+        
+        if (parts.length === 0) parts.push('dominant performance');
+        motmReason = parts.slice(0, 3).join(', ');
+      }
+      
+      // Remove temp fields before inserting
+      const cleanStats = fixtureStats.map(({ motm_influence, is_captain, ...rest }) => rest);
       allPlayerStats.push(...cleanStats);
       
       allMatchResults.push({
@@ -542,7 +641,7 @@ export async function GET(request: Request) {
         home_score: homeScore,
         away_score: awayScore,
         motm_player_id: motmPlayer?.id || null,
-        motm_score: motmInfluenceScore
+        motm_reason: motmReason
       });
       
       const homeWin = homeScore > awayScore;
@@ -595,16 +694,6 @@ export async function GET(request: Request) {
       });
       
       if (motmPlayer) {
-        // Describe WHY they got MOTM
-        const motmStats = fixtureStats[motmStatIndex];
-        let motmReason = '';
-        if (motmStats.tries >= 2) motmReason = `${motmStats.tries} tries`;
-        else if (motmStats.tries === 1 && motmStats.metres > 100) motmReason = `try + ${motmStats.metres}m`;
-        else if (motmStats.tackles > 40) motmReason = `${motmStats.tackles} tackles`;
-        else if (motmStats.metres > 150) motmReason = `${motmStats.metres} metres`;
-        else if (motmStats.goals_made > 0) motmReason = `${motmStats.goals_made} goals`;
-        else motmReason = 'dominant performance';
-        
         allNotifications.push({
           team_id: motmPlayer.team_id,
           type: 'motm',
@@ -625,7 +714,7 @@ export async function GET(request: Request) {
         });
       }
       
-      logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name || 'N/A'} ${motmPlayer?.last_name || ''}`);
+      logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name || 'N/A'} ${motmPlayer?.last_name || ''} (${motmReason})`);
     }
     
     const fixtureIds = roundFixtures.map(f => f.id);
