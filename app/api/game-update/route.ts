@@ -91,22 +91,25 @@ function generatePlayerStats(player: any, jerseyNumber: number, minutes: number)
 
 function calculatePlayerRating(stats: any, jerseyNumber: number, isMotm: boolean): number {
   const config = getPositionConfig(jerseyNumber);
-  let rating = 6.5;
+  let rating = 7.0;
   
-  const metresRatio = stats.metres / (config.metresBase * 0.9);
-  rating += Math.min(1.5, (metresRatio - 1) * 1.5);
+  const metresRatio = stats.metres / (config.metresBase * 0.7);
+  rating += Math.min(1.5, (metresRatio - 1) * 1.2);
   
-  const tacklesRatio = stats.tackles / (config.tacklesBase * 0.9);
-  rating += Math.min(1.0, (tacklesRatio - 1) * 1.0);
+  const tacklesRatio = stats.tackles / (config.tacklesBase * 0.7);
+  rating += Math.min(1.0, (tacklesRatio - 1) * 0.8);
   
-  rating += stats.tries * 0.8;
-  rating += stats.goals * 0.3;
-  rating -= stats.missedTackles * 0.08;
-  rating -= stats.errors * 0.10;
+  rating += stats.tries * 0.7;
+  rating += stats.goals * 0.25;
+  rating -= stats.missedTackles * 0.05;
+  rating -= stats.errors * 0.08;
   
-  if (isMotm) rating = Math.max(rating, 8.5);
+  if (stats.missedTackles === 0) rating += 0.3;
+  if (stats.errors === 0) rating += 0.2;
   
-  return Math.min(10, Math.max(1, Math.round(rating * 10) / 10));
+  if (isMotm) rating = Math.max(rating, 9);
+  
+  return Math.min(10, Math.max(1, Math.round(rating)));
 }
 
 function calculateTacticalBonus(attackFocus: string, defenseFocus: string) {
