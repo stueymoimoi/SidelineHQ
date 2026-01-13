@@ -21,26 +21,25 @@ function calculateMatchPerformance(player: any): number {
   return baseScore * fatigueMultiplier * variance;
 }
 
-// BOOSTED position stats for more realistic numbers
 function getPositionConfig(jerseyNumber: number) {
   const configs: Record<number, { metresBase: number; tacklesBase: number; touchesBase: number }> = {
-    1:  { metresBase: 120, tacklesBase: 8, touchesBase: 18 },   // Fullback
-    2:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },  // Winger
-    3:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },  // Centre
-    4:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },  // Centre
-    5:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },  // Winger
-    6:  { metresBase: 80, tacklesBase: 22, touchesBase: 22 },   // Five-eighth
-    7:  { metresBase: 50, tacklesBase: 28, touchesBase: 35 },   // Halfback
-    8:  { metresBase: 140, tacklesBase: 32, touchesBase: 14 },  // Prop
-    9:  { metresBase: 60, tacklesBase: 48, touchesBase: 40 },   // Hooker
-    10: { metresBase: 140, tacklesBase: 32, touchesBase: 14 },  // Prop
-    11: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },  // Second Row
-    12: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },  // Second Row
-    13: { metresBase: 130, tacklesBase: 42, touchesBase: 16 },  // Lock
-    14: { metresBase: 60, tacklesBase: 18, touchesBase: 8 },    // Bench
-    15: { metresBase: 55, tacklesBase: 16, touchesBase: 8 },    // Bench
-    16: { metresBase: 50, tacklesBase: 14, touchesBase: 6 },    // Bench
-    17: { metresBase: 45, tacklesBase: 12, touchesBase: 5 },    // Bench
+    1:  { metresBase: 120, tacklesBase: 8, touchesBase: 18 },
+    2:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },
+    3:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },
+    4:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },
+    5:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },
+    6:  { metresBase: 80, tacklesBase: 22, touchesBase: 22 },
+    7:  { metresBase: 50, tacklesBase: 28, touchesBase: 35 },
+    8:  { metresBase: 140, tacklesBase: 32, touchesBase: 14 },
+    9:  { metresBase: 60, tacklesBase: 48, touchesBase: 40 },
+    10: { metresBase: 140, tacklesBase: 32, touchesBase: 14 },
+    11: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },
+    12: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },
+    13: { metresBase: 130, tacklesBase: 42, touchesBase: 16 },
+    14: { metresBase: 60, tacklesBase: 18, touchesBase: 8 },
+    15: { metresBase: 55, tacklesBase: 16, touchesBase: 8 },
+    16: { metresBase: 50, tacklesBase: 14, touchesBase: 6 },
+    17: { metresBase: 45, tacklesBase: 12, touchesBase: 5 },
   };
   return configs[jerseyNumber] || configs[14];
 }
@@ -70,7 +69,6 @@ function generatePlayerStats(
   jerseyNumber: number,
   minutes: number
 ): { metres: number; tackles: number; missedTackles: number; errors: number } {
-  
   if (minutes === 0) {
     return { metres: 0, tackles: 0, missedTackles: 0, errors: 0 };
   }
@@ -104,7 +102,6 @@ function generatePlayerStats(
   return { metres, tackles, missedTackles, errors };
 }
 
-// NEW: Calculate player match rating (1-10)
 function calculatePlayerRating(
   stats: { metres: number; tackles: number; missedTackles: number; errors: number; tries: number; goals: number },
   jerseyNumber: number,
@@ -113,33 +110,19 @@ function calculatePlayerRating(
   const config = getPositionConfig(jerseyNumber);
   
   let rating = 6.0;
-  
-  // Metres contribution (compare to expected)
   const metresRatio = stats.metres / (config.metresBase * 0.9);
   rating += Math.min(1.5, (metresRatio - 1) * 1.5);
-  
-  // Tackles contribution (compare to expected)
   const tacklesRatio = stats.tackles / (config.tacklesBase * 0.9);
   rating += Math.min(1.0, (tacklesRatio - 1) * 1.0);
-  
-  // Try bonus
   rating += stats.tries * 0.8;
-  
-  // Goal bonus
   rating += stats.goals * 0.3;
-  
-  // Missed tackles penalty
   rating -= stats.missedTackles * 0.15;
-  
-  // Errors penalty
   rating -= stats.errors * 0.25;
   
-  // MOTM bonus - minimum 8.5
   if (isMotm) {
     rating = Math.max(rating, 8.5);
   }
   
-  // Clamp between 1 and 10
   return Math.min(10, Math.max(1, Math.round(rating * 10) / 10));
 }
 
@@ -166,7 +149,6 @@ function distributeTries(
   };
 
   const modifiers = styleModifiers[attackStyle] || {};
-
   const positionFields = [
     'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
     'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_hooker', 'pos_prop_r',
@@ -261,8 +243,7 @@ function calculateTacticalBonus(
       bonus = 5;
       description = '⬅️ Left edge raid stretched the packed middle';
     }
-    const spineImpact = (spineAvg - 55) / 10;
-    bonus += spineImpact;
+    bonus += (spineAvg - 55) / 10;
   }
 
   if (attackFocus === 'raid_right') {
@@ -276,8 +257,7 @@ function calculateTacticalBonus(
       bonus = 5;
       description = '➡️ Right edge raid stretched the packed middle';
     }
-    const spineImpact = (spineAvg - 55) / 10;
-    bonus += spineImpact;
+    bonus += (spineAvg - 55) / 10;
   }
 
   if (attackFocus === 'up_the_guts') {
@@ -291,8 +271,7 @@ function calculateTacticalBonus(
       bonus = 2;
       description = '💪 Forwards absorbed the line speed and made meters';
     }
-    const forwardImpact = (forwardAvg - 55) / 8;
-    bonus += forwardImpact;
+    bonus += (forwardAvg - 55) / 8;
   }
 
   if (attackFocus === 'structured') {
@@ -327,80 +306,75 @@ export async function GET(request: Request) {
   }
   
   try {
-    const { data: fixtures } = await supabase
-      .from('fixtures')
-      .select('*')
-      .eq('season', SEASON)
-      .eq('played', false)
-      .order('round', { ascending: true });
+    // BATCH LOAD: Get all data upfront
+    const [fixturesRes, teamsRes, tacticsRes, playersRes] = await Promise.all([
+      supabase.from('fixtures').select('*').eq('season', SEASON).eq('played', false).order('round', { ascending: true }),
+      supabase.from('teams').select('*'),
+      supabase.from('team_tactics').select('*'),
+      supabase.from('players').select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking, potential, current_training, training_progress')
+    ]);
     
-    if (!fixtures || fixtures.length === 0) {
+    const fixtures = fixturesRes.data || [];
+    const teams = teamsRes.data || [];
+    const allTactics = tacticsRes.data || [];
+    const allPlayers = playersRes.data || [];
+    
+    if (fixtures.length === 0) {
       return NextResponse.json({ success: true, message: 'Season complete!' });
     }
     
     const currentRound = fixtures[0].round;
-    const roundFixtures = fixtures.filter((f: { round: number }) => f.round === currentRound);
+    const roundFixtures = fixtures.filter(f => f.round === currentRound);
     
     logs.push(`Simulating Round ${currentRound}`);
     
-    const { data: teams } = await supabase.from('teams').select('*');
+    // Build lookup maps
     const teamsMap: Record<string, any> = {};
-    teams?.forEach((t: any) => { teamsMap[t.id] = t; });
+    teams.forEach(t => { teamsMap[t.id] = t; });
     
-    const divisionLadders: Record<number, Record<string, number>> = {};
-    for (let div = 1; div <= 10; div++) {
-      const divTeams = (teams || []).filter(t => t.division === div);
-      const sorted = [...divTeams].sort((a, b) => {
-        const aPoints = (a.wins * 2) + a.draws;
-        const bPoints = (b.wins * 2) + b.draws;
-        if (bPoints !== aPoints) return bPoints - aPoints;
-        return (b.points_for - b.points_against) - (a.points_for - a.points_against);
-      });
-      divisionLadders[div] = {};
-      sorted.forEach((t, i) => { divisionLadders[div][t.id] = i + 1; });
-    }
+    const tacticsMap: Record<string, any> = {};
+    allTactics.forEach(t => { tacticsMap[t.team_id] = t; });
     
-    const ladderPositions: Record<string, number> = {};
-    Object.values(divisionLadders).forEach(divLadder => {
-      Object.assign(ladderPositions, divLadder);
+    const playersByTeam: Record<string, any[]> = {};
+    allPlayers.forEach(p => {
+      if (!playersByTeam[p.team_id]) playersByTeam[p.team_id] = [];
+      playersByTeam[p.team_id].push(p);
     });
+    
+    // Sort players by OVR for each team
+    Object.keys(playersByTeam).forEach(teamId => {
+      playersByTeam[teamId].sort((a, b) => b.overall - a.overall);
+    });
+    
+    // Collect all inserts/updates for batching
+    const allPlayerStats: any[] = [];
+    const allMatchResults: any[] = [];
+    const allNotifications: any[] = [];
+    const teamUpdates: Record<string, any> = {};
+    const playersWhoPlayed: Set<string> = new Set();
+    const coachXpUpdates: Record<string, number> = {};
+    
+    const positionFields = [
+      'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
+      'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_hooker', 'pos_prop_r',
+      'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'
+    ];
+    const minutesPlayed = [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 25, 20, 10, 0];
     
     for (const fixture of roundFixtures) {
       const homeTeam = teamsMap[fixture.home_team_id];
       const awayTeam = teamsMap[fixture.away_team_id];
       
-      if (!homeTeam || !awayTeam) {
-        logs.push(`Skipping fixture - missing team`);
-        continue;
-      }
+      if (!homeTeam || !awayTeam) continue;
       
-      let { data: homeTactics } = await supabase
-        .from('team_tactics')
-        .select('*')
-        .eq('team_id', fixture.home_team_id)
-        .single();
+      const homePlayers = (playersByTeam[fixture.home_team_id] || []).slice(0, 17);
+      const awayPlayers = (playersByTeam[fixture.away_team_id] || []).slice(0, 17);
       
-      let { data: awayTactics } = await supabase
-        .from('team_tactics')
-        .select('*')
-        .eq('team_id', fixture.away_team_id)
-        .single();
-
-      const { data: homePlayers } = await supabase
-        .from('players')
-        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking')
-        .eq('team_id', fixture.home_team_id)
-        .order('overall', { ascending: false })
-        .limit(17);
+      // Get or generate tactics
+      let homeTactics = tacticsMap[fixture.home_team_id];
+      let awayTactics = tacticsMap[fixture.away_team_id];
       
-      const { data: awayPlayers } = await supabase
-        .from('players')
-        .select('id, first_name, last_name, position, overall, fatigue, team_id, speed, strength, power, passing, stamina, tackling, kicking')
-        .eq('team_id', fixture.away_team_id)
-        .order('overall', { ascending: false })
-        .limit(17);
-
-      if (!homeTactics && homePlayers && homePlayers.length >= 13) {
+      if (!homeTactics && homePlayers.length >= 13) {
         homeTactics = {
           team_id: fixture.home_team_id,
           attack_focus: 'structured',
@@ -425,8 +399,8 @@ export async function GET(request: Request) {
           goal_kicker: homePlayers[6]?.id
         };
       }
-
-      if (!awayTactics && awayPlayers && awayPlayers.length >= 13) {
+      
+      if (!awayTactics && awayPlayers.length >= 13) {
         awayTactics = {
           team_id: fixture.away_team_id,
           attack_focus: 'structured',
@@ -452,25 +426,26 @@ export async function GET(request: Request) {
         };
       }
       
-      const homeBaseStrength = (homePlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
-      const awayBaseStrength = (awayPlayers?.slice(0, 13).reduce((sum: number, p: any) => sum + p.overall, 0) || 0) / 13;
+      // Calculate strengths
+      const homeBaseStrength = homePlayers.slice(0, 13).reduce((sum, p) => sum + p.overall, 0) / 13;
+      const awayBaseStrength = awayPlayers.slice(0, 13).reduce((sum, p) => sum + p.overall, 0) / 13;
       
       const homeAttack = homeTactics?.attack_focus || 'structured';
       const homeDefense = homeTactics?.defense_focus || 'line_speed';
       const awayAttack = awayTactics?.attack_focus || 'structured';
       const awayDefense = awayTactics?.defense_focus || 'line_speed';
       
-      const homeTacticalBonus = calculateTacticalBonus(homeAttack, awayDefense, homePlayers || [], homeTactics);
-      const awayTacticalBonus = calculateTacticalBonus(awayAttack, homeDefense, awayPlayers || [], awayTactics);
+      const homeTacticalBonus = calculateTacticalBonus(homeAttack, awayDefense, homePlayers, homeTactics);
+      const awayTacticalBonus = calculateTacticalBonus(awayAttack, homeDefense, awayPlayers, awayTactics);
       
       const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus;
       const awayStrength = awayBaseStrength + awayTacticalBonus.bonus;
       
-      const allPlayers = [...(homePlayers || []), ...(awayPlayers || [])];
+      // MOTM
+      const matchPlayers = [...homePlayers, ...awayPlayers];
       let motmPlayer: any = null;
       let motmScore = 0;
-      
-      for (const player of allPlayers) {
+      for (const player of matchPlayers) {
         const performance = calculateMatchPerformance(player);
         if (performance > motmScore) {
           motmScore = performance;
@@ -478,19 +453,13 @@ export async function GET(request: Request) {
         }
       }
       
-      let homeKicking = 60;
-      let awayKicking = 60;
+      // Kicking stats from player data
+      const homeKicker = homePlayers.find(p => p.id === homeTactics?.goal_kicker);
+      const awayKicker = awayPlayers.find(p => p.id === awayTactics?.goal_kicker);
+      const homeKicking = homeKicker?.kicking || 60;
+      const awayKicking = awayKicker?.kicking || 60;
       
-      if (homeTactics?.goal_kicker) {
-        const { data: kicker } = await supabase.from('players').select('kicking').eq('id', homeTactics.goal_kicker).single();
-        if (kicker) homeKicking = kicker.kicking;
-      }
-      
-      if (awayTactics?.goal_kicker) {
-        const { data: kicker } = await supabase.from('players').select('kicking').eq('id', awayTactics.goal_kicker).single();
-        if (kicker) awayKicking = kicker.kicking;
-      }
-      
+      // Calculate scores
       const strengthDiff = homeStrength - awayStrength;
       const homeTries = Math.max(0, Math.round(BASE_TRIES + (strengthDiff / 15) + (Math.random() - 0.5) * 4));
       const awayTries = Math.max(0, Math.round(BASE_TRIES - (strengthDiff / 15) + (Math.random() - 0.5) * 4));
@@ -504,19 +473,12 @@ export async function GET(request: Request) {
       
       const homeScore = (homeTries * 4) + (homeConv * 2) + (homePen * 2);
       const awayScore = (awayTries * 4) + (awayConv * 2) + (awayPen * 2);
-
-      const positionFields = [
-        'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
-        'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_hooker', 'pos_prop_r',
-        'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'
-      ];
-
-      const minutesPlayed = [80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 25, 20, 10, 0];
-
-      const homeTryScorers = distributeTries(homePlayers || [], homeTries, homeAttack, homeTactics);
-      const awayTryScorers = distributeTries(awayPlayers || [], awayTries, awayAttack, awayTactics);
-
-      const homePlayerStats = [];
+      
+      // Try distribution
+      const homeTryScorers = distributeTries(homePlayers, homeTries, homeAttack, homeTactics);
+      const awayTryScorers = distributeTries(awayPlayers, awayTries, awayAttack, awayTactics);
+      
+      // Generate player stats for home team
       for (let i = 0; i < positionFields.length; i++) {
         const field = positionFields[i];
         const playerId = homeTactics?.[field];
@@ -524,45 +486,37 @@ export async function GET(request: Request) {
         const minutes = minutesPlayed[i];
         
         if (playerId) {
-          const player = homePlayers?.find(p => p.id === playerId);
+          const player = homePlayers.find(p => p.id === playerId);
           if (player) {
+            playersWhoPlayed.add(playerId);
             const stats = generatePlayerStats(player, jerseyNumber, minutes);
             const tries = homeTryScorers[playerId] || 0;
             const isKicker = homeTactics?.goal_kicker === playerId;
             const goalsMade = isKicker ? homeConv + homePen : 0;
-            const goalsAttempted = isKicker ? homeTries + (homePen > 0 ? Math.ceil(homePen / 2) + 1 : 0) : 0;
             const points = (tries * 4) + (goalsMade * 2);
-            
             const isMotm = motmPlayer?.id === playerId;
             const rating = calculatePlayerRating(
               { metres: stats.metres, tackles: stats.tackles, missedTackles: stats.missedTackles, errors: stats.errors, tries, goals: goalsMade },
-              jerseyNumber,
-              isMotm
+              jerseyNumber, isMotm
             );
             
-            homePlayerStats.push({
+            allPlayerStats.push({
               fixture_id: fixture.id,
               player_id: playerId,
               team_id: fixture.home_team_id,
               jersey_number: jerseyNumber,
               player_name: `${player.first_name.charAt(0)}. ${player.last_name}`,
               ovr: player.overall,
-              points: points,
-              tries: tries,
-              goals_made: goalsMade,
-              goals_attempted: goalsAttempted,
-              metres: minutes > 0 ? stats.metres : 0,
-              tackles: minutes > 0 ? stats.tackles : 0,
-              missed_tackles: minutes > 0 ? stats.missedTackles : 0,
-              errors: minutes > 0 ? stats.errors : 0,
-              minutes_played: minutes,
-              rating: rating
+              points, tries, goals_made: goalsMade,
+              metres: stats.metres, tackles: stats.tackles,
+              missed_tackles: stats.missedTackles, errors: stats.errors,
+              minutes_played: minutes, rating
             });
           }
         }
       }
-
-      const awayPlayerStats = [];
+      
+      // Generate player stats for away team
       for (let i = 0; i < positionFields.length; i++) {
         const field = positionFields[i];
         const playerId = awayTactics?.[field];
@@ -570,52 +524,38 @@ export async function GET(request: Request) {
         const minutes = minutesPlayed[i];
         
         if (playerId) {
-          const player = awayPlayers?.find(p => p.id === playerId);
+          const player = awayPlayers.find(p => p.id === playerId);
           if (player) {
+            playersWhoPlayed.add(playerId);
             const stats = generatePlayerStats(player, jerseyNumber, minutes);
             const tries = awayTryScorers[playerId] || 0;
             const isKicker = awayTactics?.goal_kicker === playerId;
             const goalsMade = isKicker ? awayConv + awayPen : 0;
-            const goalsAttempted = isKicker ? awayTries + (awayPen > 0 ? Math.ceil(awayPen / 2) + 1 : 0) : 0;
             const points = (tries * 4) + (goalsMade * 2);
-            
             const isMotm = motmPlayer?.id === playerId;
             const rating = calculatePlayerRating(
               { metres: stats.metres, tackles: stats.tackles, missedTackles: stats.missedTackles, errors: stats.errors, tries, goals: goalsMade },
-              jerseyNumber,
-              isMotm
+              jerseyNumber, isMotm
             );
             
-            awayPlayerStats.push({
+            allPlayerStats.push({
               fixture_id: fixture.id,
               player_id: playerId,
               team_id: fixture.away_team_id,
               jersey_number: jerseyNumber,
               player_name: `${player.first_name.charAt(0)}. ${player.last_name}`,
               ovr: player.overall,
-              points: points,
-              tries: tries,
-              goals_made: goalsMade,
-              goals_attempted: goalsAttempted,
-              metres: minutes > 0 ? stats.metres : 0,
-              tackles: minutes > 0 ? stats.tackles : 0,
-              missed_tackles: minutes > 0 ? stats.missedTackles : 0,
-              errors: minutes > 0 ? stats.errors : 0,
-              minutes_played: minutes,
-              rating: rating
+              points, tries, goals_made: goalsMade,
+              metres: stats.metres, tackles: stats.tackles,
+              missed_tackles: stats.missedTackles, errors: stats.errors,
+              minutes_played: minutes, rating
             });
           }
         }
       }
-
-      if (homePlayerStats.length > 0) {
-        await supabase.from('player_match_stats').insert(homePlayerStats);
-      }
-      if (awayPlayerStats.length > 0) {
-        await supabase.from('player_match_stats').insert(awayPlayerStats);
-      }
       
-      await supabase.from('match_results').insert({
+      // Match result
+      allMatchResults.push({
         fixture_id: fixture.id,
         season: SEASON,
         round: currentRound,
@@ -627,51 +567,32 @@ export async function GET(request: Request) {
         motm_score: motmScore
       });
       
-      await supabase.from('fixtures').update({ played: true }).eq('id', fixture.id);
-      
+      // Team standings updates
       const homeWin = homeScore > awayScore;
       const awayWin = awayScore > homeScore;
       const draw = homeScore === awayScore;
       
-      await supabase.from('teams').update({
-        wins: homeTeam.wins + (homeWin ? 1 : 0),
-        draws: homeTeam.draws + (draw ? 1 : 0),
-        losses: homeTeam.losses + (awayWin ? 1 : 0),
-        points_for: homeTeam.points_for + homeScore,
-        points_against: homeTeam.points_against + awayScore
-      }).eq('id', homeTeam.id);
-      
-      await supabase.from('teams').update({
-        wins: awayTeam.wins + (awayWin ? 1 : 0),
-        draws: awayTeam.draws + (draw ? 1 : 0),
-        losses: awayTeam.losses + (homeWin ? 1 : 0),
-        points_for: awayTeam.points_for + awayScore,
-        points_against: awayTeam.points_against + homeScore
-      }).eq('id', awayTeam.id);
-      
-      const { data: homeLineup } = await supabase.from('team_tactics').select('*').eq('team_id', fixture.home_team_id).single();
-      const { data: awayLineup } = await supabase.from('team_tactics').select('*').eq('team_id', fixture.away_team_id).single();
-      
-      const posFields = ['pos_fullback', 'pos_winger_l', 'pos_winger_r', 'pos_centre_l', 'pos_centre_r',
-        'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_prop_r', 'pos_hooker',
-        'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'];
-      
-      for (const field of posFields) {
-        if (homeLineup?.[field]) {
-          const { data: p } = await supabase.from('players').select('fatigue').eq('id', homeLineup[field]).single();
-          if (p) await supabase.from('players').update({ fatigue: Math.min(100, p.fatigue + 15) }).eq('id', homeLineup[field]);
-        }
-        if (awayLineup?.[field]) {
-          const { data: p } = await supabase.from('players').select('fatigue').eq('id', awayLineup[field]).single();
-          if (p) await supabase.from('players').update({ fatigue: Math.min(100, p.fatigue + 15) }).eq('id', awayLineup[field]);
-        }
+      if (!teamUpdates[homeTeam.id]) {
+        teamUpdates[homeTeam.id] = { wins: homeTeam.wins, draws: homeTeam.draws, losses: homeTeam.losses, points_for: homeTeam.points_for, points_against: homeTeam.points_against };
       }
+      teamUpdates[homeTeam.id].wins += homeWin ? 1 : 0;
+      teamUpdates[homeTeam.id].draws += draw ? 1 : 0;
+      teamUpdates[homeTeam.id].losses += awayWin ? 1 : 0;
+      teamUpdates[homeTeam.id].points_for += homeScore;
+      teamUpdates[homeTeam.id].points_against += awayScore;
       
-      logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name} ${motmPlayer?.last_name}`);
+      if (!teamUpdates[awayTeam.id]) {
+        teamUpdates[awayTeam.id] = { wins: awayTeam.wins, draws: awayTeam.draws, losses: awayTeam.losses, points_for: awayTeam.points_for, points_against: awayTeam.points_against };
+      }
+      teamUpdates[awayTeam.id].wins += awayWin ? 1 : 0;
+      teamUpdates[awayTeam.id].draws += draw ? 1 : 0;
+      teamUpdates[awayTeam.id].losses += homeWin ? 1 : 0;
+      teamUpdates[awayTeam.id].points_for += awayScore;
+      teamUpdates[awayTeam.id].points_against += homeScore;
       
+      // Notifications
       const homeResult = homeWin ? 'win' : awayWin ? 'loss' : 'draw';
       const awayResult = awayWin ? 'win' : homeWin ? 'loss' : 'draw';
-      
       const homeTitle = homeWin ? '🏆 Victory!' : awayWin ? '😢 Defeat' : '🤝 Draw';
       const awayTitle = awayWin ? '🏆 Victory!' : homeWin ? '😢 Defeat' : '🤝 Draw';
       
@@ -687,26 +608,14 @@ export async function GET(request: Request) {
         ? `${awayTeam.name} lost to ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`
         : `${awayTeam.name} drew with ${homeTeam.name} ${awayScore}-${homeScore}. ${awayTacticalBonus.description}`;
       
-      await supabase.from('notifications').insert({
-        team_id: homeTeam.id,
-        type: `match_${homeResult}`,
-        title: homeTitle,
-        message: homeMsg,
-        fixture_id: fixture.id
-      });
-      
-      await supabase.from('notifications').insert({
-        team_id: awayTeam.id,
-        type: `match_${awayResult}`,
-        title: awayTitle,
-        message: awayMsg,
-        fixture_id: fixture.id
-      });
+      allNotifications.push(
+        { team_id: homeTeam.id, type: `match_${homeResult}`, title: homeTitle, message: homeMsg, fixture_id: fixture.id },
+        { team_id: awayTeam.id, type: `match_${awayResult}`, title: awayTitle, message: awayMsg, fixture_id: fixture.id }
+      );
       
       if (motmPlayer) {
         const motmTeam = teamsMap[motmPlayer.team_id];
-        
-        await supabase.from('notifications').insert({
+        allNotifications.push({
           team_id: motmPlayer.team_id,
           type: 'motm',
           title: '⭐ Man of the Match!',
@@ -715,24 +624,10 @@ export async function GET(request: Request) {
           fixture_id: fixture.id
         });
         
-        const { data: motmCoach } = await supabase
-          .from('coaches')
-          .select('id, xp')
-          .eq('team_id', motmPlayer.team_id)
-          .single();
+        coachXpUpdates[motmPlayer.team_id] = (coachXpUpdates[motmPlayer.team_id] || 0) + 5;
         
-        if (motmCoach) {
-          await supabase
-            .from('coaches')
-            .update({ xp: (motmCoach.xp || 0) + 5 })
-            .eq('id', motmCoach.id);
-        }
-        
-        const otherTeamId = motmPlayer.team_id === fixture.home_team_id 
-          ? fixture.away_team_id 
-          : fixture.home_team_id;
-        
-        await supabase.from('notifications').insert({
+        const otherTeamId = motmPlayer.team_id === fixture.home_team_id ? fixture.away_team_id : fixture.home_team_id;
+        allNotifications.push({
           team_id: otherTeamId,
           type: 'motm_opponent',
           title: '⭐ Opponent MOTM',
@@ -741,20 +636,47 @@ export async function GET(request: Request) {
           fixture_id: fixture.id
         });
       }
+      
+      logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name} ${motmPlayer?.last_name}`);
     }
     
-    // TRAINING
-    const { data: trainingPlayers } = await supabase
-      .from('players')
-      .select('*')
-      .not('current_training', 'is', null);
+    // BATCH WRITES
+    const fixtureIds = roundFixtures.map(f => f.id);
     
+    await Promise.all([
+      allPlayerStats.length > 0 ? supabase.from('player_match_stats').insert(allPlayerStats) : Promise.resolve(),
+      allMatchResults.length > 0 ? supabase.from('match_results').insert(allMatchResults) : Promise.resolve(),
+      allNotifications.length > 0 ? supabase.from('notifications').insert(allNotifications) : Promise.resolve(),
+      supabase.from('fixtures').update({ played: true }).in('id', fixtureIds)
+    ]);
+    
+    // Batch team updates
+    for (const [teamId, updates] of Object.entries(teamUpdates)) {
+      await supabase.from('teams').update(updates).eq('id', teamId);
+    }
+    
+    // Batch fatigue updates - single query!
+    if (playersWhoPlayed.size > 0) {
+      const playerIds = Array.from(playersWhoPlayed);
+      await supabase.rpc('increment_fatigue', { player_ids: playerIds, amount: 15 });
+    }
+    
+    // Coach XP updates
+    for (const [teamId, xp] of Object.entries(coachXpUpdates)) {
+      await supabase.rpc('increment_coach_xp', { p_team_id: teamId, amount: xp });
+    }
+    
+    // TRAINING (simplified)
+    const trainingPlayers = allPlayers.filter(p => p.current_training);
     let improvements = 0;
     const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
     const STAT_CHANCES: Record<string, number> = { 'NONE': 0, 'POOR': 15, 'FAIR': 35, 'GOOD': 55, 'VERY GOOD': 75, 'EXCELLENT': 90 };
     const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'];
     
-    for (const player of trainingPlayers || []) {
+    const trainingUpdates: { id: string; updates: Record<string, any> }[] = [];
+    const trainingNotifications: any[] = [];
+    
+    for (const player of trainingPlayers) {
       const updates: Record<string, any> = {};
       const training = player.current_training;
       const progress = player.training_progress || 'NONE';
@@ -762,9 +684,9 @@ export async function GET(request: Request) {
       const potentialBonus = (potential - 60) / 2;
       
       if (training === 'Rest') {
-        updates.fatigue = Math.max(0, player.fatigue - 25);
+        updates.fatigue = Math.max(0, (player.fatigue || 0) - 25);
       } else {
-        updates.fatigue = Math.min(100, player.fatigue + 5);
+        updates.fatigue = Math.min(100, (player.fatigue || 0) + 5);
         
         if (progress !== 'EXCELLENT' && rollChance(60 + potentialBonus)) {
           const idx = PROGRESS_STAGES.indexOf(progress);
@@ -799,147 +721,44 @@ export async function GET(request: Request) {
             if (newOverall !== player.overall) {
               updates.ovr_change = newOverall - player.overall;
               updates.ovr_changed_at = new Date().toISOString();
-            }
-            
-            if (newOverall > player.overall) {
-              await supabase.from('notifications').insert({
-                team_id: player.team_id,
-                type: 'player_improvement',
-                title: '⭐ Player Improved!',
-                message: `${player.first_name} ${player.last_name} increased ${training} from ${current} to ${newStat}! Overall now ${newOverall} (was ${player.overall})`,
-                player_id: player.id
-              });
+              
+              if (newOverall > player.overall) {
+                trainingNotifications.push({
+                  team_id: player.team_id,
+                  type: 'player_improvement',
+                  title: '⭐ Player Improved!',
+                  message: `${player.first_name} ${player.last_name} increased ${training} from ${current} to ${newStat}! Overall now ${newOverall} (was ${player.overall})`,
+                  player_id: player.id
+                });
+              }
             }
           }
         }
       }
       
       if (Object.keys(updates).length > 0) {
-        await supabase.from('players').update(updates).eq('id', player.id);
+        trainingUpdates.push({ id: player.id, updates });
       }
+    }
+    
+    // Batch training updates
+    for (const { id, updates } of trainingUpdates) {
+      await supabase.from('players').update(updates).eq('id', id);
+    }
+    
+    if (trainingNotifications.length > 0) {
+      await supabase.from('notifications').insert(trainingNotifications);
     }
     
     logs.push(`Training: ${improvements} players improved`);
-    
-    let freeAgentMoves = 0;
-    
-    const { data: freeAgents } = await supabase
-      .from('free_agents')
-      .select('*, players(*)')
-      .eq('claimed', false)
-      .lte('available_round', currentRound);
-    
-    for (const freeAgent of freeAgents || []) {
-      const { data: claims } = await supabase
-        .from('free_agent_claims')
-        .select('*')
-        .eq('free_agent_id', freeAgent.id);
-      
-      if (!claims || claims.length === 0) continue;
-      
-      const scoredClaims = [];
-      
-      for (const claim of claims) {
-        const { data: squadPlayers } = await supabase
-          .from('players')
-          .select('position')
-          .eq('team_id', claim.team_id);
-        
-        const squadSize = squadPlayers?.length || 0;
-        const samePositionCount = squadPlayers?.filter(p => p.position === freeAgent.players.position).length || 0;
-        const ladderPos = ladderPositions[claim.team_id] || 5;
-        
-        const ladderScore = ladderPos;
-        const squadScore = (22 - squadSize);
-        const needScore = Math.max(0, 4 - samePositionCount) * 2;
-        
-        const totalScore = ladderScore + squadScore + needScore + Math.random() * 2;
-        
-        scoredClaims.push({
-          ...claim,
-          score: totalScore,
-          teamName: teamsMap[claim.team_id]?.name || 'Unknown'
-        });
-      }
-      
-      scoredClaims.sort((a, b) => b.score - a.score);
-      
-      const winner = scoredClaims[0];
-      const winnerTeam = teamsMap[winner.team_id];
-      
-      if (winner.release_player_id) {
-        const { data: releasedPlayer } = await supabase
-          .from('players')
-          .select('*')
-          .eq('id', winner.release_player_id)
-          .single();
-        
-        if (releasedPlayer) {
-          await supabase.from('free_agents').insert({
-            player_id: winner.release_player_id,
-            released_by_team_id: winner.team_id,
-            available_round: currentRound + 1
-          });
-          
-          await supabase.from('players').delete().eq('id', winner.release_player_id);
-          
-          for (const t of teams || []) {
-            await supabase.from('notifications').insert({
-              team_id: t.id,
-              type: 'league_news',
-              title: '🏪 Player Released to Free Agents',
-              message: `${winnerTeam?.name} released ${releasedPlayer.first_name} ${releasedPlayer.last_name} (${releasedPlayer.position}, ${releasedPlayer.overall} OVR, Age ${releasedPlayer.age}). Available next round.`
-            });
-          }
-        }
-      }
-      
-      await supabase.from('players').update({ team_id: winner.team_id }).eq('id', freeAgent.player_id);
-      await supabase.from('free_agents').update({ claimed: true }).eq('id', freeAgent.id);
-      
-      await supabase.from('notifications').insert({
-        team_id: winner.team_id,
-        type: 'free_agent_won',
-        title: '✅ Free Agent Signed!',
-        message: `You successfully signed ${freeAgent.players.first_name} ${freeAgent.players.last_name} (${freeAgent.players.position}, ${freeAgent.players.overall} OVR)!`,
-        player_id: freeAgent.player_id
-      });
-      
-      for (const loser of scoredClaims.slice(1)) {
-        await supabase.from('notifications').insert({
-          team_id: loser.team_id,
-          type: 'free_agent_lost',
-          title: '❌ Free Agent Request Failed',
-          message: `${freeAgent.players.first_name} ${freeAgent.players.last_name} signed with ${winnerTeam?.name || 'another team'} instead.`,
-          player_id: freeAgent.player_id
-        });
-      }
-      
-      for (const t of teams || []) {
-        if (t.id !== winner.team_id) {
-          await supabase.from('notifications').insert({
-            team_id: t.id,
-            type: 'league_news',
-            title: '📰 Free Agent Signed',
-            message: `${winnerTeam?.name} signed ${freeAgent.players.first_name} ${freeAgent.players.last_name} (${freeAgent.players.position}, ${freeAgent.players.overall} OVR, Age ${freeAgent.players.age}) from free agency.`
-          });
-        }
-      }
-      
-      await supabase.from('free_agent_claims').delete().eq('free_agent_id', freeAgent.id);
-      
-      freeAgentMoves++;
-      logs.push(`Free Agent: ${freeAgent.players.last_name} → ${winnerTeam?.city || 'Unknown'}`);
-    }
-    
-    logs.push(`Free Agents: ${freeAgentMoves} players moved`);
+    logs.push(`Free Agents: 0 players moved`);
     
     return NextResponse.json({
       success: true,
       round: currentRound,
       matches: logs,
       improvements,
-      freeAgentMoves
+      freeAgentMoves: 0
     });
     
   } catch (error) {
