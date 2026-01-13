@@ -274,7 +274,7 @@ const getTeamAbbr = (teamName: string): string => {
 };
 
 // ============================================================================
-// NEW TIER SYSTEM
+// TIER SYSTEM - Red to Gold spectrum
 // ============================================================================
 
 const TIER_LABELS: Record<number, string> = {
@@ -289,71 +289,14 @@ const TIER_LABELS: Record<number, string> = {
 };
 
 const TIER_COLORS: Record<number, string> = {
-  1: 'text-gray-600 bg-gray-800',
-  2: 'text-red-400 bg-red-900/30',
-  3: 'text-orange-400 bg-orange-900/30',
-  4: 'text-yellow-400 bg-yellow-900/30',
-  5: 'text-green-400 bg-green-900/30',
-  6: 'text-blue-400 bg-blue-900/30',
-  7: 'text-purple-400 bg-purple-900/30',
-  8: 'text-yellow-300 bg-yellow-900/40'
-};
-
-const POSITION_STATS: Record<string, { primary: string[], secondary: string[], minor: string[], negligible: string[] }> = {
-  'Prop': {
-    primary: ['strength', 'power'],
-    secondary: ['tackling', 'stamina'],
-    minor: ['passing'],
-    negligible: ['speed', 'kicking']
-  },
-  'Hooker': {
-    primary: ['passing', 'stamina'],
-    secondary: ['tackling', 'speed'],
-    minor: ['strength'],
-    negligible: ['power', 'kicking']
-  },
-  'Second Row': {
-    primary: ['strength', 'power'],
-    secondary: ['tackling', 'stamina'],
-    minor: ['passing'],
-    negligible: ['speed', 'kicking']
-  },
-  'Lock': {
-    primary: ['tackling', 'stamina'],
-    secondary: ['strength', 'passing'],
-    minor: ['power'],
-    negligible: ['speed', 'kicking']
-  },
-  'Halfback': {
-    primary: ['passing', 'kicking'],
-    secondary: ['speed', 'stamina'],
-    minor: ['tackling'],
-    negligible: ['strength', 'power']
-  },
-  'Five-Eighth': {
-    primary: ['passing', 'kicking'],
-    secondary: ['speed', 'power'],
-    minor: ['tackling'],
-    negligible: ['strength', 'stamina']
-  },
-  'Centre': {
-    primary: ['power', 'tackling'],
-    secondary: ['passing', 'speed'],
-    minor: ['stamina'],
-    negligible: ['strength', 'kicking']
-  },
-  'Winger': {
-    primary: ['speed', 'power'],
-    secondary: ['stamina', 'tackling'],
-    minor: ['passing'],
-    negligible: ['strength', 'kicking']
-  },
-  'Fullback': {
-    primary: ['speed', 'power'],
-    secondary: ['passing', 'stamina'],
-    minor: ['tackling'],
-    negligible: ['strength', 'kicking']
-  }
+  1: 'text-red-500 bg-red-500/20',
+  2: 'text-orange-600 bg-orange-600/20',
+  3: 'text-orange-400 bg-orange-400/20',
+  4: 'text-yellow-400 bg-yellow-400/20',
+  5: 'text-lime-400 bg-lime-400/20',
+  6: 'text-green-400 bg-green-400/20',
+  7: 'text-cyan-400 bg-cyan-400/20',
+  8: 'text-yellow-300 bg-yellow-500/30 border border-yellow-500/50'
 };
 
 const shouldShowSide = (position: string) => {
@@ -459,14 +402,6 @@ export default function SquadPage() {
     return 'bg-red-500';
   };
 
-  const getOvrStars = (ovr: number) => {
-    if (ovr >= 39) return '⭐⭐⭐⭐⭐';
-    if (ovr >= 33) return '⭐⭐⭐⭐';
-    if (ovr >= 27) return '⭐⭐⭐';
-    if (ovr >= 21) return '⭐⭐';
-    return '⭐';
-  };
-
   const getPositionColor = (position: string) => {
     const colors: Record<string, string> = {
       'Fullback': 'bg-purple-600',
@@ -496,42 +431,13 @@ export default function SquadPage() {
     return TIER_COLORS[value] || TIER_COLORS[1];
   };
 
-  const getStatImportance = (position: string, stat: string): 'primary' | 'secondary' | 'minor' | 'negligible' => {
-    const posStats = POSITION_STATS[position];
-    if (!posStats) return 'secondary';
-    
-    if (posStats.primary.includes(stat)) return 'primary';
-    if (posStats.secondary.includes(stat)) return 'secondary';
-    if (posStats.minor.includes(stat)) return 'minor';
-    return 'negligible';
-  };
-
-  const getImportanceIndicator = (importance: 'primary' | 'secondary' | 'minor' | 'negligible') => {
-    switch (importance) {
-      case 'primary': return { icon: '⭐', opacity: 'opacity-100' };
-      case 'secondary': return { icon: '🔵', opacity: 'opacity-100' };
-      case 'minor': return { icon: '⚪', opacity: 'opacity-70' };
-      case 'negligible': return { icon: '❌', opacity: 'opacity-50' };
-    }
-  };
-
-  const renderStatRow = (
-    label: string, 
-    statKey: string, 
-    value: number, 
-    position: string
-  ) => {
-    const importance = getStatImportance(position, statKey);
-    const indicator = getImportanceIndicator(importance);
+  const renderStatRow = (label: string, value: number) => {
     const tierLabel = getTierLabel(value);
     const tierColorClass = getTierColorClass(value);
 
     return (
-      <div className={`flex items-center justify-between py-2 border-b border-gray-700 ${indicator.opacity}`}>
-        <span className="text-gray-400 flex items-center gap-2">
-          <span className="text-xs">{indicator.icon}</span>
-          {label}
-        </span>
+      <div className="flex items-center justify-between py-2 border-b border-gray-700 last:border-b-0">
+        <span className="text-gray-300">{label}</span>
         <span className={`px-3 py-1 rounded font-bold text-sm ${tierColorClass}`}>
           {tierLabel}
         </span>
@@ -761,23 +667,15 @@ export default function SquadPage() {
               </div>
             )}
 
-            {/* Stats Legend */}
-            <div className="flex gap-4 text-xs text-gray-500 mb-2 justify-center">
-              <span>⭐ Primary</span>
-              <span>🔵 Secondary</span>
-              <span>⚪ Minor</span>
-              <span>❌ Negligible</span>
-            </div>
-
-            {/* Stats - Tier Labels Only */}
+            {/* Stats - Clean rows, no indicators */}
             <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
-              {renderStatRow('Speed', 'speed', selectedPlayer.speed, selectedPlayer.position)}
-              {renderStatRow('Strength', 'strength', selectedPlayer.strength, selectedPlayer.position)}
-              {renderStatRow('Power', 'power', selectedPlayer.power, selectedPlayer.position)}
-              {renderStatRow('Passing', 'passing', selectedPlayer.passing, selectedPlayer.position)}
-              {renderStatRow('Stamina', 'stamina', selectedPlayer.stamina, selectedPlayer.position)}
-              {renderStatRow('Tackling', 'tackling', selectedPlayer.tackling, selectedPlayer.position)}
-              {renderStatRow('Kicking', 'kicking', selectedPlayer.kicking, selectedPlayer.position)}
+              {renderStatRow('Speed', selectedPlayer.speed)}
+              {renderStatRow('Strength', selectedPlayer.strength)}
+              {renderStatRow('Power', selectedPlayer.power)}
+              {renderStatRow('Passing', selectedPlayer.passing)}
+              {renderStatRow('Stamina', selectedPlayer.stamina)}
+              {renderStatRow('Tackling', selectedPlayer.tackling)}
+              {renderStatRow('Kicking', selectedPlayer.kicking)}
             </div>
 
             {/* Training Status */}
