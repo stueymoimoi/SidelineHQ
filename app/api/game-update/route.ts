@@ -6,7 +6,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Config
 const SEASON = 0;
 const HOME_ADVANTAGE = 3;
 const BASE_TRIES = 4;
@@ -22,25 +21,26 @@ function calculateMatchPerformance(player: any): number {
   return baseScore * fatigueMultiplier * variance;
 }
 
+// BOOSTED position stats for more realistic numbers
 function getPositionConfig(jerseyNumber: number) {
   const configs: Record<number, { metresBase: number; tacklesBase: number; touchesBase: number }> = {
-    1:  { metresBase: 80, tacklesBase: 4, touchesBase: 15 },
-    2:  { metresBase: 45, tacklesBase: 5, touchesBase: 8 },
-    3:  { metresBase: 50, tacklesBase: 8, touchesBase: 10 },
-    4:  { metresBase: 50, tacklesBase: 8, touchesBase: 10 },
-    5:  { metresBase: 45, tacklesBase: 5, touchesBase: 8 },
-    6:  { metresBase: 55, tacklesBase: 10, touchesBase: 18 },
-    7:  { metresBase: 40, tacklesBase: 10, touchesBase: 25 },
-    8:  { metresBase: 85, tacklesBase: 25, touchesBase: 12 },
-    9:  { metresBase: 45, tacklesBase: 35, touchesBase: 30 },
-    10: { metresBase: 80, tacklesBase: 25, touchesBase: 12 },
-    11: { metresBase: 65, tacklesBase: 20, touchesBase: 10 },
-    12: { metresBase: 65, tacklesBase: 20, touchesBase: 10 },
-    13: { metresBase: 70, tacklesBase: 25, touchesBase: 12 },
-    14: { metresBase: 35, tacklesBase: 12, touchesBase: 6 },
-    15: { metresBase: 35, tacklesBase: 12, touchesBase: 6 },
-    16: { metresBase: 30, tacklesBase: 10, touchesBase: 5 },
-    17: { metresBase: 30, tacklesBase: 10, touchesBase: 5 },
+    1:  { metresBase: 120, tacklesBase: 8, touchesBase: 18 },   // Fullback
+    2:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },  // Winger
+    3:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },  // Centre
+    4:  { metresBase: 110, tacklesBase: 18, touchesBase: 14 },  // Centre
+    5:  { metresBase: 100, tacklesBase: 10, touchesBase: 12 },  // Winger
+    6:  { metresBase: 80, tacklesBase: 22, touchesBase: 22 },   // Five-eighth
+    7:  { metresBase: 50, tacklesBase: 28, touchesBase: 35 },   // Halfback
+    8:  { metresBase: 140, tacklesBase: 32, touchesBase: 14 },  // Prop
+    9:  { metresBase: 60, tacklesBase: 48, touchesBase: 40 },   // Hooker
+    10: { metresBase: 140, tacklesBase: 32, touchesBase: 14 },  // Prop
+    11: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },  // Second Row
+    12: { metresBase: 120, tacklesBase: 36, touchesBase: 14 },  // Second Row
+    13: { metresBase: 130, tacklesBase: 42, touchesBase: 16 },  // Lock
+    14: { metresBase: 60, tacklesBase: 18, touchesBase: 8 },    // Bench
+    15: { metresBase: 55, tacklesBase: 16, touchesBase: 8 },    // Bench
+    16: { metresBase: 50, tacklesBase: 14, touchesBase: 6 },    // Bench
+    17: { metresBase: 45, tacklesBase: 12, touchesBase: 5 },    // Bench
   };
   return configs[jerseyNumber] || configs[14];
 }
@@ -78,13 +78,13 @@ function generatePlayerStats(
   const config = getPositionConfig(jerseyNumber);
   const minutesFactor = minutes / 80;
 
-  const speedBonus = ((player.speed || 50) - 50) / 5;
-  const powerBonus = ((player.power || 50) - 50) / 6;
-  const metresVariance = 0.7 + Math.random() * 0.6;
+  const speedBonus = ((player.speed || 50) - 50) / 4;
+  const powerBonus = ((player.power || 50) - 50) / 5;
+  const metresVariance = 0.75 + Math.random() * 0.5;
   const metres = Math.max(0, Math.round((config.metresBase + speedBonus + powerBonus) * minutesFactor * metresVariance));
 
-  const staminaBonus = ((player.stamina || 50) - 50) / 10;
-  const tacklesVariance = 0.75 + Math.random() * 0.5;
+  const staminaBonus = ((player.stamina || 50) - 50) / 8;
+  const tacklesVariance = 0.8 + Math.random() * 0.4;
   const tackles = Math.max(0, Math.round((config.tacklesBase + staminaBonus) * minutesFactor * tacklesVariance));
 
   const missChance = getMissChance(player.tackling || 50);
@@ -102,6 +102,45 @@ function generatePlayerStats(
   }
 
   return { metres, tackles, missedTackles, errors };
+}
+
+// NEW: Calculate player match rating (1-10)
+function calculatePlayerRating(
+  stats: { metres: number; tackles: number; missedTackles: number; errors: number; tries: number; goals: number },
+  jerseyNumber: number,
+  isMotm: boolean
+): number {
+  const config = getPositionConfig(jerseyNumber);
+  
+  let rating = 6.0;
+  
+  // Metres contribution (compare to expected)
+  const metresRatio = stats.metres / (config.metresBase * 0.9);
+  rating += Math.min(1.5, (metresRatio - 1) * 1.5);
+  
+  // Tackles contribution (compare to expected)
+  const tacklesRatio = stats.tackles / (config.tacklesBase * 0.9);
+  rating += Math.min(1.0, (tacklesRatio - 1) * 1.0);
+  
+  // Try bonus
+  rating += stats.tries * 0.8;
+  
+  // Goal bonus
+  rating += stats.goals * 0.3;
+  
+  // Missed tackles penalty
+  rating -= stats.missedTackles * 0.15;
+  
+  // Errors penalty
+  rating -= stats.errors * 0.25;
+  
+  // MOTM bonus - minimum 8.5
+  if (isMotm) {
+    rating = Math.max(rating, 8.5);
+  }
+  
+  // Clamp between 1 and 10
+  return Math.min(10, Math.max(1, Math.round(rating * 10) / 10));
 }
 
 function distributeTries(
@@ -494,6 +533,13 @@ export async function GET(request: Request) {
             const goalsAttempted = isKicker ? homeTries + (homePen > 0 ? Math.ceil(homePen / 2) + 1 : 0) : 0;
             const points = (tries * 4) + (goalsMade * 2);
             
+            const isMotm = motmPlayer?.id === playerId;
+            const rating = calculatePlayerRating(
+              { metres: stats.metres, tackles: stats.tackles, missedTackles: stats.missedTackles, errors: stats.errors, tries, goals: goalsMade },
+              jerseyNumber,
+              isMotm
+            );
+            
             homePlayerStats.push({
               fixture_id: fixture.id,
               player_id: playerId,
@@ -509,7 +555,8 @@ export async function GET(request: Request) {
               tackles: minutes > 0 ? stats.tackles : 0,
               missed_tackles: minutes > 0 ? stats.missedTackles : 0,
               errors: minutes > 0 ? stats.errors : 0,
-              minutes_played: minutes
+              minutes_played: minutes,
+              rating: rating
             });
           }
         }
@@ -532,6 +579,13 @@ export async function GET(request: Request) {
             const goalsAttempted = isKicker ? awayTries + (awayPen > 0 ? Math.ceil(awayPen / 2) + 1 : 0) : 0;
             const points = (tries * 4) + (goalsMade * 2);
             
+            const isMotm = motmPlayer?.id === playerId;
+            const rating = calculatePlayerRating(
+              { metres: stats.metres, tackles: stats.tackles, missedTackles: stats.missedTackles, errors: stats.errors, tries, goals: goalsMade },
+              jerseyNumber,
+              isMotm
+            );
+            
             awayPlayerStats.push({
               fixture_id: fixture.id,
               player_id: playerId,
@@ -547,7 +601,8 @@ export async function GET(request: Request) {
               tackles: minutes > 0 ? stats.tackles : 0,
               missed_tackles: minutes > 0 ? stats.missedTackles : 0,
               errors: minutes > 0 ? stats.errors : 0,
-              minutes_played: minutes
+              minutes_played: minutes,
+              rating: rating
             });
           }
         }
@@ -688,10 +743,7 @@ export async function GET(request: Request) {
       }
     }
     
-    // ============================================
     // TRAINING
-    // ============================================
-    
     const { data: trainingPlayers } = await supabase
       .from('players')
       .select('*')
@@ -744,7 +796,6 @@ export async function GET(request: Request) {
             updates.overall = newOverall;
             improvements++;
             
-            // Track OVR change for UI arrows
             if (newOverall !== player.overall) {
               updates.ovr_change = newOverall - player.overall;
               updates.ovr_changed_at = new Date().toISOString();
