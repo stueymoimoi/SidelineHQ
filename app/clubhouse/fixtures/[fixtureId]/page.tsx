@@ -39,12 +39,15 @@ interface PlayerStats {
   ovr: number;
   points: number;
   tries: number;
+  try_assists: number;
   goals_made: number;
   goals_attempted: number;
   metres: number;
   tackles: number;
   missed_tackles: number;
   errors: number;
+  line_breaks: number;
+  tackle_breaks: number;
   minutes_played: number;
   rating: number;
 }
@@ -58,7 +61,7 @@ interface Fixture {
   played: boolean;
 }
 
-type SortKey = 'jersey_number' | 'rating' | 'metres' | 'tackles' | 'tries' | 'points' | 'errors';
+type SortKey = 'jersey_number' | 'rating' | 'metres' | 'tackles' | 'tries' | 'try_assists' | 'points' | 'errors' | 'line_breaks' | 'tackle_breaks';
 
 export default function MatchCentrePage() {
   const [loading, setLoading] = useState(true);
@@ -82,7 +85,6 @@ export default function MatchCentrePage() {
 
   const loadData = async () => {
     try {
-      // Get fixture
       const { data: fixtureData } = await supabase
         .from('fixtures')
         .select('*')
@@ -96,7 +98,6 @@ export default function MatchCentrePage() {
 
       setFixture(fixtureData);
 
-      // Get match result
       const { data: resultData } = await supabase
         .from('match_results')
         .select('*')
@@ -105,7 +106,6 @@ export default function MatchCentrePage() {
 
       setResult(resultData);
 
-      // Get teams
       const { data: homeTeamData } = await supabase
         .from('teams')
         .select('*')
@@ -121,7 +121,6 @@ export default function MatchCentrePage() {
       setHomeTeam(homeTeamData);
       setAwayTeam(awayTeamData);
 
-      // Get player stats
       const { data: statsData } = await supabase
         .from('player_match_stats')
         .select('*')
@@ -145,14 +144,14 @@ export default function MatchCentrePage() {
       setSortAsc(!sortAsc);
     } else {
       setSortKey(key);
-      setSortAsc(key === 'jersey_number'); // Default asc for jersey, desc for stats
+      setSortAsc(key === 'jersey_number');
     }
   };
 
   const sortStats = (stats: PlayerStats[]) => {
     return [...stats].sort((a, b) => {
-      const aVal = a[sortKey];
-      const bVal = b[sortKey];
+      const aVal = a[sortKey] ?? 0;
+      const bVal = b[sortKey] ?? 0;
       if (sortAsc) return aVal > bVal ? 1 : -1;
       return aVal < bVal ? 1 : -1;
     });
@@ -338,11 +337,13 @@ export default function MatchCentrePage() {
                   <SortHeader label="#" sortKeyName="jersey_number" className="w-12" />
                   <th className="px-2 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Player</th>
                   <SortHeader label="Rtg" sortKeyName="rating" />
-                  <SortHeader label="Pts" sortKeyName="points" />
-                  <SortHeader label="Tries" sortKeyName="tries" />
-                  <SortHeader label="Metres" sortKeyName="metres" />
-                  <SortHeader label="Tackles" sortKeyName="tackles" />
-                  <SortHeader label="Errors" sortKeyName="errors" />
+                  <SortHeader label="T" sortKeyName="tries" />
+                  <SortHeader label="TA" sortKeyName="try_assists" />
+                  <SortHeader label="Mtrs" sortKeyName="metres" />
+                  <SortHeader label="Tkls" sortKeyName="tackles" />
+                  <SortHeader label="LB" sortKeyName="line_breaks" />
+                  <SortHeader label="TB" sortKeyName="tackle_breaks" />
+                  <SortHeader label="Err" sortKeyName="errors" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -369,10 +370,14 @@ export default function MatchCentrePage() {
                           {stat.rating.toFixed(1)}
                         </span>
                       </td>
-                      <td className="px-2 py-3 text-white">{stat.points}</td>
                       <td className="px-2 py-3">
-                        <span className={stat.tries > 0 ? 'text-green-400 font-bold' : 'text-gray-400'}>
+                        <span className={stat.tries > 0 ? 'text-green-400 font-bold' : 'text-gray-500'}>
                           {stat.tries}
+                        </span>
+                      </td>
+                      <td className="px-2 py-3">
+                        <span className={stat.try_assists > 0 ? 'text-blue-400 font-bold' : 'text-gray-500'}>
+                          {stat.try_assists || 0}
                         </span>
                       </td>
                       <td className="px-2 py-3">
@@ -391,6 +396,16 @@ export default function MatchCentrePage() {
                         </div>
                       </td>
                       <td className="px-2 py-3">
+                        <span className={stat.line_breaks > 0 ? 'text-purple-400 font-bold' : 'text-gray-500'}>
+                          {stat.line_breaks || 0}
+                        </span>
+                      </td>
+                      <td className="px-2 py-3">
+                        <span className={stat.tackle_breaks >= 3 ? 'text-orange-400 font-bold' : stat.tackle_breaks > 0 ? 'text-orange-400' : 'text-gray-500'}>
+                          {stat.tackle_breaks || 0}
+                        </span>
+                      </td>
+                      <td className="px-2 py-3">
                         <span className={stat.errors > 2 ? 'text-red-400' : stat.errors > 0 ? 'text-orange-400' : 'text-gray-500'}>
                           {stat.errors}
                         </span>
@@ -401,20 +416,33 @@ export default function MatchCentrePage() {
               </tbody>
             </table>
           </div>
+          
+          {/* Legend */}
+          <div className="px-4 py-3 bg-gray-700/50 border-t border-gray-700">
+            <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+              <span><strong>T</strong> = Tries</span>
+              <span><strong>TA</strong> = Try Assists</span>
+              <span><strong>Mtrs</strong> = Metres</span>
+              <span><strong>Tkls</strong> = Tackles (missed)</span>
+              <span><strong>LB</strong> = Line Breaks</span>
+              <span><strong>TB</strong> = Tackle Breaks</span>
+              <span><strong>Err</strong> = Errors</span>
+            </div>
+          </div>
         </div>
 
         {/* Team Totals */}
         <div className="mt-6 bg-gray-800 rounded-xl p-4">
           <h3 className="text-white font-bold mb-3">Team Totals</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             <div className="bg-gray-700 rounded-lg p-3 text-center">
-              <p className="text-gray-400 text-xs">Total Metres</p>
+              <p className="text-gray-400 text-xs">Metres</p>
               <p className="text-white text-2xl font-bold">
                 {activeStats.reduce((sum, s) => sum + s.metres, 0)}
               </p>
             </div>
             <div className="bg-gray-700 rounded-lg p-3 text-center">
-              <p className="text-gray-400 text-xs">Total Tackles</p>
+              <p className="text-gray-400 text-xs">Tackles</p>
               <p className="text-white text-2xl font-bold">
                 {activeStats.reduce((sum, s) => sum + s.tackles, 0)}
               </p>
@@ -426,29 +454,38 @@ export default function MatchCentrePage() {
               </p>
             </div>
             <div className="bg-gray-700 rounded-lg p-3 text-center">
-              <p className="text-gray-400 text-xs">Errors</p>
-              <p className="text-white text-2xl font-bold">
-                {activeStats.reduce((sum, s) => sum + s.errors, 0)}
+              <p className="text-gray-400 text-xs">Try Assists</p>
+              <p className="text-blue-400 text-2xl font-bold">
+                {activeStats.reduce((sum, s) => sum + (s.try_assists || 0), 0)}
+              </p>
+            </div>
+            <div className="bg-gray-700 rounded-lg p-3 text-center">
+              <p className="text-gray-400 text-xs">Line Breaks</p>
+              <p className="text-purple-400 text-2xl font-bold">
+                {activeStats.reduce((sum, s) => sum + (s.line_breaks || 0), 0)}
+              </p>
+            </div>
+            <div className="bg-gray-700 rounded-lg p-3 text-center">
+              <p className="text-gray-400 text-xs">Tackle Breaks</p>
+              <p className="text-orange-400 text-2xl font-bold">
+                {activeStats.reduce((sum, s) => sum + (s.tackle_breaks || 0), 0)}
               </p>
             </div>
           </div>
         </div>
 
         {/* Goal Kicking */}
-        {activeStats.some(s => s.goals_attempted > 0) && (
+        {activeStats.some(s => s.goals_made > 0) && (
           <div className="mt-6 bg-gray-800 rounded-xl p-4">
             <h3 className="text-white font-bold mb-3">Goal Kicking</h3>
             <div className="space-y-2">
               {activeStats
-                .filter(s => s.goals_attempted > 0)
+                .filter(s => s.goals_made > 0)
                 .map(s => (
                   <div key={s.id} className="flex items-center justify-between bg-gray-700 rounded-lg p-3">
                     <span className="text-white">{s.player_name}</span>
-                    <span className={`font-bold ${s.goals_made === s.goals_attempted ? 'text-green-400' : 'text-yellow-400'}`}>
-                      {s.goals_made}/{s.goals_attempted}
-                      <span className="text-gray-500 text-sm ml-2">
-                        ({Math.round((s.goals_made / s.goals_attempted) * 100)}%)
-                      </span>
+                    <span className="text-green-400 font-bold">
+                      {s.goals_made} goals
                     </span>
                   </div>
                 ))}
