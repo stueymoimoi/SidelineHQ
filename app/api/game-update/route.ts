@@ -319,13 +319,13 @@ const { data: homeCoach } = await supabase
   .from('coaches')
   .select('id')
   .eq('team_id', fixture.home_team_id)
-  .single();
+  .maybeSingle();
 
 const { data: awayCoach } = await supabase
   .from('coaches')
   .select('id')
   .eq('team_id', fixture.away_team_id)
-  .single();
+  .maybeSingle();
 
 const COACHING_BONUS = 8; // Huge advantage for managed teams!
 
