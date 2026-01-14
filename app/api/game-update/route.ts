@@ -843,6 +843,213 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (hasAwayCoach 
     }
     
     logs.push(`Training: ${improvements} players improved`);
+    // ========================================
+    // FREE AGENT PROCESSING
+    // ========================================
+    
+    // Get all pending free agents with claims
+    const { data: freeAgentsWithClaims } = await supabase
+      .from('free_agents')
+      .select('*, players(*)')
+      .eq('claimed', false)
+      .lte('available_round', currentRound);
+    
+    let freeAgentSignings = 0;
+    const freeAgentNotifications: any[] = [];
+    
+    for (const freeAgent of (freeAgentsWithClaims || [])) {
+      // Get all claims for this free agent
+      const { data: claims } = await supabase
+        .from('free_agent_claims')
+        .select('*')
+        .eq('free_agent_id', freeAgent.id);
+      
+      if (!claims || claims.length === 0) continue;
+      
+      const player = freeAgent.players;
+      if (!player) continue;
+      
+      // Determine player type
+      const isAmbitiousStar = player.overall >= 43;
+      const isYoungProspect = player.age <= 21 && player.overall < 43;
+      const isVeteran = player.age >= 30 && player.overall < 43;
+      // Journeyman is everyone else (age 22-29, OVR < 43)
+      
+      // Calculate attractiveness score for each claiming team
+      const teamScores: { teamId: string; score: number; releasePlayerId: string | null }[] = [];
+      
+      for (const claim of claims) {
+        const claimingTeam = teamsMap[claim.team_id];
+        if (!claimingTeam) continue;
+        
+        // Get claiming team's squad size
+        const squadSize = allPlayers.filter(p => p.team_id === claim.team_id).length;
+        if (squadSize >= 25) continue; // Skip if squad is full
+        
+        // Check if team needs this position
+        const teamPositions = allPlayers
+          .filter(p => p.team_id === claim.team_id)
+          .map(p => p.position);
+        const needsPosition = teamPositions.filter(pos => pos === player.position).length < 2;
+        
+        // BASE SCORE
+        let score = 0;
+        
+        // Division factor (Div 1 = 45 points, Div 10 = 0 points)
+        const divisionScore = (10 - claimingTeam.division) * 5;
+        
+        // Ladder position within division (1st = 9 points, 10th = 0 points)
+        // Calculate ladder position for this team
+        const divisionTeams = teams.filter(t => t.division === claimingTeam.division);
+        const sortedDivision = divisionTeams.sort((a, b) => {
+          const aPoints = (a.wins * 2) + a.draws;
+          const bPoints = (b.wins * 2) + b.draws;
+          if (bPoints !== aPoints) return bPoints - aPoints;
+          return (b.points_for - b.points_against) - (a.points_for - a.points_against);
+        });
+        const ladderPos = sortedDivision.findIndex(t => t.id === claim.team_id) + 1;
+        const ladderScore = (10 - ladderPos);
+        
+        // Win record bonus
+        const winBonus = (claimingTeam.wins * 2) + claimingTeam.draws;
+        
+        // Squad size factor (smaller squad = more opportunity)
+        const squadBonus = (25 - squadSize) * 2;
+        
+        // Position need bonus
+        const positionBonus = needsPosition ? 10 : 0;
+        
+        // Apply base factors
+        score += divisionScore;
+        score += ladderScore;
+        score += winBonus;
+        score += squadBonus;
+        score += positionBonus;
+        
+        // PLAYER TYPE MODIFIERS
+        if (isAmbitiousStar) {
+          // Stars prefer higher divisions and winning teams
+          score += divisionScore * 0.5; // Extra 50% division weight
+          if (ladderPos <= 3) score += 20; // Top 3 in division bonus
+          if (claimingTeam.division >= 8) score -= 30; // Heavily penalize low divisions
+        }
+        
+        if (isYoungProspect) {
+          // Young players want game time
+          score += squadBonus * 0.5; // Extra squad size weight
+          score += positionBonus * 0.5; // Extra position need weight
+          score -= divisionScore * 0.5; // Care less about prestige
+        }
+        
+        if (isVeteran) {
+          // Veterans are grateful for any interest
+          score += 5; // Flat bonus
+          score -= divisionScore * 0.7; // Care much less about prestige
+        }
+        
+        // Random factor (0-10) for unpredictability
+        score += Math.random() * 10;
+        
+        teamScores.push({
+          teamId: claim.team_id,
+          score,
+          releasePlayerId: claim.release_player_id
+        });
+      }
+      
+      if (teamScores.length === 0) continue;
+      
+      // Sort by score (highest wins)
+      teamScores.sort((a, b) => b.score - a.score);
+      const winner = teamScores[0];
+      const winningTeam = teamsMap[winner.teamId];
+      
+      // Process the signing
+      // 1. Update player's team_id
+      await supabase
+        .from('players')
+        .update({ team_id: winner.teamId })
+        .eq('id', player.id);
+      
+      // 2. Mark free agent as claimed
+      await supabase
+        .from('free_agents')
+        .update({ claimed: true })
+        .eq('id', freeAgent.id);
+      
+      // 3. If winner needs to release a player, do it
+      if (winner.releasePlayerId) {
+        await supabase
+          .from('players')
+          .update({ team_id: null })
+          .eq('id', winner.releasePlayerId);
+        
+        // Add released player to free agents
+        await supabase.from('free_agents').insert({
+          player_id: winner.releasePlayerId,
+          released_by_team_id: winner.teamId,
+          available_round: currentRound + 1,
+          claimed: false
+        });
+      }
+      
+      // 4. Delete all claims for this free agent
+      await supabase
+        .from('free_agent_claims')
+        .delete()
+        .eq('free_agent_id', freeAgent.id);
+      
+      // 5. Create notifications
+      // Winner notification
+      freeAgentNotifications.push({
+        team_id: winner.teamId,
+        type: 'free_agent_signed',
+        title: '🎉 Free Agent Signed!',
+        message: `${player.first_name} ${player.last_name} (${player.position}, ${player.overall} OVR) has joined your squad!${teamScores.length > 1 ? ` He chose you over ${teamScores.length - 1} other team${teamScores.length > 2 ? 's' : ''}.` : ''}`,
+        player_id: player.id
+      });
+      
+      // Loser notifications
+      for (let i = 1; i < teamScores.length; i++) {
+        const loser = teamScores[i];
+        let reason = '';
+        if (isAmbitiousStar && teamsMap[loser.teamId]?.division > winningTeam.division) {
+          reason = ' He wanted a higher division club.';
+        } else if (isYoungProspect) {
+          reason = ' He wanted more game time.';
+        } else {
+          reason = '';
+        }
+        
+        freeAgentNotifications.push({
+          team_id: loser.teamId,
+          type: 'free_agent_lost',
+          title: '😢 Claim Unsuccessful',
+          message: `${player.first_name} ${player.last_name} signed with ${winningTeam.name} instead.${reason}`,
+          player_id: player.id
+        });
+      }
+      
+      // Notification to releasing team (if different from winner)
+      if (freeAgent.released_by_team_id && freeAgent.released_by_team_id !== winner.teamId) {
+        freeAgentNotifications.push({
+          team_id: freeAgent.released_by_team_id,
+          type: 'free_agent_update',
+          title: '📋 Former Player Update',
+          message: `${player.first_name} ${player.last_name} has signed with ${winningTeam.name}.`,
+          player_id: player.id
+        });
+      }
+      
+      freeAgentSignings++;
+      logs.push(`Free Agent: ${player.first_name} ${player.last_name} → ${winningTeam.name}`);
+    }
+    
+    if (freeAgentNotifications.length > 0) {
+      await supabase.from('notifications').insert(freeAgentNotifications);
+    }
+    
+    logs.push(`Free Agents: ${freeAgentSignings} players signed`);
     
     return NextResponse.json({
       success: true,
