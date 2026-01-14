@@ -431,7 +431,23 @@ export default function SquadPage() {
         return;
       }
 
-      // 2. Remove player from team
+      // 2. Remove player from any tactics positions
+      const positionFields = [
+        'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
+        'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_hooker', 'pos_prop_r',
+        'pos_second_row_l', 'pos_second_row_r', 'pos_lock',
+        'bench_1', 'bench_2', 'bench_3', 'bench_4',
+        'captain', 'goal_kicker'
+      ];
+      
+      for (const field of positionFields) {
+        await supabase
+          .from('team_tactics')
+          .update({ [field]: null })
+          .eq(field, selectedPlayer.id);
+      }
+
+      // 3. Remove player from team
       const { error: updateError } = await supabase
         .from('players')
         .update({ team_id: null })
