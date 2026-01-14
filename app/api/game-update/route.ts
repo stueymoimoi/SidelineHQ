@@ -7,6 +7,8 @@
  * Schedule: 0 8 * * 0,2,4 (8am UTC = 6pm AEST)
  */
 
+export const maxDuration = 60;
+
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
