@@ -175,13 +175,23 @@ export default function FreeAgentsPage() {
   };
 
   const submitRequest = async (freeAgent: FreeAgent, releasePlayerId: string | null) => {
-    if (!teamId) return;
     setProcessing(true);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: coach } = await supabase
+        .from('coaches')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!coach?.team_id) return;
+
       await supabase.from('free_agent_claims').insert({
         free_agent_id: freeAgent.id,
-        team_id: teamId,
+        team_id: coach.team_id,
         release_player_id: releasePlayerId
       });
 
