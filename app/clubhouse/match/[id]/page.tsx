@@ -121,7 +121,7 @@ export default function MatchPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6">
         <Link
           href="/clubhouse"
           className="text-sm text-gray-400 hover:text-white mb-4 inline-block"
@@ -161,7 +161,7 @@ export default function MatchPage() {
         </div>
 
         {/* Stats Tables */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid lg:grid-cols-2 gap-6">
           <div className="bg-gray-800 rounded-lg p-4">
             <h3 className="font-bold mb-3 text-lg">{homeTeam?.name}</h3>
             <StatsTable stats={homeStats} motmId={matchResult?.motm_player_id} />
@@ -175,7 +175,7 @@ export default function MatchPage() {
 
         {/* Legend */}
         <div className="mt-4 text-center text-xs text-gray-500">
-          RTG = Match Rating | MIN = Minutes | MTR = Metres | TRY = Tries | GL = Goals | TKL = Tackles | MT = Missed Tackles | ERR = Errors | PTS = Points
+          RTG = Rating | MIN = Minutes | MTR = Metres | TRY = Tries | TA = Try Assists | GL = Goals | LB = Line Breaks | TB = Tackle Breaks | TKL = Tackles | MT = Missed Tackles | ERR = Errors | PTS = Points
         </div>
       </div>
     </div>
@@ -207,7 +207,10 @@ function StatsTable({ stats, motmId }: { stats: any[], motmId?: string }) {
             <th className="pb-2 pr-1 text-center">MIN</th>
             <th className="pb-2 pr-1 text-center">MTR</th>
             <th className="pb-2 pr-1 text-center">TRY</th>
+            <th className="pb-2 pr-1 text-center">TA</th>
             <th className="pb-2 pr-1 text-center">GL</th>
+            <th className="pb-2 pr-1 text-center">LB</th>
+            <th className="pb-2 pr-1 text-center">TB</th>
             <th className="pb-2 pr-1 text-center">TKL</th>
             <th className="pb-2 pr-1 text-center">MT</th>
             <th className="pb-2 pr-1 text-center">ERR</th>
@@ -221,7 +224,7 @@ function StatsTable({ stats, motmId }: { stats: any[], motmId?: string }) {
             return (
               <tr key={stat.id} className={`border-t border-gray-700 ${isMotm ? 'bg-yellow-900/20' : ''}`}>
                 <td className="py-2 pr-1 text-gray-500">{stat.jersey_number}</td>
-                <td className="py-2 pr-1 font-medium">
+                <td className="py-2 pr-1 font-medium whitespace-nowrap">
                   {stat.player_name}
                   {isMotm && <span className="ml-1 text-yellow-500">⭐</span>}
                 </td>
@@ -231,7 +234,10 @@ function StatsTable({ stats, motmId }: { stats: any[], motmId?: string }) {
                 <td className="py-2 pr-1 text-center text-gray-400">{stat.minutes_played || 0}</td>
                 <td className="py-2 pr-1 text-center">{stat.metres || 0}</td>
                 <td className="py-2 pr-1 text-center text-green-400">{stat.tries || 0}</td>
+                <td className="py-2 pr-1 text-center text-teal-400">{stat.try_assists || 0}</td>
                 <td className="py-2 pr-1 text-center text-blue-400">{stat.goals_made || 0}</td>
+                <td className="py-2 pr-1 text-center text-sky-400">{stat.line_breaks || 0}</td>
+                <td className="py-2 pr-1 text-center text-indigo-400">{stat.tackle_breaks || 0}</td>
                 <td className="py-2 pr-1 text-center">{stat.tackles || 0}</td>
                 <td className="py-2 pr-1 text-center text-red-400">{stat.missed_tackles || 0}</td>
                 <td className="py-2 pr-1 text-center text-orange-400">{stat.errors || 0}</td>
