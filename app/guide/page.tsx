@@ -213,7 +213,7 @@ export default function GuidePage() {
                 </div>
               )}
 
-              {/* Player Stats - UPDATED WITH TIER LABELS */}
+              {/* Player Stats */}
               {activeSection === 'stats' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -258,40 +258,32 @@ export default function GuidePage() {
 
                   <h3 className="text-xl text-white mt-6">Stat Tier Labels</h3>
                   <p className="text-gray-300">
-                    Stats are shown as descriptive labels, not numbers. This helps you quickly understand a player's strengths and weaknesses:
+                    Stats are shown as descriptive labels, not numbers:
                   </p>
                   <div className="grid grid-cols-4 gap-2 mt-3">
                     <div className="bg-red-500/30 rounded p-2 text-center">
                       <p className="text-red-400 font-bold m-0">NONE</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 1</p>
                     </div>
                     <div className="bg-orange-600/30 rounded p-2 text-center">
                       <p className="text-orange-400 font-bold m-0">POOR</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 2</p>
                     </div>
                     <div className="bg-orange-500/30 rounded p-2 text-center">
                       <p className="text-orange-300 font-bold m-0">OK</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 3</p>
                     </div>
                     <div className="bg-yellow-500/30 rounded p-2 text-center">
                       <p className="text-yellow-400 font-bold m-0">GOOD</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 4</p>
                     </div>
                     <div className="bg-lime-500/30 rounded p-2 text-center">
                       <p className="text-lime-400 font-bold m-0">GREAT</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 5</p>
                     </div>
                     <div className="bg-green-500/30 rounded p-2 text-center">
                       <p className="text-green-400 font-bold m-0">EXCELLENT</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 6</p>
                     </div>
                     <div className="bg-cyan-500/30 rounded p-2 text-center">
                       <p className="text-cyan-400 font-bold m-0">ELITE</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 7</p>
                     </div>
                     <div className="bg-yellow-500/30 border border-yellow-500/50 rounded p-2 text-center">
                       <p className="text-yellow-400 font-bold m-0">LEGEND</p>
-                      <p className="text-gray-400 text-xs m-0">Tier 8</p>
                     </div>
                   </div>
 
@@ -299,65 +291,10 @@ export default function GuidePage() {
                   <p className="text-gray-300">
                     A player's OVR is the sum of all 7 stat tiers (range: 7-56). Higher OVR = better player overall.
                   </p>
-                  <div className="grid grid-cols-3 gap-2 mt-3">
-                    <div className="bg-gray-700 rounded p-2 text-center">
-                      <p className="text-gray-400 text-xs m-0">Developing</p>
-                      <p className="text-white font-bold m-0">7-20</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-2 text-center">
-                      <p className="text-gray-400 text-xs m-0">First Grader</p>
-                      <p className="text-white font-bold m-0">21-35</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-2 text-center">
-                      <p className="text-gray-400 text-xs m-0">Star / Elite</p>
-                      <p className="text-white font-bold m-0">36-56</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
-                    <p className="text-blue-400 m-0">
-                      <strong>💡 Discovery:</strong> Part of the fun is experimenting! Find out which stats matter most for each position through trial and error. A Prop with LEGEND speed might surprise you...
-                    </p>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">Dominant Side</h3>
-                  <p className="text-gray-300">
-                    Edge players (Wingers, Centres, Second Rows) have a dominant side preference:
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <div className="bg-gray-700 rounded p-3 flex items-center gap-3">
-                      <span className="bg-orange-500 text-white px-2 py-1 rounded font-bold">L</span>
-                      <div>
-                        <p className="text-white font-bold m-0">Left-Sided</p>
-                        <p className="text-gray-400 text-sm m-0">Best on the left edge</p>
-                      </div>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex items-center gap-3">
-                      <span className="bg-blue-500 text-white px-2 py-1 rounded font-bold">R</span>
-                      <div>
-                        <p className="text-white font-bold m-0">Right-Sided</p>
-                        <p className="text-gray-400 text-sm m-0">Best on the right edge</p>
-                      </div>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex items-center gap-3">
-                      <span className="bg-gray-500 text-white px-2 py-1 rounded font-bold">L/R</span>
-                      <div>
-                        <p className="text-white font-bold m-0">Versatile</p>
-                        <p className="text-gray-400 text-sm m-0">Plays both sides equally</p>
-                      </div>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex items-center gap-3">
-                      <span className="bg-yellow-500 text-white px-2 py-1 rounded font-bold">?</span>
-                      <div>
-                        <p className="text-white font-bold m-0">Developing</p>
-                        <p className="text-gray-400 text-sm m-0">Side not yet determined</p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* NEW: Match Stats Section */}
+              {/* Match Stats */}
               {activeSection === 'matchstats' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -365,72 +302,40 @@ export default function GuidePage() {
                   </h2>
 
                   <p className="text-gray-300">
-                    After each match, detailed statistics are recorded for every player. Click on any completed fixture to view the Match Centre with full stats.
+                    After each match, detailed statistics are recorded for every player. Click on any completed fixture to view the Match Centre.
                   </p>
 
                   <h3 className="text-xl text-white mt-6">Key Match Statistics</h3>
                   <div className="space-y-3">
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🏉 Tries (T)</p>
-                      <p className="text-gray-400 text-sm m-0">Tries scored. 4 points each. The ultimate attacking stat!</p>
+                      <p className="text-gray-400 text-sm m-0">Tries scored. 4 points each.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-blue-400 font-bold m-0">🤝 Try Assists (TA)</p>
-                      <p className="text-gray-400 text-sm m-0">Passes that led directly to tries. Shows playmaking ability. Halfbacks and hookers often lead this stat.</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🏃 Metres (Mtrs)</p>
-                      <p className="text-gray-400 text-sm m-0">Total metres gained. Backs should aim for 150+, forwards for 180+ to get good ratings.</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🛡️ Tackles (Tkls)</p>
-                      <p className="text-gray-400 text-sm m-0">Successful tackles made. Missed tackles shown in red. Middle forwards make the most.</p>
+                      <p className="text-gray-400 text-sm m-0">Passes that led directly to tries.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-purple-400 font-bold m-0">💥 Line Breaks (LB)</p>
-                      <p className="text-gray-400 text-sm m-0">Breaking through the defensive line. Based on Speed + Power. Backs get more opportunities.</p>
+                      <p className="text-gray-400 text-sm m-0">Breaking through the defensive line. Based on Speed + Power.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-orange-400 font-bold m-0">💪 Tackle Breaks (TB)</p>
-                      <p className="text-gray-400 text-sm m-0">Busting out of tackles. Based on Power + Strength. Forwards excel at this.</p>
+                      <p className="text-gray-400 text-sm m-0">Busting out of tackles. Based on Power + Strength.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
-                      <p className="text-red-400 font-bold m-0">❌ Errors (Err)</p>
-                      <p className="text-gray-400 text-sm m-0">Handling mistakes. Low Passing stat = more errors. Keep this number down!</p>
+                      <p className="text-white font-bold m-0">🏃 Metres (Mtrs)</p>
+                      <p className="text-gray-400 text-sm m-0">Total metres gained. Backs aim for 150+, forwards 180+.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">⭐ Rating (Rtg)</p>
-                      <p className="text-gray-400 text-sm m-0">Overall match performance (1-10). Based on all stats combined. 8+ is excellent, 9+ is MOTM territory.</p>
+                      <p className="text-white font-bold m-0">🛡️ Tackles (Tkls)</p>
+                      <p className="text-gray-400 text-sm m-0">Successful tackles made.</p>
                     </div>
                   </div>
-
-                  <h3 className="text-xl text-white mt-6">Man of the Match (MOTM)</h3>
-                  <p className="text-gray-300">
-                    Each match awards one player MOTM based on their influence on the game:
-                  </p>
-                  <ul className="text-gray-300 space-y-2">
-                    <li>Tries and try assists carry the most weight</li>
-                    <li>In low-scoring games, metres and tackles matter more</li>
-                    <li>In high-scoring shootouts, tries dominate</li>
-                    <li>Forwards get bonus credit for metres in tight games</li>
-                    <li>Captains get a slight edge in close decisions</li>
-                    <li>Clean games (0 errors) are rewarded</li>
-                  </ul>
-
-                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
-                    <p className="text-yellow-400 m-0">
-                      <strong>💡 MOTM Formula:</strong> The MOTM reason tells you WHY they won — "2 tries, 1 assist" or "194 metres" or "42 tackles". Use this to understand what wins games!
-                    </p>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">Leaderboards</h3>
-                  <p className="text-gray-300">
-                    Check the Leaderboards page to see who's leading your division in each stat category. Track your players' progress throughout the season!
-                  </p>
                 </div>
               )}
 
-              {/* Tactics - UPDATED WITH CAPTAIN */}
+              {/* Tactics */}
               {activeSection === 'tactics' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -441,71 +346,30 @@ export default function GuidePage() {
                     Your tactics page is where you set your starting 13, bench, captain, goal kicker, and game plan.
                   </p>
 
-                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
-                    <p className="text-blue-400 m-0">
-                      <strong>💾 Auto-Save:</strong> All changes save automatically — no save button needed!
-                    </p>
-                  </div>
-
                   <h3 className="text-xl text-white mt-6">Captain</h3>
                   <div className="bg-gray-700 rounded p-3">
                     <p className="text-white font-bold m-0">👑 Team Captain</p>
-                    <p className="text-gray-400 text-sm m-0">Select your team's leader. Captains get a small boost to their match rating and a slight edge in MOTM voting. Choose someone who plays every week!</p>
+                    <p className="text-gray-400 text-sm m-0">Captains get a small boost to their match rating and a slight edge in MOTM voting.</p>
                   </div>
 
                   <h3 className="text-xl text-white mt-6">Attack Styles</h3>
                   <div className="space-y-2">
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">📋 Structured</p>
-                      <p className="text-gray-400 text-sm m-0">Balanced, safe approach. Run set plays.</p>
+                      <p className="text-gray-400 text-sm m-0">Balanced, safe approach.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">⬅️ Raid Left</p>
-                      <p className="text-gray-400 text-sm m-0">Target the left edge with your outside backs.</p>
+                      <p className="text-white font-bold m-0">⬅️ Raid Left / ➡️ Raid Right</p>
+                      <p className="text-gray-400 text-sm m-0">Target the edge with your outside backs.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">💪 Up the Guts</p>
-                      <p className="text-gray-400 text-sm m-0">Punch through the middle with your forwards. Best with strong Props & Lock.</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">➡️ Raid Right</p>
-                      <p className="text-gray-400 text-sm m-0">Target the right edge with your outside backs.</p>
+                      <p className="text-gray-400 text-sm m-0">Punch through the middle with your forwards.</p>
                     </div>
                     <div className="bg-gray-700 rounded p-3">
                       <p className="text-white font-bold m-0">🎲 Off the Cuff</p>
-                      <p className="text-gray-400 text-sm m-0">High risk, high reward! Play on instinct. Can win big or backfire badly.</p>
+                      <p className="text-gray-400 text-sm m-0">High risk, high reward!</p>
                     </div>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">Defense Styles</h3>
-                  <div className="space-y-2">
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🏃 Line Speed</p>
-                      <p className="text-gray-400 text-sm m-0">Rush up and pressure the ball carrier.</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🛡️ Shift Left</p>
-                      <p className="text-gray-400 text-sm m-0">Overload left side coverage. Counters Raid Right.</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🧱 Brick Wall</p>
-                      <p className="text-gray-400 text-sm m-0">Stack the middle. Counters Up the Guts.</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🛡️ Shift Right</p>
-                      <p className="text-gray-400 text-sm m-0">Overload right side coverage. Counters Raid Left.</p>
-                    </div>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">Goal Kicker</h3>
-                  <p className="text-gray-300">
-                    Choosing the right goal kicker is crucial — conversions can win or lose tight games!
-                  </p>
-                  
-                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
-                    <p className="text-blue-400 m-0">
-                      <strong>💡 Tip:</strong> Some players have hidden goal kicking talent! Try different players as kickers throughout the season — you might find a gem you didn't expect.
-                    </p>
                   </div>
                 </div>
               )}
@@ -518,44 +382,12 @@ export default function GuidePage() {
                   </h2>
 
                   <p className="text-gray-300">
-                    The Film Room lets you scout your next opponent before the match. Knowledge is power!
+                    The Film Room lets you scout your next opponent. You can see their recent form, attack tendency, key threats, and squad.
                   </p>
-
-                  <h3 className="text-xl text-white mt-6">What You Can See</h3>
-                  <div className="space-y-3">
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">📈 Recent Form</p>
-                      <p className="text-gray-400 text-sm m-0">Their last 5 match results with scores</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">⚔️ Attack Tendency</p>
-                      <p className="text-gray-400 text-sm m-0">Where they like to attack — LEFT, RIGHT, or MIDDLE</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🤝 Head to Head</p>
-                      <p className="text-gray-400 text-sm m-0">Previous meetings this season</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">⚠️ Key Threats</p>
-                      <p className="text-gray-400 text-sm m-0">Their top 3 players by overall rating</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">👥 Their Squad</p>
-                      <p className="text-gray-400 text-sm m-0">Top 17 players with positions, age, overall, and dominant side</p>
-                    </div>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">What Stays Hidden</h3>
-                  <ul className="text-gray-300 space-y-2">
-                    <li>❌ Exact defense tactic selection</li>
-                    <li>❌ Player fatigue levels</li>
-                    <li>❌ Their training assignments</li>
-                    <li>❌ Who their captain is</li>
-                  </ul>
 
                   <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 my-4">
                     <p className="text-green-400 m-0">
-                      <strong>💡 Pro Move:</strong> Check where their star players are positioned and their dominant sides. A left-sided centre on the left edge tells you where they'll attack!
+                      <strong>💡 Pro Move:</strong> Check their attack tendency and set your defense to counter it!
                     </p>
                   </div>
                 </div>
@@ -569,23 +401,8 @@ export default function GuidePage() {
                   </h2>
 
                   <p className="text-gray-300">
-                    Training is how you develop and improve your players over time. Assign players to specific training programs to boost their stats.
+                    Training develops your players over time. Assign each player to train a specific stat or Rest to reduce fatigue.
                   </p>
-
-                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
-                    <p className="text-blue-400 m-0">
-                      <strong>💾 Auto-Save:</strong> Training assignments save automatically when you make changes!
-                    </p>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">How Training Works</h3>
-                  <ul className="text-gray-300 space-y-2">
-                    <li>Each player can be assigned to one training focus at a time</li>
-                    <li>Training takes effect between matches</li>
-                    <li>Players build up "training progress" over time — more progress = better chance of stat gains</li>
-                    <li>Younger players and high-potential players develop faster</li>
-                    <li>When a player improves, you'll get a notification!</li>
-                  </ul>
 
                   <h3 className="text-xl text-white mt-6">Training Programs</h3>
                   <div className="space-y-2">
@@ -594,46 +411,13 @@ export default function GuidePage() {
                       <span className="text-gray-400 text-sm">Reduces fatigue significantly</span>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">⚡ Speed</span>
-                      <span className="text-gray-400 text-sm">More metres, line breaks</span>
+                      <span className="text-white">⚡ Speed / 💪 Strength / 💥 Power</span>
+                      <span className="text-gray-400 text-sm">Physical attributes</span>
                     </div>
                     <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">💪 Strength</span>
-                      <span className="text-gray-400 text-sm">Better tackles, tackle breaks</span>
+                      <span className="text-white">🎯 Passing / 🫁 Stamina / 🛡️ Tackling / 🦶 Kicking</span>
+                      <span className="text-gray-400 text-sm">Technical skills</span>
                     </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">💥 Power</span>
-                      <span className="text-gray-400 text-sm">More metres, tackle breaks, tries</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🎯 Passing</span>
-                      <span className="text-gray-400 text-sm">Fewer errors, more try assists</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🫁 Stamina</span>
-                      <span className="text-gray-400 text-sm">More tackles, better late-game</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🛡️ Tackling</span>
-                      <span className="text-gray-400 text-sm">Fewer missed tackles</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🦶 Kicking</span>
-                      <span className="text-gray-400 text-sm">Better goal conversion rate</span>
-                    </div>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">Training Strategy</h3>
-                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
-                    <p className="text-yellow-400 m-0 mb-2"><strong>💡 Use match stats to guide training:</strong></p>
-                    <ul className="text-gray-300 text-sm space-y-1 m-0">
-                      <li>• Player making lots of errors? → Train <strong>Passing</strong></li>
-                      <li>• Player missing tackles? → Train <strong>Tackling</strong></li>
-                      <li>• Player not making metres? → Train <strong>Speed</strong> or <strong>Power</strong></li>
-                      <li>• Player not breaking tackles? → Train <strong>Power</strong> or <strong>Strength</strong></li>
-                      <li>• Player fading in 2nd half? → Train <strong>Stamina</strong></li>
-                      <li>• Player very fatigued? → Assign <strong>Rest</strong></li>
-                    </ul>
                   </div>
                 </div>
               )}
@@ -646,43 +430,24 @@ export default function GuidePage() {
                   </h2>
 
                   <p className="text-gray-300">
-                    Your Development Squad is where future stars emerge. Promote youth players to your senior squad to build for the future.
+                    Your Development Academy produces young talent. Promote youth players to your senior squad once every 6 matchdays.
                   </p>
 
-                  <h3 className="text-xl text-white mt-6">How It Works</h3>
-                  <ul className="text-gray-300 space-y-2">
-                    <li>Youth players are generated from your academy system</li>
-                    <li>You can promote one player at a time from each position group</li>
-                    <li>Youth players start at age 18</li>
-                    <li>There's a cooldown period between promotions</li>
-                  </ul>
-
-                  <h3 className="text-xl text-white mt-6">Position Groups</h3>
-                  <div className="space-y-2">
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🏋️ Forwards</p>
-                      <p className="text-gray-400 text-sm m-0">Props, Second Rows, Locks</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🏃 Backs</p>
-                      <p className="text-gray-400 text-sm m-0">Fullbacks, Wingers, Centres</p>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3">
-                      <p className="text-white font-bold m-0">🧠 Spine</p>
-                      <p className="text-gray-400 text-sm m-0">Halfbacks, Five-Eighths, Hookers</p>
-                    </div>
-                  </div>
-
-                  <h3 className="text-xl text-white mt-6">Patience Bonus</h3>
                   <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 my-4">
                     <p className="text-green-400 m-0">
-                      <strong>🍀 The longer you wait between promotions, the better your chances of finding a high-quality player!</strong>
+                      <strong>🍀 Patience Bonus:</strong> The longer you wait between promotions, the better your chances of finding a high-quality player!
+                    </p>
+                  </div>
+
+                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
+                    <p className="text-yellow-400 m-0">
+                      <strong>⚠️ Squad Limit:</strong> You cannot promote from the Academy if your squad is at 25 players. Release a player first!
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Free Agents */}
+              {/* FREE AGENTS - UPDATED SECTION */}
               {activeSection === 'freeagents' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -690,22 +455,84 @@ export default function GuidePage() {
                   </h2>
 
                   <p className="text-gray-300">
-                    Free Agents are players without a team. This is your chance to pick up bargains!
+                    The Free Agent market lets you release players from your squad and sign players released by other teams. All 100 teams across 10 divisions share the same free agent pool!
                   </p>
 
-                  <h3 className="text-xl text-white mt-6">Finding Free Agents</h3>
+                  <h3 className="text-xl text-white mt-6">Releasing Players</h3>
                   <ul className="text-gray-300 space-y-2">
-                    <li>Browse available players on the Free Agents page</li>
-                    <li>Filter by position to find what you need</li>
-                    <li>Check their stats, age, and dominant side before signing</li>
-                    <li>Experienced veterans can provide immediate impact</li>
+                    <li>Go to <strong>Squad</strong> → Click on a player → <strong>"Release Player"</strong></li>
+                    <li>You cannot release if your squad would drop below <strong>17 players</strong></li>
+                    <li>Released players become available to ALL teams the following round</li>
+                    <li>You'll receive a notification when your former player signs elsewhere</li>
                   </ul>
 
-                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
-                    <p className="text-yellow-400 m-0">
-                      <strong>💡 Tip:</strong> Free agents can be hidden gems. Just because a player was released doesn't mean they're bad — they might be exactly what another team needs!
+                  <h3 className="text-xl text-white mt-6">Claiming Free Agents</h3>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>Browse available players on the <strong>Free Agents</strong> page</li>
+                    <li>You can have up to <strong>3 pending claims</strong> at a time</li>
+                    <li>You cannot claim if your squad is at <strong>25 players</strong> (unless you nominate someone to release)</li>
+                    <li>Claims are processed during game updates (Tue/Thu/Sun 6pm AEST)</li>
+                  </ul>
+
+                  <h3 className="text-xl text-white mt-6">How Players Choose Teams</h3>
+                  <p className="text-gray-300">
+                    When multiple teams claim the same player, the player "chooses" based on their personality:
+                  </p>
+                  
+                  <div className="space-y-3 mt-3">
+                    <div className="bg-purple-500/20 border border-purple-500 rounded p-3">
+                      <p className="text-purple-400 font-bold m-0">⭐ Ambitious Stars (43+ OVR)</p>
+                      <p className="text-gray-400 text-sm m-0">Prefer higher divisions and winning teams. May still join lower divisions for long-term potential.</p>
+                    </div>
+                    <div className="bg-green-500/20 border border-green-500 rounded p-3">
+                      <p className="text-green-400 font-bold m-0">👶 Young Prospects (Age ≤21)</p>
+                      <p className="text-gray-400 text-sm m-0">Want game time and development. Care less about division prestige — prefer smaller squads and teams that need their position.</p>
+                    </div>
+                    <div className="bg-orange-500/20 border border-orange-500 rounded p-3">
+                      <p className="text-orange-400 font-bold m-0">🧳 Journeymen (Age 22-29)</p>
+                      <p className="text-gray-400 text-sm m-0">Happy for any opportunity. Balanced consideration of all factors.</p>
+                    </div>
+                    <div className="bg-gray-500/20 border border-gray-500 rounded p-3">
+                      <p className="text-gray-400 font-bold m-0">👴 Veterans (Age 30+)</p>
+                      <p className="text-gray-400 text-sm m-0">Grateful for any interest. Care much less about prestige — just want to keep playing.</p>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">What Affects Your Chances</h3>
+                  <div className="bg-gray-700 rounded p-4 space-y-2">
+                    <div className="flex justify-between text-gray-300">
+                      <span>Higher Division</span>
+                      <span className="text-green-400">More attractive</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Better Ladder Position</span>
+                      <span className="text-green-400">More attractive</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Smaller Squad Size</span>
+                      <span className="text-green-400">More game time</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Need Their Position</span>
+                      <span className="text-green-400">Higher priority</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
+                    <p className="text-blue-400 m-0">
+                      <strong>💡 Tip:</strong> Lower division teams can still attract young prospects who want game time! A Division 8 team with a small squad might beat a Division 2 team for a 20-year-old talent.
                     </p>
                   </div>
+
+                  <h3 className="text-xl text-white mt-6">Notifications</h3>
+                  <p className="text-gray-300">
+                    After claims are processed, you'll receive notifications:
+                  </p>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>🎉 <strong>"Free Agent Signed!"</strong> — You won the claim</li>
+                    <li>😢 <strong>"Claim Unsuccessful"</strong> — Someone else got them (with reason)</li>
+                    <li>📋 <strong>"Former Player Update"</strong> — Your released player signed elsewhere</li>
+                  </ul>
                 </div>
               )}
 
@@ -717,92 +544,50 @@ export default function GuidePage() {
                   </h2>
 
                   <p className="text-gray-300">
-                    The Rep Honours page shows which players have been selected for representative teams.
+                    The Rep Honours page shows which players have been selected for representative teams like State of Origin.
                   </p>
-
-                  <h3 className="text-xl text-white mt-6">State of Origin</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-sky-500/30 rounded p-3 text-center">
-                      <p className="text-white font-bold m-0">NSW Blues</p>
-                      <p className="text-gray-300 text-sm m-0">New South Wales</p>
-                    </div>
-                    <div className="bg-red-800/50 rounded p-3 text-center">
-                      <p className="text-white font-bold m-0">QLD Maroons</p>
-                      <p className="text-gray-300 text-sm m-0">Queensland</p>
-                    </div>
-                  </div>
 
                   <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
                     <p className="text-yellow-400 m-0">
-                      <strong>Origin Trade-off:</strong> Players selected for Origin earn prestige, but return to their clubs more fatigued. Players NOT selected get a rest week fitness boost!
+                      <strong>Origin Trade-off:</strong> Players selected for Origin earn prestige, but return to their clubs more fatigued.
                     </p>
                   </div>
-
-                  <h3 className="text-xl text-white mt-6">Man of the Match</h3>
-                  <p className="text-gray-300">
-                    After each match, one player is awarded Man of the Match based on their performance. This is shown in match notifications and in the Match Centre with a ⭐ star next to their name.
-                  </p>
                 </div>
               )}
 
-              {/* Pro Tips - UPDATED */}
+              {/* Pro Tips */}
               {activeSection === 'tips' && (
                 <div className="prose prose-invert max-w-none">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     💡 Pro Tips
                   </h2>
 
-                  <p className="text-gray-300">
-                    Advanced strategies to help you get ahead...
-                  </p>
-
                   <div className="space-y-4 mt-6">
                     <div className="bg-gray-700 rounded-lg p-4">
                       <h4 className="text-white font-bold m-0 mb-2">📊 Read Your Match Stats</h4>
                       <p className="text-gray-400 m-0">
-                        After each game, click on the fixture to see full stats. High missed tackles? Train Tackling. Lots of errors? Train Passing. Few line breaks? Train Speed & Power.
+                        High missed tackles? Train Tackling. Lots of errors? Train Passing.
                       </p>
                     </div>
 
                     <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">🤝 Try Assists Matter</h4>
+                      <h4 className="text-white font-bold m-0 mb-2">🏪 Work the Free Agent Market</h4>
                       <p className="text-gray-400 m-0">
-                        A halfback with 3 try assists is as valuable as a winger with 2 tries. Train Passing for your playmakers to boost their assist numbers.
+                        Lower division teams can attract young players who want game time. Don't compete with Div 1 teams for stars — target prospects!
                       </p>
                     </div>
 
                     <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">💥 Power = Points</h4>
+                      <h4 className="text-white font-bold m-0 mb-2">📋 Manage Your Squad Size</h4>
                       <p className="text-gray-400 m-0">
-                        Power affects line breaks and tackle breaks — both lead to tries! Train Power for your centres and second rowers.
+                        Keep your squad between 20-23 players. Too small = no depth. Too big = can't sign free agents or promote youth.
                       </p>
                     </div>
 
                     <div className="bg-gray-700 rounded-lg p-4">
                       <h4 className="text-white font-bold m-0 mb-2">🎬 Scout Before Every Match</h4>
                       <p className="text-gray-400 m-0">
-                        Use the Film Room to learn your opponent's attack tendency. If they're strong on the LEFT, set your defense to Shift Left!
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">👑 Pick a Consistent Captain</h4>
-                      <p className="text-gray-400 m-0">
-                        Your captain gets a small MOTM boost and rating bonus. Choose someone who plays every week — like a lock or hooker.
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">↔️ Consider Dominant Sides</h4>
-                      <p className="text-gray-400 m-0">
-                        Left-sided players generally perform best on the left edge, right-sided on the right. Versatile (L/R) players are rare and valuable.
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">🎲 Off the Cuff — Use Sparingly</h4>
-                      <p className="text-gray-400 m-0">
-                        The Off the Cuff attack style is high risk/high reward. It can blow games open, but it can also backfire badly. Best used when you have nothing to lose!
+                        Use the Film Room to learn your opponent's attack tendency and counter it.
                       </p>
                     </div>
 
@@ -812,32 +597,11 @@ export default function GuidePage() {
                         Young players (18-23) have more room to grow. A 25 OVR 18-year-old might become a 40 OVR star by age 26.
                       </p>
                     </div>
-
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">🎯 Test Your Goal Kickers</h4>
-                      <p className="text-gray-400 m-0">
-                        You won't know who your best kicker is until you try them! Test different players throughout the season.
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">🏆 Origin Strategy</h4>
-                      <p className="text-gray-400 m-0">
-                        Having players make Origin is prestigious, but they return tired. Plan your lineup around Origin weekends — your non-Origin players will be extra fresh!
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h4 className="text-white font-bold m-0 mb-2">📊 Check Leaderboards</h4>
-                      <p className="text-gray-400 m-0">
-                        The Leaderboards page shows who's dominating your division. See where your players rank and identify areas to improve!
-                      </p>
-                    </div>
                   </div>
 
                   <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 mt-6">
                     <p className="text-green-400 m-0">
-                      <strong>Most importantly:</strong> Have fun! Experiment with different strategies, take risks on unknown players, and build your legacy. Good luck, Coach! 🏆
+                      <strong>Most importantly:</strong> Have fun! Experiment with different strategies and build your legacy. Good luck, Coach! 🏆
                     </p>
                   </div>
                 </div>
