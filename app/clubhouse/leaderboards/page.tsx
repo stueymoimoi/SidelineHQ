@@ -121,7 +121,7 @@ export default function LeaderboardsPage() {
     
     // Sort and get top 10 for each category
     const getTop10 = (sortFn: (a: any, b: any) => number, getValue: (p: any) => number) => {
-      return [...players]
+      return [...Object.values(playerTotals)]
         .sort(sortFn)
         .slice(0, 10)
         .map(p => ({
