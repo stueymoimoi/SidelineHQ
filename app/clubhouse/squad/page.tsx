@@ -421,12 +421,29 @@ const [releasing, setReleasing] = useState(false);
       const currentRound = fixtures?.[0]?.round || 1;
 
       // Add to free agents (available next round)
-      await supabase.from('free_agents').insert({
+      const { error: insertError } = await supabase.from('free_agents').insert({
         player_id: selectedPlayer.id,
         released_by_team_id: coach.team_id,
         available_round: currentRound + 1,
         claimed: false
       });
+      
+      if (insertError) {
+        alert('Insert error: ' + insertError.message);
+        return;
+      }
+
+      // Remove player from team
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ team_id: null })
+        .eq('id', selectedPlayer.id)
+        .eq('team_id', coach.team_id);
+        
+      if (updateError) {
+        alert('Update error: ' + updateError.message);
+        return;
+      }
 
       // Remove player from team
       await supabase
