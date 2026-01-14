@@ -167,9 +167,15 @@ export default function FreeAgentsPage() {
 
   const openRequestModal = (freeAgent: FreeAgent) => {
     setSelectedFreeAgent(freeAgent);
+    if (players.length >= 25) {
+      // Squad full - shouldn't reach here due to button disable, but safety check
+      return;
+    }
     if (players.length >= 22) {
+      // Need to release someone to make room
       setShowRequestModal(true);
     } else {
+      // Squad has space, submit directly
       submitRequest(freeAgent, null);
     }
   };
@@ -296,18 +302,24 @@ export default function FreeAgentsPage() {
               <p className="text-gray-400 text-sm">Your ladder position</p>
               <p className="text-white text-xl font-bold">{ladderPosition}/10</p>
             </div>
+            <div className="text-center">
+              <p className="text-gray-400 text-sm">Pending claims</p>
+              <p className={`text-xl font-bold ${claims.length >= 3 ? 'text-red-400' : 'text-green-400'}`}>
+                {claims.length}/3
+              </p>
+            </div>
             <div className="text-right">
               <p className="text-gray-400 text-sm">Squad size</p>
-              <p className={`text-xl font-bold ${players.length >= 22 ? 'text-red-400' : 'text-green-400'}`}>
-                {players.length}/22
+              <p className={`text-xl font-bold ${players.length >= 25 ? 'text-red-400' : 'text-green-400'}`}>
+                {players.length}/25
               </p>
             </div>
           </div>
           <div className="bg-blue-500/20 border border-blue-500 rounded p-3">
             <p className="text-blue-400 text-sm">
-              <strong>How it works:</strong> Request players you want. During game updates (Tue/Thu/Sun 6pm), 
-              the system assigns players based on ladder position, squad needs, and squad size. 
-              Lower ladder position = higher priority!
+              <strong>How it works:</strong> Request up to 3 players. During game updates (Tue/Thu/Sun 6pm), 
+              the system assigns players based on division, ladder position, squad needs, and player preference. 
+              Players choose teams that suit their ambitions!
             </p>
           </div>
         </div>
@@ -359,6 +371,10 @@ export default function FreeAgentsPage() {
                           >
                             📋 Requested
                           </button>
+                        ) : claims.length >= 3 ? (
+                          <span className="text-gray-500 text-sm">Claim limit reached</span>
+                        ) : players.length >= 25 ? (
+                          <span className="text-gray-500 text-sm">Squad full (25)</span>
                         ) : (
                           <button
                             onClick={() => openRequestModal(fa)}
