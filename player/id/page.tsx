@@ -83,6 +83,7 @@ export default function PlayerPage() {
 
   const [player, setPlayer] = useState<Player | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
+  const [myTeamId, setMyTeamId] = useState<string | null>(null);
   const [matchHistory, setMatchHistory] = useState<MatchStat[]>([]);
   const [seasonTotals, setSeasonTotals] = useState<SeasonTotals | null>(null);
   const [teamsMap, setTeamsMap] = useState<Record<string, Team>>({});
@@ -90,6 +91,19 @@ export default function PlayerPage() {
 
   useEffect(() => {
     async function fetchPlayer() {
+      // Get current user's team
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: coach } = await supabase
+          .from('coaches')
+          .select('team_id')
+          .eq('user_id', user.id)
+          .single();
+        if (coach) {
+          setMyTeamId(coach.team_id);
+        }
+      }
+
       // Get player
       const { data: playerData } = await supabase
         .from('players')
@@ -200,6 +214,10 @@ export default function PlayerPage() {
     );
   }
 
+  // Check if this is the current user's player
+  const isMyPlayer = player.team_id === myTeamId;
+  const isFreeAgent = !player.team_id;
+
   // Calculate form trend from last 3 matches
   const recentRatings = matchHistory.slice(0, 3).map(m => m.rating || 6);
   const formTrend = getFormTrend(recentRatings);
@@ -228,16 +246,20 @@ export default function PlayerPage() {
                 {team && (
                   <>
                     <span className="text-gray-600">•</span>
-                    <Link 
-                      href="/clubhouse/squad"
-                      className="text-blue-400 hover:text-blue-300"
-                    >
-                      {team.name}
-                    </Link>
+                    {isMyPlayer ? (
+                      <Link 
+                        href="/clubhouse/squad"
+                        className="text-blue-400 hover:text-blue-300"
+                      >
+                        {team.name}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400">{team.name}</span>
+                    )}
                     <span className="text-gray-500 text-sm">Div {team.division}</span>
                   </>
                 )}
-                {!team && (
+                {isFreeAgent && (
                   <>
                     <span className="text-gray-600">•</span>
                     <span className="text-orange-400">Free Agent</span>
@@ -251,40 +273,53 @@ export default function PlayerPage() {
             </div>
           </div>
 
-          {/* Fatigue Bar */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-sm mb-1">
-              <span className="text-gray-400">Fatigue</span>
-              <span className={player.fatigue > 70 ? 'text-red-400' : player.fatigue > 40 ? 'text-yellow-400' : 'text-green-400'}>
-                {player.fatigue || 0}%
-              </span>
+          {/* Fatigue Bar - Only show for your players */}
+          {isMyPlayer && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-gray-400">Fatigue</span>
+                <span className={player.fatigue > 70 ? 'text-red-400' : player.fatigue > 40 ? 'text-yellow-400' : 'text-green-400'}>
+                  {player.fatigue || 0}%
+                </span>
+              </div>
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full ${
+                    player.fatigue > 70 ? 'bg-red-500' : player.fatigue > 40 ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                  style={{ width: `${player.fatigue || 0}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full ${
-                  player.fatigue > 70 ? 'bg-red-500' : player.fatigue > 40 ? 'bg-yellow-500' : 'bg-green-500'
-                }`}
-                style={{ width: `${player.fatigue || 0}%` }}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Stats Grid */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatBar label="Speed" value={player.speed} icon="⚡" />
-            <StatBar label="Strength" value={player.strength} icon="💪" />
-            <StatBar label="Power" value={player.power} icon="💥" />
-            <StatBar label="Passing" value={player.passing} icon="🎯" />
-            <StatBar label="Stamina" value={player.stamina} icon="🫁" />
-            <StatBar label="Tackling" value={player.tackling} icon="🛡️" />
-            <StatBar label="Kicking" value={player.kicking} icon="🦶" />
+        {/* Stats Grid - Only show for your players */}
+        {isMyPlayer ? (
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatBar label="Speed" value={player.speed} icon="⚡" />
+              <StatBar label="Strength" value={player.strength} icon="💪" />
+              <StatBar label="Power" value={player.power} icon="💥" />
+              <StatBar label="Passing" value={player.passing} icon="🎯" />
+              <StatBar label="Stamina" value={player.stamina} icon="🫁" />
+              <StatBar label="Tackling" value={player.tackling} icon="🛡️" />
+              <StatBar label="Kicking" value={player.kicking} icon="🦶" />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
+            <div className="text-center py-8">
+              <div className="text-4xl mb-3">🔒</div>
+              <p className="text-gray-400">Detailed stats are only visible for your own players</p>
+              <p className="text-gray-500 text-sm mt-2">Sign this player to scout their abilities</p>
+            </div>
+          </div>
+        )}
 
-        {/* Season Stats */}
+        {/* Season Stats - Public info (match stats are public) */}
         {seasonTotals && (
           <div className="bg-gray-800 rounded-lg p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -317,7 +352,7 @@ export default function PlayerPage() {
           </div>
         )}
 
-        {/* Match History */}
+        {/* Match History - Public info */}
         <div className="bg-gray-800 rounded-lg p-6">
           <h2 className="text-lg font-bold mb-4">Recent Matches</h2>
           
