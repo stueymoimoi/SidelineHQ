@@ -341,9 +341,11 @@ const OvrChangeArrow = ({ change, changedAt }: { change: number | null, changedA
 
 export default function SquadPage() {
   const [team, setTeam] = useState<Team | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-  const [loading, setLoading] = useState(true);
+const [players, setPlayers] = useState<Player[]>([]);
+const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+const [loading, setLoading] = useState(true);
+const [showReleaseConfirm, setShowReleaseConfirm] = useState(false);
+const [releasing, setReleasing] = useState(false);
   
   const router = useRouter();
 
