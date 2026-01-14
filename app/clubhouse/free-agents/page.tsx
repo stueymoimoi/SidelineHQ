@@ -207,15 +207,25 @@ export default function FreeAgentsPage() {
   };
 
   const cancelRequest = async (freeAgentId: string) => {
-    if (!teamId) return;
     setProcessing(true);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: coach } = await supabase
+        .from('coaches')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!coach?.team_id) return;
+
       await supabase
         .from('free_agent_claims')
         .delete()
         .eq('free_agent_id', freeAgentId)
-        .eq('team_id', teamId);
+        .eq('team_id', coach.team_id);
 
       await loadData();
     } catch (err) {
