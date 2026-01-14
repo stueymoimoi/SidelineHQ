@@ -329,8 +329,9 @@ export async function GET(request: Request) {
   const secret = url.searchParams.get('secret');
   const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
   
-  if (!isVercelCron && secret !== 'frost2026') {
-    return NextResponse.json({ success: false, error: 'Add ?secret=frost2026' });
+  const CRON_SECRET = process.env.CRON_SECRET;
+  if (!isVercelCron && secret !== CRON_SECRET) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
   
   try {

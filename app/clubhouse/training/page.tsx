@@ -147,7 +147,8 @@ export default function TrainingPage() {
         await supabase
           .from('players')
           .update(updateData)
-          .eq('id', item.playerId);
+          .eq('id', item.playerId)
+          .eq('team_id', team?.id);
       }
       
       setSaveQueue([]);
