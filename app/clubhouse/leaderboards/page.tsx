@@ -69,10 +69,20 @@ export default function LeaderboardsPage() {
       return;
     }
     
+    // Get current team info for all players
+    const playerIds = [...new Set(stats.map(s => s.player_id))];
+    const { data: players } = await supabase
+      .from('players')
+      .select('id, team_id')
+      .in('id', playerIds);
+    
+    const playerCurrentTeam: Record<string, string | null> = {};
+    players?.forEach(p => { playerCurrentTeam[p.id] = p.team_id; });
+    
     // Aggregate stats by player
     const playerTotals: Record<string, {
       player_name: string;
-      team_id: string;
+      team_id: string | null;
       points: number;
       tries: number;
       metres: number;
@@ -88,7 +98,7 @@ export default function LeaderboardsPage() {
       if (!playerTotals[key]) {
         playerTotals[key] = {
           player_name: stat.player_name,
-          team_id: stat.team_id,
+          team_id: playerCurrentTeam[stat.player_id] || null, // Use CURRENT team
           points: 0,
           tries: 0,
           metres: 0,
@@ -109,8 +119,6 @@ export default function LeaderboardsPage() {
       playerTotals[key].totalRating += stat.rating || 6;
     }
     
-    const players = Object.values(playerTotals);
-    
     // Sort and get top 10 for each category
     const getTop10 = (sortFn: (a: any, b: any) => number, getValue: (p: any) => number) => {
       return [...players]
@@ -118,7 +126,7 @@ export default function LeaderboardsPage() {
         .slice(0, 10)
         .map(p => ({
           player_name: p.player_name,
-          team_name: teamMap[p.team_id] || 'Unknown',
+          team_name: p.team_id ? (teamMap[p.team_id] || 'Unknown') : 'Free Agent',
           value: getValue(p)
         }));
     };
