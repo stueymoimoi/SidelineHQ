@@ -273,10 +273,6 @@ const getTeamAbbr = (teamName: string): string => {
   return abbrs[teamName] || teamName.substring(0, 3).toUpperCase();
 };
 
-// ============================================================================
-// TIER SYSTEM - Red to Gold spectrum
-// ============================================================================
-
 const TIER_LABELS: Record<number, string> = {
   1: 'NONE',
   2: 'POOR',
@@ -341,11 +337,11 @@ const OvrChangeArrow = ({ change, changedAt }: { change: number | null, changedA
 
 export default function SquadPage() {
   const [team, setTeam] = useState<Team | null>(null);
-const [players, setPlayers] = useState<Player[]>([]);
-const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
-const [loading, setLoading] = useState(true);
-const [showReleaseConfirm, setShowReleaseConfirm] = useState(false);
-const [releasing, setReleasing] = useState(false);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showReleaseConfirm, setShowReleaseConfirm] = useState(false);
+  const [releasing, setReleasing] = useState(false);
   
   const router = useRouter();
 
@@ -393,7 +389,9 @@ const [releasing, setReleasing] = useState(false);
     } finally {
       setLoading(false);
     }
-  };const handleReleasePlayer = async () => {
+  };
+
+  const handleReleasePlayer = async () => {
     if (!selectedPlayer || players.length <= 17) return;
     
     setReleasing(true);
@@ -420,7 +418,7 @@ const [releasing, setReleasing] = useState(false);
 
       const currentRound = fixtures?.[0]?.round || 1;
 
-      // Add to free agents (available next round)
+      // 1. Add to free agents (available next round)
       const { error: insertError } = await supabase.from('free_agents').insert({
         player_id: selectedPlayer.id,
         released_by_team_id: coach.team_id,
@@ -433,24 +431,20 @@ const [releasing, setReleasing] = useState(false);
         return;
       }
 
-      // Refresh data
-      await loadData();
-      
-      alert('Success! Player released.'); // ADD THIS LINE
-      
-      setSelectedPlayer(null);
-      setShowReleaseConfirm(false);
-
-      // Remove player from team
-      await supabase
+      // 2. Remove player from team
+      const { error: updateError } = await supabase
         .from('players')
         .update({ team_id: null })
         .eq('id', selectedPlayer.id)
         .eq('team_id', coach.team_id);
+        
+      if (updateError) {
+        alert('Update error: ' + updateError.message);
+        return;
+      }
 
-      // Refresh data
+      // 3. Refresh data and close modal
       await loadData();
-      
       setSelectedPlayer(null);
       setShowReleaseConfirm(false);
       
@@ -736,7 +730,7 @@ const [releasing, setReleasing] = useState(false);
               </div>
             )}
 
-            {/* Stats - Clean rows, no indicators */}
+            {/* Stats */}
             <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
               {renderStatRow('Speed', selectedPlayer.speed)}
               {renderStatRow('Strength', selectedPlayer.strength)}
@@ -746,8 +740,8 @@ const [releasing, setReleasing] = useState(false);
               {renderStatRow('Tackling', selectedPlayer.tackling)}
               {renderStatRow('Kicking', selectedPlayer.kicking)}
               <p className="text-gray-500 text-[10px] text-center mt-3 pt-2 border-t border-gray-600">
-    NONE → POOR → OK → GOOD → GREAT → EXCELLENT → ELITE → LEGEND
-  </p>
+                NONE → POOR → OK → GOOD → GREAT → EXCELLENT → ELITE → LEGEND
+              </p>
             </div>
 
             {/* Training Status */}
