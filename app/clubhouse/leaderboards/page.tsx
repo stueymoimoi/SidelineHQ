@@ -9,8 +9,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-import Link from 'next/link';
-
 interface LeaderboardEntry {
   player_id: string;
   player_name: string;
