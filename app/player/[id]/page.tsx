@@ -309,13 +309,9 @@ export default function PlayerPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg p-6 mb-6">
-            <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
-            <div className="text-center py-8">
-              <div className="text-4xl mb-3">🔒</div>
-              <p className="text-gray-400">Detailed stats are only visible for your own players</p>
-              <p className="text-gray-500 text-sm mt-2">Sign this player to scout their abilities</p>
-            </div>
+          <div className="bg-gray-800 rounded-lg p-4 mb-6 flex items-center gap-3">
+            <span className="text-2xl">🔒</span>
+            <p className="text-gray-400 text-sm">Sign this player to scout their attributes</p>
           </div>
         )}
 
