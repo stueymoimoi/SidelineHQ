@@ -433,17 +433,13 @@ const [releasing, setReleasing] = useState(false);
         return;
       }
 
-      // Remove player from team
-      const { error: updateError } = await supabase
-        .from('players')
-        .update({ team_id: null })
-        .eq('id', selectedPlayer.id)
-        .eq('team_id', coach.team_id);
-        
-      if (updateError) {
-        alert('Update error: ' + updateError.message);
-        return;
-      }
+      // Refresh data
+      await loadData();
+      
+      alert('Success! Player released.'); // ADD THIS LINE
+      
+      setSelectedPlayer(null);
+      setShowReleaseConfirm(false);
 
       // Remove player from team
       await supabase
