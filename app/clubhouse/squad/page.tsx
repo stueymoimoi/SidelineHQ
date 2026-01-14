@@ -393,6 +393,59 @@ const [releasing, setReleasing] = useState(false);
     } finally {
       setLoading(false);
     }
+  };const handleReleasePlayer = async () => {
+    if (!selectedPlayer || players.length <= 17) return;
+    
+    setReleasing(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: coach } = await supabase
+        .from('coaches')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!coach?.team_id) return;
+
+      // Get current round
+      const { data: fixtures } = await supabase
+        .from('fixtures')
+        .select('round')
+        .eq('played', false)
+        .order('round', { ascending: true })
+        .limit(1);
+
+      const currentRound = fixtures?.[0]?.round || 1;
+
+      // Add to free agents (available next round)
+      await supabase.from('free_agents').insert({
+        player_id: selectedPlayer.id,
+        released_by_team_id: coach.team_id,
+        available_round: currentRound + 1,
+        claimed: false
+      });
+
+      // Remove player from team
+      await supabase
+        .from('players')
+        .update({ team_id: null })
+        .eq('id', selectedPlayer.id)
+        .eq('team_id', coach.team_id);
+
+      // Refresh data
+      await loadData();
+      
+      setSelectedPlayer(null);
+      setShowReleaseConfirm(false);
+      
+    } catch (err) {
+      console.error('Error releasing player:', err);
+    } finally {
+      setReleasing(false);
+    }
   };
 
   const getOvrColor = (ovr: number) => {
@@ -692,9 +745,47 @@ const [releasing, setReleasing] = useState(false);
               </div>
             )}
 
+            {/* Release Player Button */}
+            {!showReleaseConfirm ? (
+              <button
+                onClick={() => setShowReleaseConfirm(true)}
+                disabled={players.length <= 17}
+                className={`w-full mb-2 font-bold py-3 rounded-lg transition ${
+                  players.length <= 17
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600'
+                }`}
+              >
+                {players.length <= 17 ? '🔒 Cannot Release (Min 17 Players)' : '🚪 Release Player'}
+              </button>
+            ) : (
+              <div className="bg-red-900/30 border border-red-600 rounded-lg p-4 mb-2">
+                <p className="text-red-400 font-bold mb-2">⚠️ Are you sure?</p>
+                <p className="text-gray-300 text-sm mb-4">
+                  Release <strong>{selectedPlayer.first_name} {selectedPlayer.last_name}</strong> ({selectedPlayer.overall} OVR)?
+                  They will become a free agent visible to ALL teams.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowReleaseConfirm(false)}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReleasePlayer}
+                    disabled={releasing}
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-800 text-white font-bold py-2 rounded-lg transition"
+                  >
+                    {releasing ? 'Releasing...' : 'Confirm Release'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Close Button */}
             <button
-              onClick={() => setSelectedPlayer(null)}
+              onClick={() => { setSelectedPlayer(null); setShowReleaseConfirm(false); }}
               className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
             >
               Close
