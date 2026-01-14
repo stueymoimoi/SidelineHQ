@@ -334,13 +334,14 @@ export async function GET(request: Request) {
   }
   
   try {
-    const [fixturesRes, teamsRes, tacticsRes, players1, players2, players3] = await Promise.all([
-      supabase.from('fixtures').select('*').eq('season', SEASON).eq('played', false).order('round', { ascending: true }),
-      supabase.from('teams').select('*'),
-      supabase.from('team_tactics').select('*'),
-      supabase.from('players').select('*').range(0, 999),
-      supabase.from('players').select('*').range(1000, 1999),
-      supabase.from('players').select('*').range(2000, 2999)
+    const [fixturesRes, teamsRes, tacticsRes, players1, players2, players3, coachesRes] = await Promise.all([
+  supabase.from('fixtures').select('*').eq('season', SEASON).eq('played', false).order('round', { ascending: true }),
+  supabase.from('teams').select('*'),
+  supabase.from('team_tactics').select('*'),
+  supabase.from('players').select('*').range(0, 999),
+  supabase.from('players').select('*').range(1000, 1999),
+  supabase.from('players').select('*').range(2000, 2999),
+  supabase.from('coaches').select('team_id')
     ]);
     
     const fixtures = fixturesRes.data || [];
@@ -358,13 +359,15 @@ export async function GET(request: Request) {
     logs.push(`Simulating Round ${currentRound} - ${allPlayers.length} players loaded`);
     
     const teamsMap: Record<string, any> = {};
-    teams.forEach(t => { teamsMap[t.id] = t; });
-    
-    const tacticsMap: Record<string, any> = {};
-    allTactics.forEach(t => { tacticsMap[t.team_id] = t; });
-    
-    const playersMap: Record<string, any> = {};
-    allPlayers.forEach(p => { playersMap[p.id] = p; });
+teams.forEach(t => { teamsMap[t.id] = t; });
+
+const tacticsMap: Record<string, any> = {};
+allTactics.forEach(t => { tacticsMap[t.team_id] = t; });
+
+const playersMap: Record<string, any> = {};
+allPlayers.forEach(p => { playersMap[p.id] = p; });
+
+const coachedTeams = new Set((coachesRes.data || []).map((c: any) => c.team_id));
     
     const positionFields = [
       'pos_fullback', 'pos_winger_r', 'pos_centre_r', 'pos_centre_l', 'pos_winger_l',
@@ -452,20 +455,11 @@ export async function GET(request: Request) {
         homeTactics.defense_focus || 'line_speed'
       );
       
-      const { data: homeCoach } = await supabase
-        .from('coaches')
-        .select('id')
-        .eq('team_id', fixture.home_team_id)
-        .maybeSingle();
+      const hasHomeCoach = coachedTeams.has(fixture.home_team_id);
+const hasAwayCoach = coachedTeams.has(fixture.away_team_id);
 
-      const { data: awayCoach } = await supabase
-        .from('coaches')
-        .select('id')
-        .eq('team_id', fixture.away_team_id)
-        .maybeSingle();
-
-      const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus + (homeCoach ? COACHING_BONUS : 0);
-      const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (awayCoach ? COACHING_BONUS : 0);
+const homeStrength = homeBaseStrength + HOME_ADVANTAGE + homeTacticalBonus.bonus + (hasHomeCoach ? COACHING_BONUS : 0);
+const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (hasAwayCoach ? COACHING_BONUS : 0);
       
       const homeKicker = playersMap[homeTactics.goal_kicker];
       const awayKicker = playersMap[awayTactics.goal_kicker];
