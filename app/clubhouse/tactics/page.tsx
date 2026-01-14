@@ -124,11 +124,22 @@ export default function TacticsPage() {
   const router = useRouter();
 
   const saveToDatabase = useCallback(async (tacticsToSave: Tactics) => {
-    if (!tacticsToSave || !team) return;
+    if (!tacticsToSave) return;
     
     setSaveStatus('saving');
     
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: coach } = await supabase
+        .from('coaches')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!coach?.team_id) return;
+
       const { error } = await supabase
         .from('team_tactics')
         .update({
@@ -154,7 +165,7 @@ export default function TacticsPage() {
           attack_focus: tacticsToSave.attack_focus,
           defense_focus: tacticsToSave.defense_focus,
         })
-        .eq('team_id', team.id);
+        .eq('team_id', coach.team_id);
 
       if (error) throw error;
       
@@ -165,7 +176,7 @@ export default function TacticsPage() {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }, [team]);
+  }, []);
 
   useEffect(() => {
     if (initialLoad || !tactics) return;
