@@ -422,7 +422,7 @@ export default function SquadPage() {
       const { error: insertError } = await supabase.from('free_agents').insert({
         player_id: selectedPlayer.id,
         released_by_team_id: coach.team_id,
-        available_round: currentRound + 1,
+        available_round: currentRound,
         claimed: false
       });
       
