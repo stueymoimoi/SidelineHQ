@@ -750,6 +750,7 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (hasAwayCoach 
     
     const trainingPlayers = allPlayers.filter(p => p.current_training);
     const trainingNotifications: any[] = [];
+    const playerUpdates: { id: string; [key: string]: any }[] = [];
     
     for (const player of trainingPlayers) {
       const updates: Record<string, any> = {};
@@ -813,8 +814,27 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (hasAwayCoach 
       }
       
       if (Object.keys(updates).length > 0) {
-        await supabase.from('players').update(updates).eq('id', player.id);
+        playerUpdates.push({ id: player.id, ...updates });
       }
+    }
+    
+    // Batch update players in parallel chunks of 100
+    if (playerUpdates.length > 0) {
+      const chunkSize = 100;
+      const chunks = [];
+      for (let i = 0; i < playerUpdates.length; i += chunkSize) {
+        chunks.push(playerUpdates.slice(i, i + chunkSize));
+      }
+      
+      await Promise.all(
+        chunks.map(chunk =>
+          Promise.all(
+            chunk.map(update => 
+              supabase.from('players').update(update).eq('id', update.id)
+            )
+          )
+        )
+      );
     }
     
     if (trainingNotifications.length > 0) {
