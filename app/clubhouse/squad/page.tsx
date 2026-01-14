@@ -443,6 +443,7 @@ const [releasing, setReleasing] = useState(false);
       
     } catch (err) {
       console.error('Error releasing player:', err);
+      alert('Error releasing player: ' + String(err));
     } finally {
       setReleasing(false);
     }
