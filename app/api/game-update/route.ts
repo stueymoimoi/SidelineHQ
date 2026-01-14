@@ -725,15 +725,17 @@ const awayStrength = awayBaseStrength + awayTacticalBonus.bonus + (hasAwayCoach 
     
     await supabase.from('fixtures').update({ played: true }).in('id', fixtureIds);
     
-    for (const [teamId, data] of Object.entries(teamUpdates)) {
-      await supabase.from('teams').update({
-        wins: data.wins,
-        draws: data.draws,
-        losses: data.losses,
-        points_for: data.points_for,
-        points_against: data.points_against
-      }).eq('id', teamId);
-    }
+    await Promise.all(
+  Object.entries(teamUpdates).map(([teamId, data]) =>
+    supabase.from('teams').update({
+      wins: data.wins,
+      draws: data.draws,
+      losses: data.losses,
+      points_for: data.points_for,
+      points_against: data.points_against
+    }).eq('id', teamId)
+  )
+);
     
     const fatiguePlayerIds = Object.keys(fatigueUpdates);
     if (fatiguePlayerIds.length > 0) {
