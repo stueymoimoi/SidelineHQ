@@ -9,7 +9,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+import Link from 'next/link';
+
 interface LeaderboardEntry {
+  player_id: string;
   player_name: string;
   team_name: string;
   value: number;
@@ -157,6 +160,7 @@ export default function LeaderboardsPage() {
         .sort(sortFn)
         .slice(0, 10)
         .map(p => ({
+          player_id: p.player_id,
           player_name: p.player_name,
           team_name: p.team_id ? (teamMap[p.team_id] || 'Unknown') : 'Free Agent',
           value: getValue(p)
@@ -170,6 +174,7 @@ export default function LeaderboardsPage() {
       .map(([playerId, count]) => {
         const player = playerTotals[playerId];
         return {
+          player_id: playerId,
           player_name: player?.player_name || 'Unknown',
           team_name: player?.team_id ? (teamMap[player.team_id] || 'Unknown') : 'Free Agent',
           value: count
@@ -348,7 +353,12 @@ function LeaderboardCard({
                   {idx + 1}.
                 </span>
                 <div>
-                  <p className="font-medium text-sm">{entry.player_name}</p>
+                  <Link 
+                    href={`/player/${entry.player_id}`}
+                    className="font-medium text-sm hover:text-blue-400 transition-colors"
+                  >
+                    {entry.player_name}
+                  </Link>
                   <p className="text-gray-500 text-xs">{entry.team_name}</p>
                 </div>
               </div>
