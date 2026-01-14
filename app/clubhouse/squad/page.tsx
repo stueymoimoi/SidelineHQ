@@ -442,8 +442,24 @@ export default function SquadPage() {
         alert('Update error: ' + updateError.message);
         return;
       }
+// 3. Notify all OTHER coaches about the release
+      const { data: allCoaches } = await supabase
+        .from('coaches')
+        .select('team_id')
+        .neq('team_id', coach.team_id);
 
-      // 3. Refresh data and close modal
+      if (allCoaches && allCoaches.length > 0) {
+        const notifications = allCoaches.map(c => ({
+          team_id: c.team_id,
+          type: 'free_agent_available',
+          title: '📢 New Free Agent!',
+          message: `${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) has been released and is now available!`,
+          player_id: selectedPlayer.id
+        }));
+
+        await supabase.from('notifications').insert(notifications);
+      }
+      // 4. Refresh data and close modal
       await loadData();
       setSelectedPlayer(null);
       setShowReleaseConfirm(false);
