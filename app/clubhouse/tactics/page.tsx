@@ -118,13 +118,17 @@ export default function TacticsPage() {
 
   const saveToDatabase = useCallback(async (tacticsToSave: Tactics) => {
     if (!tacticsToSave) return;
-        console.log('Saving tactics:', tacticsToSave.attack_focus, tacticsToSave.defense_focus);
+    
+    console.log('Saving tactics:', tacticsToSave.attack_focus, tacticsToSave.defense_focus);
     
     setSaveStatus('saving');
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('No user found');
+        return;
+      }
 
       const { data: coach } = await supabase
         .from('coaches')
@@ -132,9 +136,14 @@ export default function TacticsPage() {
         .eq('user_id', user.id)
         .single();
 
-      if (!coach?.team_id) return;
+      if (!coach?.team_id) {
+        console.log('No coach/team found');
+        return;
+      }
 
-      const { error } = await supabase
+      console.log('Updating team_id:', coach.team_id);
+
+      const { error, data } = await supabase
         .from('team_tactics')
         .update({
           pos_fullback: tacticsToSave.pos_fullback,
@@ -159,7 +168,10 @@ export default function TacticsPage() {
           attack_focus: tacticsToSave.attack_focus,
           defense_focus: tacticsToSave.defense_focus,
         })
-        .eq('team_id', coach.team_id);
+        .eq('team_id', coach.team_id)
+        .select();
+
+      console.log('Update result:', { error, data });
 
       if (error) throw error;
       
