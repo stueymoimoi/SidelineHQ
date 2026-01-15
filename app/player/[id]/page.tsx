@@ -294,26 +294,26 @@ export default function PlayerPage() {
           )}
         </div>
 
-        {/* Stats Grid - Only show for your players */}
-        {isMyPlayer ? (
-          <div className="bg-gray-800 rounded-lg p-6 mb-6">
-            <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatBar label="Speed" value={player.speed} icon="⚡" />
-              <StatBar label="Strength" value={player.strength} icon="💪" />
-              <StatBar label="Power" value={player.power} icon="💥" />
-              <StatBar label="Passing" value={player.passing} icon="🎯" />
-              <StatBar label="Stamina" value={player.stamina} icon="🫁" />
-              <StatBar label="Tackling" value={player.tackling} icon="🛡️" />
-              <StatBar label="Kicking" value={player.kicking} icon="🦶" />
-            </div>
-          </div>
-        ) : (
-          <div className="bg-gray-800 rounded-lg p-4 mb-6 flex items-center gap-3">
-            <span className="text-2xl">🔒</span>
-            <p className="text-gray-400 text-sm">Sign this player to scout their attributes</p>
-          </div>
-        )}
+        {/* Stats Grid - Show for your players OR free agents */}
+{(isMyPlayer || isFreeAgent) ? (
+  <div className="bg-gray-800 rounded-lg p-6 mb-6">
+    <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <StatBar label="Speed" value={player.speed} icon="⚡" />
+      <StatBar label="Strength" value={player.strength} icon="💪" />
+      <StatBar label="Power" value={player.power} icon="💥" />
+      <StatBar label="Passing" value={player.passing} icon="🎯" />
+      <StatBar label="Stamina" value={player.stamina} icon="🫁" />
+      <StatBar label="Tackling" value={player.tackling} icon="🛡️" />
+      <StatBar label="Kicking" value={player.kicking} icon="🦶" />
+    </div>
+  </div>
+) : (
+  <div className="bg-gray-800 rounded-lg p-4 mb-6 flex items-center gap-3">
+    <span className="text-2xl">🔒</span>
+    <p className="text-gray-400 text-sm">Player attributes are private</p>
+  </div>
+)}
 
         {/* Season Stats - Public info (match stats are public) */}
         {seasonTotals && (
