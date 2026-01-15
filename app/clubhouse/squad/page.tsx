@@ -459,35 +459,27 @@ export default function SquadPage() {
         return;
       }
 
-      // 4. Notify all OTHER coaches about the release
-      const { data: allCoaches } = await supabase
-        .from('coaches')
-        .select('team_id')
-        .neq('team_id', coach.team_id);
+      // 4. Notify ALL coaches in the league (including yourself)
+const { data: allCoaches } = await supabase
+  .from('coaches')
+  .select('team_id');
 
-      if (allCoaches && allCoaches.length > 0) {
-        const notifications = allCoaches.map(c => ({
-          team_id: c.team_id,
-          type: 'new_free_agent',
-          title: '🏪 New Free Agent',
-          message: `${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) has been released and is now available!`,
-          player_id: selectedPlayer.id
-        }));
+if (allCoaches && allCoaches.length > 0) {
+  const notifications = allCoaches.map(c => ({
+    team_id: c.team_id,
+    type: c.team_id === coach.team_id ? 'player_released' : 'new_free_agent',
+    title: c.team_id === coach.team_id ? '👋 Player Released' : '🏪 New Free Agent',
+    message: c.team_id === coach.team_id 
+      ? `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`
+      : `${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) has been released and is now available!`,
+    player_id: selectedPlayer.id
+  }));
 
-        await supabase.from('notifications').insert(notifications);
-      }
-
-      // 5. Notify yourself
-const { error: notifError } = await supabase.from('notifications').insert({
-  team_id: coach.team_id,
-  type: 'player_released',
-  title: '👋 Player Released',
-  message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`,
-  player_id: selectedPlayer.id
-});
-
-if (notifError) {
-  console.error('Notification error:', notifError);
+  const { error: notifError } = await supabase.from('notifications').insert(notifications);
+  
+  if (notifError) {
+    console.error('Notification error:', notifError);
+  }
 }
 
       // 6. Refresh data and close modal
