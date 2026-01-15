@@ -224,7 +224,7 @@ export default function NotificationsPage() {
                     <div className="flex gap-2 mt-3">
                       {notif.player_id && (
   <Link
-    href={`/clubhouse/leaderboard/player/${notif.player_id}`}
+    href={`/player/${notif.player_id}`}
     className="text-sm bg-gray-700 hover:bg-gray-600 text-blue-400 px-3 py-1 rounded transition"
   >
     View Player
