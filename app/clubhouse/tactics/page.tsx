@@ -59,18 +59,17 @@ interface Tactics {
 }
 
 const ATTACK_OPTIONS = [
-  { value: 'structured', label: 'Structured', emoji: '📋', desc: 'Run set plays, balanced attack' },
-  { value: 'raid_left', label: 'Raid Left', emoji: '⬅️', desc: 'Target left edge with your backs' },
-  { value: 'up_the_guts', label: 'Up the Guts', emoji: '💪', desc: 'Punch through the middle with forwards' },
-  { value: 'raid_right', label: 'Raid Right', emoji: '➡️', desc: 'Target right edge with your backs' },
-  { value: 'off_the_cuff', label: 'Off the Cuff', emoji: '🎲', desc: 'High risk, high reward — play on instinct' },
+  { value: 'power', label: 'Power', emoji: '💪', desc: 'Middle dominance, post-contact metres, slow grind' },
+  { value: 'structured', label: 'Structured', emoji: '📋', desc: 'Set plays, sweeps, decoys, precision execution' },
+  { value: 'tempo', label: 'Tempo', emoji: '⚡', desc: 'Fast ruck, quick shifts, exploit defensive fatigue' },
+  { value: 'edge', label: 'Edge', emoji: '🎯', desc: 'Width focus, overlaps, kicks to corners' },
 ];
 
 const DEFENSE_OPTIONS = [
-  { value: 'line_speed', label: 'Line Speed', emoji: '🏃', desc: 'Rush up and pressure the ball' },
-  { value: 'shift_left', label: 'Shift Left', emoji: '🛡️', desc: 'Overload left side coverage' },
-  { value: 'brick_wall', label: 'Brick Wall', emoji: '🧱', desc: 'Stack the middle, stop forward momentum' },
-  { value: 'shift_right', label: 'Shift Right', emoji: '🛡️', desc: 'Overload right side coverage' },
+  { value: 'rush', label: 'Rush', emoji: '🏃', desc: 'Aggressive line speed, pressure the ball early' },
+  { value: 'slide', label: 'Slide', emoji: '🔄', desc: 'Stay connected, drift across, push to touchline' },
+  { value: 'jam', label: 'Jam', emoji: '🧱', desc: 'Compress the edges, shut the gate, force errors' },
+  { value: 'territory', label: 'Territory', emoji: '📍', desc: 'Defend the long field, kick chase, win field position' },
 ];
 
 const shouldShowSide = (position: string) => {
@@ -90,7 +89,6 @@ const getSideBadge = (side: string | null) => {
   }
 };
 
-// Goal Posts Component
 const GoalPosts = ({ flipped = false }: { flipped?: boolean }) => (
   <svg 
     width="80" 
@@ -98,15 +96,10 @@ const GoalPosts = ({ flipped = false }: { flipped?: boolean }) => (
     viewBox="0 0 80 40" 
     className={flipped ? 'rotate-180' : ''}
   >
-    {/* Left post */}
     <rect x="15" y="20" width="4" height="20" fill="white" opacity="0.9" />
-    {/* Right post */}
     <rect x="61" y="20" width="4" height="20" fill="white" opacity="0.9" />
-    {/* Crossbar */}
     <rect x="15" y="16" width="50" height="4" fill="white" opacity="0.9" />
-    {/* Left upright */}
     <rect x="16" y="0" width="2" height="16" fill="white" opacity="0.9" />
-    {/* Right upright */}
     <rect x="62" y="0" width="2" height="16" fill="white" opacity="0.9" />
   </svg>
 );
@@ -236,7 +229,7 @@ export default function TacticsPage() {
       setTactics({
         ...tacticsData,
         attack_focus: tacticsData?.attack_focus || 'structured',
-        defense_focus: tacticsData?.defense_focus || 'line_speed',
+        defense_focus: tacticsData?.defense_focus || 'slide',
       });
       
       setTimeout(() => setInitialLoad(false), 100);
@@ -414,7 +407,7 @@ export default function TacticsPage() {
           </div>
 
           <div className="bg-gray-800 rounded-xl p-4">
-            <h3 className="text-white font-bold mb-3">🛡️ Defense Style</h3>
+            <h3 className="text-white font-bold mb-3">🛡️ Defence Style</h3>
             <div className="space-y-2">
               {DEFENSE_OPTIONS.map(option => (
                 <button
