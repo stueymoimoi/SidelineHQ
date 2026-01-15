@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import TeamLink from '@/components/TeamLink';
+import TeamBadge from '@/components/TeamBadge';
+import PlayerLink from '@/components/PlayerLink';
+import MatchTimeline from '@/components/MatchTimeline';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -65,7 +69,7 @@ export default function MatchPage() {
         if (result.motm_player_id) {
           const { data: motm } = await supabase
             .from('players')
-            .select('first_name, last_name, position, team_id')
+            .select('id, first_name, last_name, position, team_id')
             .eq('id', result.motm_player_id)
             .single();
           setMotmPlayer(motm);
@@ -123,30 +127,59 @@ export default function MatchPage() {
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="max-w-7xl mx-auto p-6">
         <Link
-          href="/clubhouse"
+          href="/clubhouse/fixtures"
           className="text-sm text-gray-400 hover:text-white mb-4 inline-block"
         >
-          ← Back to Clubhouse
+          ← Back to Fixtures
         </Link>
 
         {/* Score Header */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <p className="text-center text-gray-400 text-sm mb-2">
+          <p className="text-center text-gray-400 text-sm mb-4">
             Round {fixture.round}
           </p>
-          <div className="flex items-center justify-center gap-8">
-            <div className="text-right flex-1">
-              <p className="text-xl font-bold">{homeTeam?.name}</p>
-              <p className="text-gray-400 text-sm">Avg Rating: {homeAvgRating}</p>
+          <div className="flex items-center justify-center gap-4 md:gap-8">
+            {/* Home Team */}
+            <div className="text-center flex-1">
+              <div className="flex justify-center mb-2">
+                <TeamBadge 
+                  teamName={homeTeam?.name || ''} 
+                  primaryColor={homeTeam?.primary_color || '#666'} 
+                  size="lg" 
+                  showAbbr 
+                />
+              </div>
+              <TeamLink
+                teamId={homeTeam?.id}
+                teamName={homeTeam?.name || ''}
+                primaryColor={homeTeam?.primary_color || '#666'}
+              />
+              <p className="text-gray-400 text-sm mt-1">Avg Rating: {homeAvgRating}</p>
             </div>
+
+            {/* Score */}
             <div className="text-center">
-              <span className="text-4xl font-bold">
+              <span className="text-4xl md:text-5xl font-bold">
                 {homeScore} - {awayScore}
               </span>
             </div>
-            <div className="text-left flex-1">
-              <p className="text-xl font-bold">{awayTeam?.name}</p>
-              <p className="text-gray-400 text-sm">Avg Rating: {awayAvgRating}</p>
+
+            {/* Away Team */}
+            <div className="text-center flex-1">
+              <div className="flex justify-center mb-2">
+                <TeamBadge 
+                  teamName={awayTeam?.name || ''} 
+                  primaryColor={awayTeam?.primary_color || '#666'} 
+                  size="lg" 
+                  showAbbr 
+                />
+              </div>
+              <TeamLink
+                teamId={awayTeam?.id}
+                teamName={awayTeam?.name || ''}
+                primaryColor={awayTeam?.primary_color || '#666'}
+              />
+              <p className="text-gray-400 text-sm mt-1">Avg Rating: {awayAvgRating}</p>
             </div>
           </div>
           
@@ -154,21 +187,46 @@ export default function MatchPage() {
             <div className="text-center mt-4 pt-4 border-t border-gray-700">
               <span className="text-yellow-500">⭐ Man of the Match</span>
               <p className="text-white font-semibold">
-                {motmPlayer.first_name} {motmPlayer.last_name} ({motmPlayer.position}) — {motmTeamName}
+                <PlayerLink 
+                  playerId={motmPlayer.id} 
+                  playerName={`${motmPlayer.first_name} ${motmPlayer.last_name}`} 
+                />
+                <span className="text-gray-400"> ({motmPlayer.position}) — {motmTeamName}</span>
               </p>
             </div>
           )}
         </div>
 
+        {/* Match Timeline */}
+        <div className="mb-6">
+          <MatchTimeline fixtureId={fixtureId} defaultExpanded={true} />
+        </div>
+
         {/* Stats Tables */}
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="bg-gray-800 rounded-lg p-4">
-            <h3 className="font-bold mb-3 text-lg">{homeTeam?.name}</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <TeamBadge 
+                teamName={homeTeam?.name || ''} 
+                primaryColor={homeTeam?.primary_color || '#666'} 
+                size="sm" 
+                showAbbr 
+              />
+              <h3 className="font-bold text-lg">{homeTeam?.name}</h3>
+            </div>
             <StatsTable stats={homeStats} motmId={matchResult?.motm_player_id} />
           </div>
 
           <div className="bg-gray-800 rounded-lg p-4">
-            <h3 className="font-bold mb-3 text-lg">{awayTeam?.name}</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <TeamBadge 
+                teamName={awayTeam?.name || ''} 
+                primaryColor={awayTeam?.primary_color || '#666'} 
+                size="sm" 
+                showAbbr 
+              />
+              <h3 className="font-bold text-lg">{awayTeam?.name}</h3>
+            </div>
             <StatsTable stats={awayStats} motmId={matchResult?.motm_player_id} />
           </div>
         </div>
@@ -225,7 +283,10 @@ function StatsTable({ stats, motmId }: { stats: any[], motmId?: string }) {
               <tr key={stat.id} className={`border-t border-gray-700 ${isMotm ? 'bg-yellow-900/20' : ''}`}>
                 <td className="py-2 pr-1 text-gray-500">{stat.jersey_number}</td>
                 <td className="py-2 pr-1 font-medium whitespace-nowrap">
-                  {stat.player_name}
+                  <PlayerLink 
+                    playerId={stat.player_id} 
+                    playerName={stat.player_name} 
+                  />
                   {isMotm && <span className="ml-1 text-yellow-500">⭐</span>}
                 </td>
                 <td className={`py-2 pr-1 text-center font-bold ${getRatingColor(rating)}`}>

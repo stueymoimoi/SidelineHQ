@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import TeamLink from '@/components/TeamLink';
+import TeamBadge from '@/components/TeamBadge';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,6 +24,11 @@ interface Team {
   points_for: number;
   points_against: number;
   division: number;
+}
+
+interface Coach {
+  team_id: string;
+  coach_name: string;
 }
 
 interface Fixture {
@@ -46,6 +53,8 @@ interface MatchResult {
 interface FixtureWithTeams extends Fixture {
   home_team: Team;
   away_team: Team;
+  home_coach?: string | null;
+  away_coach?: string | null;
   result?: MatchResult;
 }
 
@@ -118,6 +127,7 @@ export default function FixturesPage() {
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
   const [allTeams, setAllTeams] = useState<Record<string, Team>>({});
+  const [coaches, setCoaches] = useState<Record<string, string>>({});
   const [fixtures, setFixtures] = useState<FixtureWithTeams[]>([]);
   const [currentRound, setCurrentRound] = useState(1);
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
@@ -188,6 +198,15 @@ export default function FixturesPage() {
       teams.forEach(t => { teamsMap[t.id] = t; });
       setAllTeams(teamsMap);
 
+      // Fetch coaches
+      const { data: coachesData } = await supabase
+        .from('coaches')
+        .select('team_id, coach_name');
+      
+      const coachesMap: Record<string, string> = {};
+      (coachesData || []).forEach((c: Coach) => { coachesMap[c.team_id] = c.coach_name; });
+      setCoaches(coachesMap);
+
       const { data: fixturesData } = await supabase
         .from('fixtures')
         .select('*')
@@ -213,6 +232,8 @@ export default function FixturesPage() {
           ...f,
           home_team: teamsMap[f.home_team_id],
           away_team: teamsMap[f.away_team_id],
+          home_coach: coachesMap[f.home_team_id] || null,
+          away_coach: coachesMap[f.away_team_id] || null,
           result: resultsMap[f.id],
         }));
 
@@ -358,17 +379,23 @@ export default function FixturesPage() {
             <h2 className="text-gray-400 text-sm mb-3">YOUR NEXT MATCH • Round {myNextMatch.round}</h2>
             <div className="flex items-center justify-between">
               <div className="flex-1 text-center">
-                <div 
-                  className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
-                  style={{ 
-                    backgroundColor: myNextMatch.home_team.primary_color,
-                    color: myNextMatch.home_team.secondary_color 
-                  }}
-                >
-                  {myNextMatch.home_team.city.substring(0, 3).toUpperCase()}
+                <TeamBadge 
+                  teamName={myNextMatch.home_team.name}
+                  primaryColor={myNextMatch.home_team.primary_color}
+                  size="lg"
+                  showAbbr
+                />
+                <div className="mt-2">
+                  <TeamLink
+                    teamId={myNextMatch.home_team.id}
+                    teamName={myNextMatch.home_team.name}
+                    primaryColor={myNextMatch.home_team.primary_color}
+                  />
                 </div>
-                <p className="text-white font-bold">{myNextMatch.home_team.city} <span className="text-gray-400 font-normal">({getLadderPosition(myNextMatch.home_team_id)})</span></p>
-                <p className="text-gray-400 text-sm">{myNextMatch.home_team.name}</p>
+                <p className="text-gray-500 text-sm">({getLadderPosition(myNextMatch.home_team_id)})</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  {myNextMatch.home_coach ? `👤 ${myNextMatch.home_coach}` : 'Unmanaged'}
+                </p>
                 {myNextMatch.home_team_id === team?.id && (
                   <span className="inline-block bg-green-600 text-white text-xs px-2 py-1 rounded mt-1">
                     YOUR TEAM
@@ -384,17 +411,23 @@ export default function FixturesPage() {
               </div>
 
               <div className="flex-1 text-center">
-                <div 
-                  className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
-                  style={{ 
-                    backgroundColor: myNextMatch.away_team.primary_color,
-                    color: myNextMatch.away_team.secondary_color 
-                  }}
-                >
-                  {myNextMatch.away_team.city.substring(0, 3).toUpperCase()}
+                <TeamBadge 
+                  teamName={myNextMatch.away_team.name}
+                  primaryColor={myNextMatch.away_team.primary_color}
+                  size="lg"
+                  showAbbr
+                />
+                <div className="mt-2">
+                  <TeamLink
+                    teamId={myNextMatch.away_team.id}
+                    teamName={myNextMatch.away_team.name}
+                    primaryColor={myNextMatch.away_team.primary_color}
+                  />
                 </div>
-                <p className="text-white font-bold">{myNextMatch.away_team.city} <span className="text-gray-400 font-normal">({getLadderPosition(myNextMatch.away_team_id)})</span></p>
-                <p className="text-gray-400 text-sm">{myNextMatch.away_team.name}</p>
+                <p className="text-gray-500 text-sm">({getLadderPosition(myNextMatch.away_team_id)})</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  {myNextMatch.away_coach ? `👤 ${myNextMatch.away_coach}` : 'Unmanaged'}
+                </p>
                 {myNextMatch.away_team_id === team?.id && (
                   <span className="inline-block bg-green-600 text-white text-xs px-2 py-1 rounded mt-1">
                     YOUR TEAM
@@ -460,50 +493,69 @@ export default function FixturesPage() {
                   
                   const content = (
                     <div 
-                      className={`flex items-center justify-between p-3 rounded-lg transition ${
+                      className={`p-4 rounded-lg transition ${
                         isMyGame ? 'bg-gray-700 border border-green-500/50' : 'bg-gray-700/50'
                       } ${isClickable ? 'hover:bg-gray-600 cursor-pointer' : ''}`}
                     >
-                      <div className="flex-1 flex items-center gap-2">
-                        <div 
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                          style={{ 
-                            backgroundColor: fixture.home_team.primary_color,
-                            color: fixture.home_team.secondary_color 
-                          }}
-                        >
-                          {fixture.home_team.city.substring(0, 3).toUpperCase()}
-                        </div>
-                        <span className={`${isMyGame && fixture.home_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                          {fixture.home_team.city} <span className="text-gray-500">({getLadderPosition(fixture.home_team_id)})</span>
-                        </span>
-                      </div>
-
-                      <div className="px-4 text-center min-w-[100px]">
-                        {fixture.played && fixture.result ? (
-                          <div>
-                            <span className="text-white font-bold">
-                              {fixture.result.home_score} - {fixture.result.away_score}
-                            </span>
-                            <p className="text-green-400 text-xs">View Stats →</p>
+                      <div className="flex items-center justify-between">
+                        {/* Home Team */}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <TeamBadge 
+                              teamName={fixture.home_team.name}
+                              primaryColor={fixture.home_team.primary_color}
+                              size="sm"
+                              showAbbr
+                            />
+                            <div>
+                              <TeamLink
+                                teamId={fixture.home_team.id}
+                                teamName={fixture.home_team.name}
+                                primaryColor={fixture.home_team.primary_color}
+                                className={isMyGame && fixture.home_team_id === team?.id ? 'text-green-400' : ''}
+                              />
+                              <p className="text-gray-500 text-xs">
+                                {fixture.home_coach ? `👤 ${fixture.home_coach}` : 'Unmanaged'} • {getLadderPosition(fixture.home_team_id)}
+                              </p>
+                            </div>
                           </div>
-                        ) : (
-                          <span className="text-gray-500">vs</span>
-                        )}
-                      </div>
+                        </div>
 
-                      <div className="flex-1 flex items-center gap-2 justify-end">
-                        <span className={`${isMyGame && fixture.away_team_id === team?.id ? 'text-green-400' : 'text-white'}`}>
-                          {fixture.away_team.city} <span className="text-gray-500">({getLadderPosition(fixture.away_team_id)})</span>
-                        </span>
-                        <div 
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                          style={{ 
-                            backgroundColor: fixture.away_team.primary_color,
-                            color: fixture.away_team.secondary_color 
-                          }}
-                        >
-                          {fixture.away_team.city.substring(0, 3).toUpperCase()}
+                        {/* Score / VS */}
+                        <div className="px-4 text-center min-w-[100px]">
+                          {fixture.played && fixture.result ? (
+                            <div>
+                              <span className="text-white font-bold text-lg">
+                                {fixture.result.home_score} - {fixture.result.away_score}
+                              </span>
+                              <p className="text-green-400 text-xs">View Stats →</p>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500 text-lg">vs</span>
+                          )}
+                        </div>
+
+                        {/* Away Team */}
+                        <div className="flex-1 text-right">
+                          <div className="flex items-center gap-2 justify-end">
+                            <div>
+                              <TeamLink
+                                teamId={fixture.away_team.id}
+                                teamName={fixture.away_team.name}
+                                primaryColor={fixture.away_team.primary_color}
+                                className={isMyGame && fixture.away_team_id === team?.id ? 'text-green-400' : ''}
+                              />
+                              <p className="text-gray-500 text-xs">
+                                {getLadderPosition(fixture.away_team_id)} • {fixture.away_coach ? `👤 ${fixture.away_coach}` : 'Unmanaged'}
+                              </p>
+                            </div>
+                            <TeamBadge 
+                              teamName={fixture.away_team.name}
+                              primaryColor={fixture.away_team.primary_color}
+                              size="sm"
+                              showAbbr
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -529,6 +581,7 @@ export default function FixturesPage() {
               {myResults.map(fixture => {
                 const isHome = fixture.home_team_id === team?.id;
                 const opponent = isHome ? fixture.away_team : fixture.home_team;
+                const opponentCoach = isHome ? fixture.away_coach : fixture.home_coach;
                 const result = getResultBadge(fixture);
                 
                 return (
@@ -541,11 +594,19 @@ export default function FixturesPage() {
                       <span className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm ${result.color}`}>
                         {result.text}
                       </span>
+                      <TeamBadge 
+                        teamName={opponent.name}
+                        primaryColor={opponent.primary_color}
+                        size="sm"
+                        showAbbr
+                      />
                       <div>
                         <p className="text-white">
-                          {isHome ? 'vs' : '@'} {opponent.city} {opponent.name} <span className="text-gray-500">({getLadderPosition(opponent.id)})</span>
+                          {isHome ? 'vs' : '@'} {opponent.name}
                         </p>
-                        <p className="text-gray-500 text-sm">Round {fixture.round}</p>
+                        <p className="text-gray-500 text-xs">
+                          Round {fixture.round} • {opponentCoach ? `👤 ${opponentCoach}` : 'Unmanaged'}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right flex items-center gap-3">

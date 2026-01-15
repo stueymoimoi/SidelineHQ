@@ -34,19 +34,10 @@ export async function getMatchEvents(
   fixtureId: string
 ): Promise<MatchEvent[]> {
   try {
+    // Simple query without joins
     const { data: events, error } = await supabase
       .from('match_events')
-      .select(`
-        id,
-        fixture_id,
-        minute,
-        event_type,
-        display_text,
-        team_id,
-        player_id,
-        team:teams(id, name, city, primary_color),
-        player:players(id, first_name, last_name)
-      `)
+      .select('id, fixture_id, minute, event_type, display_text, team_id, player_id')
       .eq('fixture_id', fixtureId)
       .order('minute', { ascending: true });
 
@@ -55,10 +46,40 @@ export async function getMatchEvents(
       return [];
     }
 
-    return (events || []).map((e: any) => {
-      // Handle joined data (could be object or array depending on Supabase version)
-      const team = Array.isArray(e.team) ? e.team[0] : e.team;
-      const player = Array.isArray(e.player) ? e.player[0] : e.player;
+    if (!events || events.length === 0) {
+      return [];
+    }
+
+    // Get unique team IDs and player IDs
+    const teamIds = [...new Set(events.map(e => e.team_id).filter(Boolean))];
+    const playerIds = [...new Set(events.map(e => e.player_id).filter(Boolean))];
+
+    // Fetch teams
+    let teamsMap: Record<string, any> = {};
+    if (teamIds.length > 0) {
+      const { data: teams } = await supabase
+        .from('teams')
+        .select('id, name, city, primary_color')
+        .in('id', teamIds);
+      
+      (teams || []).forEach(t => { teamsMap[t.id] = t; });
+    }
+
+    // Fetch players
+    let playersMap: Record<string, any> = {};
+    if (playerIds.length > 0) {
+      const { data: players } = await supabase
+        .from('players')
+        .select('id, first_name, last_name')
+        .in('id', playerIds);
+      
+      (players || []).forEach(p => { playersMap[p.id] = p; });
+    }
+
+    // Map events with team and player data
+    return events.map(e => {
+      const team = e.team_id ? teamsMap[e.team_id] : null;
+      const player = e.player_id ? playersMap[e.player_id] : null;
 
       return {
         id: e.id,
@@ -66,11 +87,11 @@ export async function getMatchEvents(
         minute: e.minute,
         event_type: e.event_type as MatchEvent['event_type'],
         display_text: e.display_text,
-        team_id: team?.id || null,
+        team_id: e.team_id,
         team_name: team?.name || null,
         team_abbr: team ? getTeamAbbr(team.name, team.city) : null,
         team_color: team?.primary_color || null,
-        player_id: player?.id || null,
+        player_id: e.player_id,
         player_name: player ? `${player.first_name.charAt(0)}. ${player.last_name}` : null
       };
     });
@@ -111,7 +132,6 @@ export async function hasMatchEvents(
 // ===========================================
 
 function getTeamAbbr(name: string, city: string): string {
-  // Map of team names to abbreviations
   const abbrs: Record<string, string> = {
     'Canberra Frost': 'CAN',
     'Sydney Serpents': 'SYD',
@@ -125,12 +145,10 @@ function getTeamAbbr(name: string, city: string): string {
     'Wollongong Ironmen': 'WOL',
   };
 
-  // Check if we have a known abbreviation
   if (abbrs[name]) {
     return abbrs[name];
   }
 
-  // Fallback: First 3 letters of city
   return city.substring(0, 3).toUpperCase();
 }
 

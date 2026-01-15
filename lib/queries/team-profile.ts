@@ -171,13 +171,20 @@ export async function getTeamProfile(
       }
     }
 
-    // Fetch fixtures for home/away record and form
-    const { data: fixtures } = await supabase
-      .from('fixtures')
-      .select('id, round, home_team_id, away_team_id, home_score, away_score, played')
-      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-      .eq('played', true)
-      .order('round', { ascending: false });
+    // Fetch fixtures with results for home/away record and form
+const { data: homeFixtures } = await supabase
+  .from('match_results')
+  .select('fixture_id, home_team_id, away_team_id, home_score, away_score, round')
+  .eq('home_team_id', teamId);
+
+const { data: awayFixtures } = await supabase
+  .from('match_results')
+  .select('fixture_id, home_team_id, away_team_id, home_score, away_score, round')
+  .eq('away_team_id', teamId);
+
+// Combine and sort by round descending
+const fixtures = [...(homeFixtures || []), ...(awayFixtures || [])]
+  .sort((a, b) => b.round - a.round);
 
     // Calculate home/away record and form
     let homeWins = 0, homeDraws = 0, homeLosses = 0;
