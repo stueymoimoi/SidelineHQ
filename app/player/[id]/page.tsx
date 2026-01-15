@@ -76,6 +76,28 @@ interface SeasonTotals {
   motmAwards: number;
 }
 
+const TIER_LABELS: Record<number, string> = {
+  1: 'NONE',
+  2: 'POOR',
+  3: 'OK',
+  4: 'GOOD',
+  5: 'GREAT',
+  6: 'EXCELLENT',
+  7: 'ELITE',
+  8: 'LEGEND'
+};
+
+const TIER_COLORS: Record<number, string> = {
+  1: 'text-red-500 bg-red-500/20',
+  2: 'text-orange-600 bg-orange-600/20',
+  3: 'text-orange-400 bg-orange-400/20',
+  4: 'text-yellow-400 bg-yellow-400/20',
+  5: 'text-lime-400 bg-lime-400/20',
+  6: 'text-green-400 bg-green-400/20',
+  7: 'text-cyan-400 bg-cyan-400/20',
+  8: 'text-yellow-300 bg-yellow-500/30'
+};
+
 export default function PlayerPage() {
   const params = useParams();
   const router = useRouter();
@@ -295,25 +317,25 @@ export default function PlayerPage() {
         </div>
 
         {/* Stats Grid - Show for your players OR free agents */}
-{(isMyPlayer || isFreeAgent) ? (
-  <div className="bg-gray-800 rounded-lg p-6 mb-6">
-    <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <StatBar label="Speed" value={player.speed} icon="⚡" />
-      <StatBar label="Strength" value={player.strength} icon="💪" />
-      <StatBar label="Power" value={player.power} icon="💥" />
-      <StatBar label="Passing" value={player.passing} icon="🎯" />
-      <StatBar label="Stamina" value={player.stamina} icon="🫁" />
-      <StatBar label="Tackling" value={player.tackling} icon="🛡️" />
-      <StatBar label="Kicking" value={player.kicking} icon="🦶" />
-    </div>
-  </div>
-) : (
-  <div className="bg-gray-800 rounded-lg p-4 mb-6 flex items-center gap-3">
-    <span className="text-2xl">🔒</span>
-    <p className="text-gray-400 text-sm">Player attributes are private</p>
-  </div>
-)}
+        {(isMyPlayer || isFreeAgent) ? (
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <h2 className="text-lg font-bold mb-4">Player Attributes</h2>
+            <div className="bg-gray-700/50 rounded-lg p-4">
+              <StatRow label="Speed" value={player.speed} icon="⚡" />
+              <StatRow label="Strength" value={player.strength} icon="💪" />
+              <StatRow label="Power" value={player.power} icon="💥" />
+              <StatRow label="Passing" value={player.passing} icon="🎯" />
+              <StatRow label="Stamina" value={player.stamina} icon="🫁" />
+              <StatRow label="Tackling" value={player.tackling} icon="🛡️" />
+              <StatRow label="Kicking" value={player.kicking} icon="🦶" />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg p-4 mb-6 flex items-center gap-3">
+            <span className="text-2xl">🔒</span>
+            <p className="text-gray-400 text-sm">Player attributes are private</p>
+          </div>
+        )}
 
         {/* Season Stats - Public info (match stats are public) */}
         {seasonTotals && (
@@ -404,24 +426,16 @@ export default function PlayerPage() {
   );
 }
 
-function StatBar({ label, value, icon }: { label: string; value: number; icon: string }) {
-  const tier = getStatTier(value);
-  const tierLabel = getTierLabel(tier);
-  const barWidth = (value / 99) * 100;
-  
+function StatRow({ label, value, icon }: { label: string; value: number; icon: string }) {
+  const tierLabel = TIER_LABELS[value] || 'NONE';
+  const tierColor = TIER_COLORS[value] || TIER_COLORS[1];
+
   return (
-    <div className="bg-gray-700/50 rounded-lg p-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-400">{icon} {label}</span>
-        <span className="font-bold">{value}</span>
-      </div>
-      <div className="h-2 bg-gray-600 rounded-full overflow-hidden">
-        <div 
-          className={`h-full rounded-full ${getTierColor(tier)}`}
-          style={{ width: `${barWidth}%` }}
-        />
-      </div>
-      <div className={`text-xs mt-1 ${getTierTextColor(tier)}`}>{tierLabel}</div>
+    <div className="flex items-center justify-between py-2 border-b border-gray-700 last:border-b-0">
+      <span className="text-gray-300">{icon} {label}</span>
+      <span className={`px-3 py-1 rounded font-bold text-sm ${tierColor}`}>
+        {tierLabel}
+      </span>
     </div>
   );
 }
@@ -451,45 +465,6 @@ function SeasonStat({
       <div className="text-xs text-gray-400">{label}</div>
     </div>
   );
-}
-
-function getStatTier(value: number): number {
-  return value; // Stats are already 1-8
-}
-
-function getTierLabel(tier: number): string {
-  const labels = ['', 'NONE', 'POOR', 'OK', 'GOOD', 'GREAT', 'EXCELLENT', 'ELITE', 'LEGEND'];
-  return labels[tier] || '';
-}
-
-function getTierColor(tier: number): string {
-  const colors = [
-    '', 
-    'bg-gray-500',      // 1 - NONE
-    'bg-red-500',       // 2 - POOR
-    'bg-orange-500',    // 3 - OK
-    'bg-yellow-500',    // 4 - GOOD
-    'bg-lime-500',      // 5 - GREAT
-    'bg-green-500',     // 6 - EXCELLENT
-    'bg-blue-500',      // 7 - ELITE
-    'bg-purple-500'     // 8 - LEGEND
-  ];
-  return colors[tier] || 'bg-gray-500';
-}
-
-function getTierTextColor(tier: number): string {
-  const colors = [
-    '', 
-    'text-gray-500',    // 1 - NONE
-    'text-red-400',     // 2 - POOR
-    'text-orange-400',  // 3 - OK
-    'text-yellow-400',  // 4 - GOOD
-    'text-lime-400',    // 5 - GREAT
-    'text-green-400',   // 6 - EXCELLENT
-    'text-blue-400',    // 7 - ELITE
-    'text-purple-400'   // 8 - LEGEND
-  ];
-  return colors[tier] || 'text-gray-500';
 }
 
 function getRatingColor(rating: number): string {
