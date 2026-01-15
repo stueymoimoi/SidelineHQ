@@ -186,35 +186,6 @@ function generateMatchEvents(match: MatchResult, playerStats: PlayerMatchStat[])
     }
   }
 
-  // Generate ERROR events (limit to 5 per team to avoid clutter)
-  const maxErrors = 5;
-  let homeErrors = 0;
-  let awayErrors = 0;
-
-  for (const stat of playerStats) {
-    const isHome = stat.team_id === match.home_team_id;
-    const currentTeamErrors = isHome ? homeErrors : awayErrors;
-    
-    if (currentTeamErrors >= maxErrors) continue;
-
-    const errorsToAdd = Math.min(stat.errors || 0, maxErrors - currentTeamErrors);
-    
-    for (let i = 0; i < errorsToAdd; i++) {
-      const half = Math.random() < 0.5 ? 1 : 2;
-      events.push({
-        fixture_id: match.fixture_id,
-        minute: getUniqueMinute(half),
-        event_type: 'ERROR',
-        team_id: stat.team_id,
-        player_id: stat.player_id,
-        display_text: `ERROR - ${stat.player_name}`
-      });
-
-      if (isHome) homeErrors++;
-      else awayErrors++;
-    }
-  }
-
   // Add HALF_TIME event
   events.push({
     fixture_id: match.fixture_id,
