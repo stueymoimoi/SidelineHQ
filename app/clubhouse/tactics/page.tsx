@@ -118,6 +118,7 @@ export default function TacticsPage() {
 
   const saveToDatabase = useCallback(async (tacticsToSave: Tactics) => {
     if (!tacticsToSave) return;
+        console.log('Saving tactics:', tacticsToSave.attack_focus, tacticsToSave.defense_focus);
     
     setSaveStatus('saving');
     
