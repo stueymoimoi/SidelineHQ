@@ -5,6 +5,12 @@
  * Runs at 6pm AEST on Tue/Thu/Sun.
  * 
  * Schedule: 0 8 * * 0,2,4 (8am UTC = 6pm AEST)
+ * 
+ * OPTIMIZATIONS:
+ * - Parallel database operations where possible
+ * - Batch inserts instead of individual inserts
+ * - Minimized database round-trips
+ * - Pre-built lookup maps for O(1) access
  */
 
 export const maxDuration = 60;
@@ -33,7 +39,7 @@ import { calculateTries, calculateKickingStats, calculateScore, distributeTries 
 import { processAllTraining } from '@/lib/training';
 
 // ===========================================
-// SUPABASE CLIENT
+// SUPABASE CLIENT (Service Role for admin ops)
 // ===========================================
 
 function getSupabase() {
@@ -81,6 +87,7 @@ function generateAutoTactics(players: Player[]): Partial<TeamTactics> {
 // ===========================================
 
 export async function GET(request: Request) {
+  const startTime = Date.now();
   const supabase = getSupabase();
   const logs: string[] = [];
   
@@ -96,7 +103,7 @@ export async function GET(request: Request) {
   
   try {
     // ===========================================
-    // LOAD ALL DATA
+    // PHASE 1: LOAD ALL DATA (Parallel)
     // ===========================================
     
     const [fixturesRes, teamsRes, tacticsRes, players1, players2, players3, coachesRes] = await Promise.all([
@@ -114,6 +121,8 @@ export async function GET(request: Request) {
     const allTactics = tacticsRes.data || [];
     const allPlayers = [...(players1.data || []), ...(players2.data || []), ...(players3.data || [])];
     
+    logs.push(`Data loaded in ${Date.now() - startTime}ms`);
+    
     if (fixtures.length === 0) {
       return NextResponse.json({ success: true, message: 'Season complete!' });
     }
@@ -121,7 +130,7 @@ export async function GET(request: Request) {
     const currentRound = fixtures[0].round;
     const roundFixtures = fixtures.filter((f: Fixture) => f.round === currentRound);
     
-    logs.push(`Simulating Round ${currentRound} - ${allPlayers.length} players loaded`);
+    logs.push(`Simulating Round ${currentRound} - ${roundFixtures.length} matches, ${allPlayers.length} players`);
     
     // Build lookup maps for O(1) access
     const teamsMap: Record<string, Team> = {};
@@ -133,10 +142,19 @@ export async function GET(request: Request) {
     const playersMap: Record<string, Player> = {};
     allPlayers.forEach((p: Player) => { playersMap[p.id] = p; });
     
+    // Build team roster map for quick squad lookups
+    const teamRosters: Record<string, Player[]> = {};
+    allPlayers.forEach((p: Player) => {
+      if (p.team_id) {
+        if (!teamRosters[p.team_id]) teamRosters[p.team_id] = [];
+        teamRosters[p.team_id].push(p);
+      }
+    });
+    
     const coachedTeams = new Set((coachesRes.data || []).map((c: any) => c.team_id));
     
     // ===========================================
-    // SIMULATE MATCHES
+    // PHASE 2: SIMULATE MATCHES (CPU-bound)
     // ===========================================
     
     const allPlayerStats: any[] = [];
@@ -154,8 +172,8 @@ export async function GET(request: Request) {
       let homeTactics = tacticsMap[fixture.home_team_id];
       let awayTactics = tacticsMap[fixture.away_team_id];
       
-      const homePlayers = allPlayers.filter((p: Player) => p.team_id === fixture.home_team_id);
-      const awayPlayers = allPlayers.filter((p: Player) => p.team_id === fixture.away_team_id);
+      const homePlayers = teamRosters[fixture.home_team_id] || [];
+      const awayPlayers = teamRosters[fixture.away_team_id] || [];
       
       if (!homeTactics) homeTactics = generateAutoTactics(homePlayers);
       if (!awayTactics) awayTactics = generateAutoTactics(awayPlayers);
@@ -213,7 +231,7 @@ export async function GET(request: Request) {
       const homeScore = calculateScore(homeTries, homeKicking.conversions, homeKicking.penalties);
       const awayScore = calculateScore(awayTries, awayKicking.conversions, awayKicking.penalties);
       
-      // Game context for MOTM
+      // Game context
       const totalPoints = homeScore + awayScore;
       const margin = Math.abs(homeScore - awayScore);
       const homeWon = homeScore > awayScore;
@@ -367,7 +385,7 @@ export async function GET(request: Request) {
         motm_reason: motmReason
       });
       
-      // Team updates
+      // Team updates (accumulate, don't write yet)
       if (!teamUpdates[homeTeam.id]) teamUpdates[homeTeam.id] = { ...homeTeam };
       teamUpdates[homeTeam.id].wins += homeWon ? 1 : 0;
       teamUpdates[homeTeam.id].draws += draw ? 1 : 0;
@@ -382,7 +400,7 @@ export async function GET(request: Request) {
       teamUpdates[awayTeam.id].points_for += awayScore;
       teamUpdates[awayTeam.id].points_against += homeScore;
       
-      // Notifications
+      // Match notifications
       let gameTypeDesc = '';
       if (totalPoints < 24) gameTypeDesc = 'Defensive grind. ';
       else if (totalPoints > 44) gameTypeDesc = 'High-scoring shootout! ';
@@ -429,28 +447,32 @@ export async function GET(request: Request) {
         });
       }
       
-      logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name} | MOTM: ${motmPlayer?.first_name || 'N/A'} ${motmPlayer?.last_name || ''}`);
+      logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name}`);
     }
     
+    logs.push(`Matches simulated in ${Date.now() - startTime}ms`);
+    
     // ===========================================
-    // SAVE MATCH DATA
+    // PHASE 3: SAVE MATCH DATA (Parallel batch writes)
     // ===========================================
     
     const fixtureIds = roundFixtures.map((f: Fixture) => f.id);
     
-    if (allPlayerStats.length > 0) {
-      await supabase.from('player_match_stats').insert(allPlayerStats);
-    }
-    if (allMatchResults.length > 0) {
-      await supabase.from('match_results').insert(allMatchResults);
-    }
-    if (allNotifications.length > 0) {
-      await supabase.from('notifications').insert(allNotifications);
-    }
+    // Parallel batch inserts
+    await Promise.all([
+      allPlayerStats.length > 0 
+        ? supabase.from('player_match_stats').insert(allPlayerStats)
+        : Promise.resolve(),
+      allMatchResults.length > 0 
+        ? supabase.from('match_results').insert(allMatchResults)
+        : Promise.resolve(),
+      allNotifications.length > 0 
+        ? supabase.from('notifications').insert(allNotifications)
+        : Promise.resolve(),
+      supabase.from('fixtures').update({ played: true }).in('id', fixtureIds),
+    ]);
     
-    await supabase.from('fixtures').update({ played: true }).in('id', fixtureIds);
-    
-    // Update teams in parallel
+    // Batch team updates (parallel)
     await Promise.all(
       Object.entries(teamUpdates).map(([teamId, data]) =>
         supabase.from('teams').update({
@@ -463,35 +485,31 @@ export async function GET(request: Request) {
       )
     );
     
-    // Update fatigue
+    // Batch fatigue update via RPC
     const fatiguePlayerIds = Object.keys(fatigueUpdates);
     if (fatiguePlayerIds.length > 0) {
       await supabase.rpc('increment_fatigue', { player_ids: fatiguePlayerIds, amount: FATIGUE_PER_MATCH });
     }
     
+    logs.push(`Match data saved in ${Date.now() - startTime}ms`);
+    
     // ===========================================
-    // PROCESS TRAINING
+    // PHASE 4: PROCESS TRAINING
     // ===========================================
     
     const { playerUpdates, notifications: trainingNotifications, improvementCount } = processAllTraining(allPlayers);
     
-    // Batch update players
+    // Batch player updates in chunks of 100 (parallel within chunks)
     if (playerUpdates.length > 0) {
       const chunkSize = 100;
-      const chunks = [];
       for (let i = 0; i < playerUpdates.length; i += chunkSize) {
-        chunks.push(playerUpdates.slice(i, i + chunkSize));
-      }
-      
-      await Promise.all(
-        chunks.map(chunk =>
-          Promise.all(
-            chunk.map(update =>
-              supabase.from('players').update(update).eq('id', update.id)
-            )
+        const chunk = playerUpdates.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map(update =>
+            supabase.from('players').update(update).eq('id', update.id)
           )
-        )
-      );
+        );
+      }
     }
     
     if (trainingNotifications.length > 0) {
@@ -501,101 +519,190 @@ export async function GET(request: Request) {
     logs.push(`Training: ${improvementCount} players improved`);
     
     // ===========================================
-    // PROCESS FREE AGENTS
+    // PHASE 5: PROCESS FREE AGENTS
     // ===========================================
     
+    // Get all free agents and their claims in ONE query
     const { data: freeAgentsWithClaims } = await supabase
       .from('free_agents')
       .select('*, players(*)')
       .eq('claimed', false)
       .lte('available_round', currentRound);
     
-    let freeAgentSignings = 0;
-    const freeAgentNotifications: Notification[] = [];
-    
-    for (const freeAgent of (freeAgentsWithClaims || [])) {
-      const { data: claims } = await supabase
+    if (freeAgentsWithClaims && freeAgentsWithClaims.length > 0) {
+      // Get ALL claims for all free agents in ONE query
+      const freeAgentIds = freeAgentsWithClaims.map(fa => fa.id);
+      const { data: allClaims } = await supabase
         .from('free_agent_claims')
         .select('*')
-        .eq('free_agent_id', freeAgent.id);
+        .in('free_agent_id', freeAgentIds);
       
-      if (!claims || claims.length === 0) continue;
-      
-      const player = freeAgent.players;
-      if (!player) continue;
-      
-      // Simple processing (keeping existing logic for now)
-      const teamScores: { teamId: string; score: number; releasePlayerId: string | null }[] = [];
-      
-      for (const claim of claims) {
-        const claimingTeam = teamsMap[claim.team_id];
-        if (!claimingTeam) continue;
-        
-        const squadSize = allPlayers.filter((p: Player) => p.team_id === claim.team_id).length;
-        if (squadSize >= 25) continue;
-        
-        let score = (10 - claimingTeam.division) * 5;
-        score += (claimingTeam.wins * 2) + claimingTeam.draws;
-        score += (25 - squadSize) * 2;
-        score += Math.random() * 10;
-        
-        teamScores.push({ teamId: claim.team_id, score, releasePlayerId: claim.release_player_id });
-      }
-      
-      if (teamScores.length === 0) continue;
-      
-      teamScores.sort((a, b) => b.score - a.score);
-      const winner = teamScores[0];
-      const winningTeam = teamsMap[winner.teamId];
-      
-      // Update player
-      await supabase.from('players').update({ team_id: winner.teamId }).eq('id', player.id);
-      await supabase.from('free_agents').update({ claimed: true }).eq('id', freeAgent.id);
-      
-      if (winner.releasePlayerId) {
-        await supabase.from('players').update({ team_id: null }).eq('id', winner.releasePlayerId);
-        await supabase.from('free_agents').insert({
-          player_id: winner.releasePlayerId,
-          released_by_team_id: winner.teamId,
-          available_round: currentRound + 1,
-          claimed: false
-        });
-      }
-      
-      await supabase.from('free_agent_claims').delete().eq('free_agent_id', freeAgent.id);
-      
-      freeAgentNotifications.push({
-        team_id: winner.teamId,
-        type: 'free_agent_signed',
-        title: '🎉 Free Agent Signed!',
-        message: `${player.first_name} ${player.last_name} (${player.position}, ${player.overall} OVR) has joined your squad!`,
-        player_id: player.id
+      // Group claims by free agent
+      const claimsByFreeAgent: Record<string, any[]> = {};
+      (allClaims || []).forEach(claim => {
+        if (!claimsByFreeAgent[claim.free_agent_id]) {
+          claimsByFreeAgent[claim.free_agent_id] = [];
+        }
+        claimsByFreeAgent[claim.free_agent_id].push(claim);
       });
       
-      freeAgentSignings++;
-      logs.push(`Free Agent: ${player.first_name} ${player.last_name} → ${winningTeam?.name}`);
+      // Process each free agent
+      let freeAgentSignings = 0;
+      const freeAgentNotifications: Notification[] = [];
+      const playerUpdatesToApply: { id: string; team_id: string | null }[] = [];
+      const freeAgentUpdates: string[] = [];
+      const newFreeAgents: any[] = [];
+      const claimsToDelete: string[] = [];
+      
+      for (const freeAgent of freeAgentsWithClaims) {
+        const claims = claimsByFreeAgent[freeAgent.id] || [];
+        if (claims.length === 0) continue;
+        
+        const player = freeAgent.players;
+        if (!player) continue;
+        
+        // Score each claiming team
+        const teamScores: { teamId: string; score: number; releasePlayerId: string | null }[] = [];
+        
+        for (const claim of claims) {
+          const claimingTeam = teamsMap[claim.team_id];
+          if (!claimingTeam) continue;
+          
+          const squadSize = (teamRosters[claim.team_id] || []).length;
+          if (squadSize >= 25) continue;
+          
+          // Scoring: Lower division + worse record = higher priority (reverse waiver)
+          let score = (10 - claimingTeam.division) * 5;
+          score += (claimingTeam.wins * 2) + claimingTeam.draws;
+          score += (25 - squadSize) * 2;
+          score += Math.random() * 10; // Tiebreaker
+          
+          teamScores.push({ teamId: claim.team_id, score, releasePlayerId: claim.release_player_id });
+        }
+        
+        if (teamScores.length === 0) continue;
+        
+        teamScores.sort((a, b) => b.score - a.score);
+        const winner = teamScores[0];
+        const winningTeam = teamsMap[winner.teamId];
+        
+        // Queue updates (don't execute yet)
+        playerUpdatesToApply.push({ id: player.id, team_id: winner.teamId });
+        freeAgentUpdates.push(freeAgent.id);
+        claimsToDelete.push(freeAgent.id);
+        
+        // Handle released player
+        if (winner.releasePlayerId) {
+          const releasedPlayer = playersMap[winner.releasePlayerId];
+          playerUpdatesToApply.push({ id: winner.releasePlayerId, team_id: null });
+          newFreeAgents.push({
+            player_id: winner.releasePlayerId,
+            released_by_team_id: winner.teamId,
+            available_round: currentRound + 1,
+            claimed: false
+          });
+          
+          // Notify releasing team
+          if (releasedPlayer) {
+            freeAgentNotifications.push({
+              team_id: winner.teamId,
+              type: 'player_released' as any,
+              title: '👋 Player Released',
+              message: `${releasedPlayer.first_name} ${releasedPlayer.last_name} (${releasedPlayer.position}, ${releasedPlayer.overall} OVR) has been released to make room.`,
+              player_id: releasedPlayer.id
+            });
+            
+            // Notify ALL teams about new free agent
+            for (const team of teams) {
+              if (team.id !== winner.teamId) {
+                freeAgentNotifications.push({
+                  team_id: team.id,
+                  type: 'new_free_agent' as any,
+                  title: '🏪 New Free Agent',
+                  message: `${releasedPlayer.first_name} ${releasedPlayer.last_name} (${releasedPlayer.position}, ${releasedPlayer.overall} OVR) released by ${winningTeam?.name}.`,
+                  player_id: releasedPlayer.id
+                });
+              }
+            }
+          }
+        }
+        
+        // Notify winning team
+        freeAgentNotifications.push({
+          team_id: winner.teamId,
+          type: 'free_agent_signed' as any,
+          title: '🎉 Free Agent Signed!',
+          message: `${player.first_name} ${player.last_name} (${player.position}, ${player.overall} OVR) has joined your squad!`,
+          player_id: player.id
+        });
+        
+        // Notify ALL other teams
+        for (const team of teams) {
+          if (team.id !== winner.teamId) {
+            freeAgentNotifications.push({
+              team_id: team.id,
+              type: 'free_agent_announcement' as any,
+              title: '📋 Free Agent Signed',
+              message: `${player.first_name} ${player.last_name} (${player.position}, ${player.overall} OVR) signed with ${winningTeam?.name}.`,
+              player_id: player.id
+            });
+          }
+        }
+        
+        freeAgentSignings++;
+        logs.push(`Free Agent: ${player.first_name} ${player.last_name} → ${winningTeam?.name}`);
+      }
+      
+      // Execute all free agent updates in parallel
+      await Promise.all([
+        // Update players
+        ...playerUpdatesToApply.map(p => 
+          supabase.from('players').update({ team_id: p.team_id }).eq('id', p.id)
+        ),
+        // Mark free agents as claimed
+        freeAgentUpdates.length > 0
+          ? supabase.from('free_agents').update({ claimed: true }).in('id', freeAgentUpdates)
+          : Promise.resolve(),
+        // Insert new free agents
+        newFreeAgents.length > 0
+          ? supabase.from('free_agents').insert(newFreeAgents)
+          : Promise.resolve(),
+        // Delete processed claims
+        claimsToDelete.length > 0
+          ? supabase.from('free_agent_claims').delete().in('free_agent_id', claimsToDelete)
+          : Promise.resolve(),
+        // Insert notifications
+        freeAgentNotifications.length > 0
+          ? supabase.from('notifications').insert(freeAgentNotifications)
+          : Promise.resolve(),
+      ]);
+      
+      logs.push(`Free Agents: ${freeAgentSignings} signed`);
     }
     
-    if (freeAgentNotifications.length > 0) {
-      await supabase.from('notifications').insert(freeAgentNotifications);
-    }
-    
-    logs.push(`Free Agents: ${freeAgentSignings} players signed`);
-    
     // ===========================================
-    // RETURN RESPONSE
+    // DONE
     // ===========================================
+    
+    const totalTime = Date.now() - startTime;
+    logs.push(`Total execution: ${totalTime}ms`);
     
     return NextResponse.json({
       success: true,
       round: currentRound,
-      matches: logs,
+      matches: roundFixtures.length,
+      logs,
       improvements: improvementCount,
-      playersLoaded: allPlayers.length
+      playersLoaded: allPlayers.length,
+      executionTime: totalTime
     });
     
   } catch (error) {
     console.error('Update error:', error);
-    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+    return NextResponse.json({ 
+      success: false, 
+      error: String(error),
+      executionTime: Date.now() - startTime
+    }, { status: 500 });
   }
 }
