@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
+import TeamLink from '@/components/TeamLink';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -83,7 +84,7 @@ export default function LadderPage() {
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-green-800 p-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <Link href="/clubhouse" className="text-white/70 hover:text-white mb-2 inline-block">
             ← Back to Clubhouse
           </Link>
@@ -92,30 +93,34 @@ export default function LadderPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-6">
-        {/* Ladder Table */}
-        <div className="bg-gray-800 rounded-xl overflow-hidden">
+      <div className="max-w-5xl mx-auto p-6">
+        {/* Desktop Table (hidden on mobile) */}
+        <div className="hidden md:block bg-gray-800 rounded-xl overflow-hidden">
           {/* Header Row */}
-          <div className="grid grid-cols-12 gap-2 p-4 bg-gray-700 text-gray-300 text-sm font-bold">
+          <div className="grid grid-cols-16 gap-1 p-4 bg-gray-700 text-gray-300 text-sm font-bold">
             <div className="col-span-1 text-center">#</div>
             <div className="col-span-3">Team</div>
-            <div className="col-span-3">Coach</div>
+            <div className="col-span-2">Coach</div>
+            <div className="col-span-1 text-center">P</div>
             <div className="col-span-1 text-center">W</div>
             <div className="col-span-1 text-center">D</div>
             <div className="col-span-1 text-center">L</div>
-            <div className="col-span-1 text-center">Pts</div>
+            <div className="col-span-1 text-center">PF</div>
+            <div className="col-span-1 text-center">PA</div>
             <div className="col-span-1 text-center">+/-</div>
+            <div className="col-span-1 text-center">Pts</div>
           </div>
 
           {/* Team Rows */}
           {teams.map((team, index) => {
+            const played = team.wins + team.draws + team.losses;
             const pts = (team.wins * 2) + team.draws;
             const pointDiff = team.points_for - team.points_against;
             
             return (
               <div 
                 key={team.id}
-                className={`grid grid-cols-12 gap-2 p-4 items-center border-t border-gray-700 ${
+                className={`grid grid-cols-16 gap-1 p-4 items-center border-t border-gray-700 ${
                   index < 4 ? 'bg-green-900/20' : ''
                 }`}
               >
@@ -128,41 +133,129 @@ export default function LadderPage() {
                   </span>
                 </div>
 
-                {/* Team */}
-                <div className="col-span-3 flex items-center gap-2">
-                  <div 
-                    className="w-4 h-4 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: team.primary_color }}
-                  ></div>
-                  <span className="text-white font-semibold truncate">{team.name}</span>
+                {/* Team - Now Clickable */}
+                <div className="col-span-3">
+                  <TeamLink
+                    teamId={team.id}
+                    teamName={team.name}
+                    primaryColor={team.primary_color}
+                    showBadge={true}
+                  />
                 </div>
 
                 {/* Coach */}
-                <div className="col-span-3">
+                <div className="col-span-2">
                   {team.coach_name ? (
-                    <span className="text-yellow-400 truncate">👤 {team.coach_name}</span>
+                    <span className="text-yellow-400 truncate text-sm">👤 {team.coach_name}</span>
                   ) : (
-                    <span className="text-gray-500 italic">Available</span>
+                    <span className="text-gray-500 italic text-sm">Available</span>
                   )}
                 </div>
 
+                {/* P */}
+                <div className="col-span-1 text-center text-gray-400">{played}</div>
+
                 {/* W */}
-                <div className="col-span-1 text-center text-white">{team.wins}</div>
+                <div className="col-span-1 text-center text-green-400">{team.wins}</div>
                 
                 {/* D */}
-                <div className="col-span-1 text-center text-white">{team.draws}</div>
+                <div className="col-span-1 text-center text-gray-400">{team.draws}</div>
                 
                 {/* L */}
-                <div className="col-span-1 text-center text-white">{team.losses}</div>
-                
-                {/* Pts */}
-                <div className="col-span-1 text-center text-green-400 font-bold">{pts}</div>
+                <div className="col-span-1 text-center text-red-400">{team.losses}</div>
+
+                {/* PF */}
+                <div className="col-span-1 text-center text-white">{team.points_for}</div>
+
+                {/* PA */}
+                <div className="col-span-1 text-center text-white">{team.points_against}</div>
                 
                 {/* +/- */}
                 <div className={`col-span-1 text-center font-bold ${
                   pointDiff > 0 ? 'text-green-400' : pointDiff < 0 ? 'text-red-400' : 'text-gray-400'
                 }`}>
                   {pointDiff > 0 ? '+' : ''}{pointDiff}
+                </div>
+
+                {/* Pts */}
+                <div className="col-span-1 text-center text-green-400 font-bold">{pts}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Mobile Cards (hidden on desktop) */}
+        <div className="md:hidden space-y-3">
+          {teams.map((team, index) => {
+            const played = team.wins + team.draws + team.losses;
+            const pts = (team.wins * 2) + team.draws;
+            const pointDiff = team.points_for - team.points_against;
+            
+            return (
+              <div 
+                key={team.id}
+                className={`bg-gray-800 rounded-lg p-4 ${
+                  index < 4 ? 'border-l-4 border-green-500' : ''
+                }`}
+              >
+                {/* Top Row: Position + Team + Pts */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xl font-bold ${
+                      index < 4 ? 'text-green-400' : 'text-gray-400'
+                    }`}>
+                      {index + 1}
+                    </span>
+                    <TeamLink
+                      teamId={team.id}
+                      teamName={team.name}
+                      primaryColor={team.primary_color}
+                      showBadge={true}
+                    />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-green-400">{pts}</div>
+                    <div className="text-xs text-gray-400">PTS</div>
+                  </div>
+                </div>
+
+                {/* Coach */}
+                <div className="mb-3">
+                  {team.coach_name ? (
+                    <span className="text-yellow-400 text-sm">👤 {team.coach_name}</span>
+                  ) : (
+                    <span className="text-gray-500 italic text-sm">Unmanaged</span>
+                  )}
+                </div>
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-4 gap-2 text-center text-sm">
+                  <div className="bg-gray-700/50 rounded p-2">
+                    <div className="text-white font-bold">{played}</div>
+                    <div className="text-gray-400 text-xs">P</div>
+                  </div>
+                  <div className="bg-gray-700/50 rounded p-2">
+                    <div className="text-white font-bold">
+                      <span className="text-green-400">{team.wins}</span>
+                      -
+                      <span className="text-gray-400">{team.draws}</span>
+                      -
+                      <span className="text-red-400">{team.losses}</span>
+                    </div>
+                    <div className="text-gray-400 text-xs">W-D-L</div>
+                  </div>
+                  <div className="bg-gray-700/50 rounded p-2">
+                    <div className="text-white font-bold">{team.points_for}-{team.points_against}</div>
+                    <div className="text-gray-400 text-xs">PF-PA</div>
+                  </div>
+                  <div className="bg-gray-700/50 rounded p-2">
+                    <div className={`font-bold ${
+                      pointDiff > 0 ? 'text-green-400' : pointDiff < 0 ? 'text-red-400' : 'text-gray-400'
+                    }`}>
+                      {pointDiff > 0 ? '+' : ''}{pointDiff}
+                    </div>
+                    <div className="text-gray-400 text-xs">+/-</div>
+                  </div>
                 </div>
               </div>
             );
