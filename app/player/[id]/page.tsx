@@ -454,14 +454,7 @@ function SeasonStat({
 }
 
 function getStatTier(value: number): number {
-  if (value >= 88) return 8;
-  if (value >= 75) return 7;
-  if (value >= 63) return 6;
-  if (value >= 50) return 5;
-  if (value >= 38) return 4;
-  if (value >= 25) return 3;
-  if (value >= 13) return 2;
-  return 1;
+  return value; // Stats are already 1-8
 }
 
 function getTierLabel(tier: number): string {
