@@ -418,7 +418,7 @@ export default function SquadPage() {
 
       const currentRound = fixtures?.[0]?.round || 1;
 
-      // 1. Add to free agents (available next round)
+      // 1. Add to free agents
       const { error: insertError } = await supabase.from('free_agents').insert({
         player_id: selectedPlayer.id,
         released_by_team_id: coach.team_id,
@@ -458,7 +458,8 @@ export default function SquadPage() {
         alert('Update error: ' + updateError.message);
         return;
       }
-// 3. Notify all OTHER coaches about the release
+
+      // 4. Notify all OTHER coaches about the release
       const { data: allCoaches } = await supabase
         .from('coaches')
         .select('team_id')
@@ -467,15 +468,25 @@ export default function SquadPage() {
       if (allCoaches && allCoaches.length > 0) {
         const notifications = allCoaches.map(c => ({
           team_id: c.team_id,
-          type: 'free_agent_available',
-          title: '📢 New Free Agent!',
+          type: 'new_free_agent',
+          title: '🏪 New Free Agent',
           message: `${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) has been released and is now available!`,
           player_id: selectedPlayer.id
         }));
 
         await supabase.from('notifications').insert(notifications);
       }
-      // 4. Refresh data and close modal
+
+      // 5. Notify yourself
+      await supabase.from('notifications').insert({
+        team_id: coach.team_id,
+        type: 'player_released',
+        title: '👋 Player Released',
+        message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`,
+        player_id: selectedPlayer.id
+      });
+
+      // 6. Refresh data and close modal
       await loadData();
       setSelectedPlayer(null);
       setShowReleaseConfirm(false);
