@@ -228,8 +228,8 @@ export default function TacticsPage() {
 
       setTactics({
         ...tacticsData,
-        attack_focus: tacticsData?.attack_focus || 'structured',
-        defense_focus: tacticsData?.defense_focus || 'slide',
+        attack_focus: tacticsData?.attack_focus || '',
+        defense_focus: tacticsData?.defense_focus || '',
       });
       
       setTimeout(() => setInitialLoad(false), 100);
@@ -387,7 +387,10 @@ export default function TacticsPage() {
               {ATTACK_OPTIONS.map(option => (
                 <button
                   key={option.value}
-                  onClick={() => setTactics({ ...tactics!, attack_focus: option.value })}
+                  onClick={() => setTactics({ 
+                    ...tactics!, 
+                    attack_focus: tactics?.attack_focus === option.value ? '' : option.value 
+                  })}
                   className={`w-full p-3 rounded-lg text-left transition ${
                     tactics?.attack_focus === option.value
                       ? 'bg-green-600/30 border-2 border-green-500'
@@ -412,7 +415,10 @@ export default function TacticsPage() {
               {DEFENSE_OPTIONS.map(option => (
                 <button
                   key={option.value}
-                  onClick={() => setTactics({ ...tactics!, defense_focus: option.value })}
+                  onClick={() => setTactics({ 
+                    ...tactics!, 
+                    defense_focus: tactics?.defense_focus === option.value ? '' : option.value 
+                  })}
                   className={`w-full p-3 rounded-lg text-left transition ${
                     tactics?.defense_focus === option.value
                       ? 'bg-blue-600/30 border-2 border-blue-500'
