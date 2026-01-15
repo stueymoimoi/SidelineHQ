@@ -159,7 +159,7 @@ function getTeamAbbr(name: string, city: string): string {
 export function getEventIcon(eventType: MatchEvent['event_type']): string {
   switch (eventType) {
     case 'TRY': return '🏉';
-    case 'KICK': return '🦵';
+    case 'GOAL': return '🦵';
     case 'ERROR': return '❌';
     case 'HALF_TIME': return '⏸️';
     case 'FULL_TIME': return '🏁';

@@ -100,7 +100,7 @@ export default function MatchTimeline({ fixtureId, defaultExpanded = false }: Ma
                   <span className="text-gray-300 font-semibold">FULL-TIME</span>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-semibold">{event.event_type}</span>
+                    <span className="text-white font-semibold">{event.event_type === 'KICK' ? 'GOAL' : event.event_type}</span>
                     {event.player_id && event.player_name && (
                       <>
                         <span className="text-gray-400">-</span>
