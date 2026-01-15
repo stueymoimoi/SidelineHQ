@@ -80,17 +80,16 @@ export interface Team {
 // ===========================================
 
 export type AttackFocus = 
+  | 'power'
   | 'structured' 
-  | 'raid_left' 
-  | 'raid_right' 
-  | 'up_the_guts' 
-  | 'off_the_cuff';
+  | 'tempo' 
+  | 'edge';
 
 export type DefenseFocus = 
-  | 'line_speed' 
-  | 'shift_left' 
-  | 'shift_right' 
-  | 'brick_wall';
+  | 'rush' 
+  | 'slide' 
+  | 'jam' 
+  | 'territory';
 
 export interface TeamTactics {
   team_id: string;
