@@ -48,7 +48,7 @@ interface MatchResult {
 interface MatchEvent {
   fixture_id: string;
   minute: number;
-  event_type: 'TRY' | 'KICK' | 'ERROR' | 'HALF_TIME' | 'FULL_TIME';
+  event_type: 'TRY' | 'KICK' | 'HALF_TIME' | 'FULL_TIME';
   team_id: string | null;
   player_id: string | null;
   display_text: string | null;
@@ -127,16 +127,20 @@ async function backfillMatchEvents() {
 function generateMatchEvents(match: MatchResult, playerStats: PlayerMatchStat[]): MatchEvent[] {
   const events: MatchEvent[] = [];
   const usedMinutes = new Set<number>();
+  
+  // Reserve 40 for half-time and 80 for full-time
+  usedMinutes.add(40);
+  usedMinutes.add(80);
 
   // Helper to get a unique minute
   const getUniqueMinute = (preferredHalf: 1 | 2): number => {
     const min = preferredHalf === 1 ? 1 : 41;
-    const max = preferredHalf === 1 ? 39 : 79;
+    const max = preferredHalf === 1 ? 38 : 78; // Leave room for +1 for conversions
     
     let attempts = 0;
     while (attempts < 50) {
       const minute = Math.floor(Math.random() * (max - min + 1)) + min;
-      if (!usedMinutes.has(minute)) {
+      if (!usedMinutes.has(minute) && !usedMinutes.has(minute + 1)) {
         usedMinutes.add(minute);
         return minute;
       }
@@ -144,7 +148,7 @@ function generateMatchEvents(match: MatchResult, playerStats: PlayerMatchStat[])
     }
     // Fallback: just find any unused minute
     for (let m = min; m <= max; m++) {
-      if (!usedMinutes.has(m)) {
+      if (!usedMinutes.has(m) && !usedMinutes.has(m + 1)) {
         usedMinutes.add(m);
         return m;
       }
@@ -152,38 +156,97 @@ function generateMatchEvents(match: MatchResult, playerStats: PlayerMatchStat[])
     return preferredHalf === 1 ? 20 : 60;
   };
 
-  // Group stats by team
-  const homeStats = playerStats.filter(p => p.team_id === match.home_team_id);
-  const awayStats = playerStats.filter(p => p.team_id === match.away_team_id);
+  // Collect all tries and goals
+  interface TryEvent {
+    team_id: string;
+    player_id: string;
+    player_name: string;
+  }
+  
+  interface GoalEvent {
+    team_id: string;
+    player_id: string;
+    player_name: string;
+  }
 
-  // Generate TRY events
+  const homeTries: TryEvent[] = [];
+  const awayTries: TryEvent[] = [];
+  const homeGoals: GoalEvent[] = [];
+  const awayGoals: GoalEvent[] = [];
+
   for (const stat of playerStats) {
+    const isHome = stat.team_id === match.home_team_id;
+    
+    // Add tries
     for (let i = 0; i < (stat.tries || 0); i++) {
-      const half = Math.random() < 0.5 ? 1 : 2;
-      events.push({
-        fixture_id: match.fixture_id,
-        minute: getUniqueMinute(half),
-        event_type: 'TRY',
-        team_id: stat.team_id,
-        player_id: stat.player_id,
-        display_text: `TRY - ${stat.player_name}`
-      });
+      const tryEvent = { team_id: stat.team_id, player_id: stat.player_id, player_name: stat.player_name };
+      if (isHome) homeTries.push(tryEvent);
+      else awayTries.push(tryEvent);
+    }
+    
+    // Add goals
+    for (let i = 0; i < (stat.goals_made || 0); i++) {
+      const goalEvent = { team_id: stat.team_id, player_id: stat.player_id, player_name: stat.player_name };
+      if (isHome) homeGoals.push(goalEvent);
+      else awayGoals.push(goalEvent);
     }
   }
 
-  // Generate KICK (conversion/penalty) events
-  for (const stat of playerStats) {
-    for (let i = 0; i < (stat.goals_made || 0); i++) {
-      const half = Math.random() < 0.5 ? 1 : 2;
+  // Generate TRY events with GOAL immediately after (if available)
+  const generateTryWithGoal = (tries: TryEvent[], goals: GoalEvent[], half: 1 | 2) => {
+    for (const tryEvent of tries) {
+      const minute = getUniqueMinute(half);
+      
+      // Add TRY
       events.push({
         fixture_id: match.fixture_id,
-        minute: getUniqueMinute(half),
-        event_type: 'KICK',
-        team_id: stat.team_id,
-        player_id: stat.player_id,
-        display_text: `KICK - ${stat.player_name}`
+        minute: minute,
+        event_type: 'TRY',
+        team_id: tryEvent.team_id,
+        player_id: tryEvent.player_id,
+        display_text: `TRY - ${tryEvent.player_name}`
       });
+
+      // Add GOAL immediately after if available
+      if (goals.length > 0) {
+        const goal = goals.shift()!;
+        usedMinutes.add(minute + 1);
+        events.push({
+          fixture_id: match.fixture_id,
+          minute: minute + 1,
+          event_type: 'KICK',
+          team_id: goal.team_id,
+          player_id: goal.player_id,
+          display_text: `GOAL - ${goal.player_name}`
+        });
+      }
     }
+  };
+
+  // Distribute tries across both halves
+  const homeFirstHalf = homeTries.splice(0, Math.ceil(homeTries.length / 2));
+  const homeSecondHalf = homeTries;
+  const awayFirstHalf = awayTries.splice(0, Math.ceil(awayTries.length / 2));
+  const awaySecondHalf = awayTries;
+
+  // Generate events - mix home and away for realistic feel
+  generateTryWithGoal(homeFirstHalf, homeGoals, 1);
+  generateTryWithGoal(awayFirstHalf, awayGoals, 1);
+  generateTryWithGoal(homeSecondHalf, homeGoals, 2);
+  generateTryWithGoal(awaySecondHalf, awayGoals, 2);
+
+  // Add any remaining goals as penalty goals (no try before them)
+  for (const goal of [...homeGoals, ...awayGoals]) {
+    const half = Math.random() < 0.5 ? 1 : 2;
+    const minute = getUniqueMinute(half);
+    events.push({
+      fixture_id: match.fixture_id,
+      minute: minute,
+      event_type: 'KICK',
+      team_id: goal.team_id,
+      player_id: goal.player_id,
+      display_text: `PENALTY GOAL - ${goal.player_name}`
+    });
   }
 
   // Add HALF_TIME event
