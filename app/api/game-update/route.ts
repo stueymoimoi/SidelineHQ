@@ -60,7 +60,7 @@ function generateAutoTactics(players: Player[]): Partial<TeamTactics> {
   
   return {
     attack_focus: 'structured' as any,
-    defense_focus: 'line_speed' as any,
+    defense_focus: 'slide' as any,
     pos_fullback: sorted[0]?.id,
     pos_winger_r: sorted[1]?.id,
     pos_centre_r: sorted[2]?.id,
@@ -205,11 +205,11 @@ export async function GET(request: Request) {
       // Calculate tactical bonuses
       const homeTacticalBonus = calculateTacticalBonus(
         homeTactics.attack_focus || 'structured',
-        awayTactics.defense_focus || 'line_speed'
+        awayTactics.defense_focus || 'slide'
       );
       const awayTacticalBonus = calculateTacticalBonus(
         awayTactics.attack_focus || 'structured',
-        homeTactics.defense_focus || 'line_speed'
+        homeTactics.defense_focus || 'slide'
       );
       
       // Final strengths
