@@ -478,13 +478,17 @@ export default function SquadPage() {
       }
 
       // 5. Notify yourself
-      await supabase.from('notifications').insert({
-        team_id: coach.team_id,
-        type: 'player_released',
-        title: '👋 Player Released',
-        message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`,
-        player_id: selectedPlayer.id
-      });
+const { error: notifError } = await supabase.from('notifications').insert({
+  team_id: coach.team_id,
+  type: 'player_released',
+  title: '👋 Player Released',
+  message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`,
+  player_id: selectedPlayer.id
+});
+
+if (notifError) {
+  console.error('Notification error:', notifError);
+}
 
       // 6. Refresh data and close modal
       await loadData();
