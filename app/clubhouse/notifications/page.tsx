@@ -46,6 +46,51 @@ interface Player {
   fatigue: number;
 }
 
+// Icon map for O(1) lookup
+const TYPE_ICONS: Record<string, string> = {
+  match_win: '🏆',
+  match_loss: '😢',
+  match_draw: '🤝',
+  player_improvement: '⭐',
+  position_learned: '🎉',
+  new_signup: '🆕',
+  motm: '⭐',
+  motm_opponent: '⭐',
+  free_agent_signed: '🎉',
+  free_agent_announcement: '📋',
+  player_released: '👋',
+  new_free_agent: '🏪',
+};
+
+// Color map for O(1) lookup
+const TYPE_COLORS: Record<string, string> = {
+  match_win: 'border-green-500',
+  match_loss: 'border-red-500',
+  match_draw: 'border-yellow-500',
+  player_improvement: 'border-blue-500',
+  position_learned: 'border-purple-500',
+  new_signup: 'border-purple-500',
+  motm: 'border-yellow-400',
+  motm_opponent: 'border-gray-500',
+  free_agent_signed: 'border-green-500',
+  free_agent_announcement: 'border-blue-500',
+  player_released: 'border-orange-500',
+  new_free_agent: 'border-cyan-500',
+};
+
+// Position colors for player modal
+const POSITION_COLORS: Record<string, string> = {
+  'Fullback': 'bg-purple-600',
+  'Winger': 'bg-blue-600',
+  'Centre': 'bg-green-600',
+  'Five-Eighth': 'bg-yellow-600',
+  'Halfback': 'bg-yellow-500',
+  'Prop': 'bg-red-600',
+  'Hooker': 'bg-orange-600',
+  'Second Row': 'bg-pink-600',
+  'Lock': 'bg-red-700',
+};
+
 export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
@@ -55,8 +100,6 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadData();
-    
-    // Auto-refresh every 60 seconds
     const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -80,31 +123,23 @@ export default function NotificationsPage() {
         return;
       }
 
-      const { data: teamData } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', coach.team_id)
-        .single();
+      // Parallel fetch
+      const [teamRes, notifsRes] = await Promise.all([
+        supabase.from('teams').select('*').eq('id', coach.team_id).single(),
+        supabase.from('notifications').select('*').eq('team_id', coach.team_id).order('created_at', { ascending: false }).limit(50)
+      ]);
 
-      setTeam(teamData);
+      setTeam(teamRes.data);
+      setNotifications(notifsRes.data || []);
 
-      // Get notifications
-      const { data: notifs } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('team_id', coach.team_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      setNotifications(notifs || []);
-
-      // Mark all as read
-      if (notifs && notifs.some(n => !n.read)) {
-        await supabase
+      // Mark unread as read (fire and forget)
+      if (notifsRes.data?.some(n => !n.read)) {
+        supabase
           .from('notifications')
           .update({ read: true })
           .eq('team_id', coach.team_id)
-          .eq('read', false);
+          .eq('read', false)
+          .then();
       }
 
     } catch (err) {
@@ -124,34 +159,8 @@ export default function NotificationsPage() {
     if (data) setSelectedPlayer(data);
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'match_win': return '🏆';
-      case 'match_loss': return '😢';
-      case 'match_draw': return '🤝';
-      case 'player_improvement': return '⭐';
-      case 'position_learned': return '🎉';
-      case 'new_signup': return '🆕';
-      default: return '📢';
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'match_win': return 'border-green-500';
-      case 'match_loss': return 'border-red-500';
-      case 'match_draw': return 'border-yellow-500';
-      case 'player_improvement': return 'border-blue-500';
-      case 'position_learned': return 'border-purple-500';
-      case 'new_signup': return 'border-purple-500';
-      default: return 'border-gray-500';
-    }
-  };
-
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    const diffMs = Date.now() - new Date(dateStr).getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
@@ -160,22 +169,7 @@ export default function NotificationsPage() {
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-  };
-
-  const getPositionColor = (position: string) => {
-    const colors: Record<string, string> = {
-      'Fullback': 'bg-purple-600',
-      'Winger': 'bg-blue-600',
-      'Centre': 'bg-green-600',
-      'Five-Eighth': 'bg-yellow-600',
-      'Halfback': 'bg-yellow-500',
-      'Prop': 'bg-red-600',
-      'Hooker': 'bg-orange-600',
-      'Second Row': 'bg-pink-600',
-      'Lock': 'bg-red-700',
-    };
-    return colors[position] || 'bg-gray-600';
+    return new Date(dateStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   };
 
   if (loading) {
@@ -215,10 +209,10 @@ export default function NotificationsPage() {
             {notifications.map(notif => (
               <div
                 key={notif.id}
-                className={`bg-gray-800 rounded-lg p-4 border-l-4 ${getTypeColor(notif.type)} ${!notif.read ? 'bg-gray-750' : ''}`}
+                className={`bg-gray-800 rounded-lg p-4 border-l-4 ${TYPE_COLORS[notif.type] || 'border-gray-500'} ${!notif.read ? 'bg-gray-750' : ''}`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="text-2xl">{getTypeIcon(notif.type)}</div>
+                  <div className="text-2xl">{TYPE_ICONS[notif.type] || '📢'}</div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <p className="text-white font-bold">{notif.title}</p>
@@ -252,6 +246,14 @@ export default function NotificationsPage() {
                           Review in Admin
                         </Link>
                       )}
+                      {(notif.type === 'new_free_agent' || notif.type === 'free_agent_announcement') && (
+                        <Link
+                          href="/clubhouse/free-agents"
+                          className="text-sm bg-gray-700 hover:bg-gray-600 text-cyan-400 px-3 py-1 rounded transition"
+                        >
+                          View Free Agents
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -270,7 +272,7 @@ export default function NotificationsPage() {
                 <p className="text-gray-400 text-sm">{selectedPlayer.first_name}</p>
                 <h3 className="text-2xl font-bold text-white">{selectedPlayer.last_name}</h3>
               </div>
-              <span className={`px-3 py-1 rounded text-white text-sm font-bold ${getPositionColor(selectedPlayer.position)}`}>
+              <span className={`px-3 py-1 rounded text-white text-sm font-bold ${POSITION_COLORS[selectedPlayer.position] || 'bg-gray-600'}`}>
                 {selectedPlayer.position}
               </span>
             </div>
@@ -288,30 +290,19 @@ export default function NotificationsPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">SPD</p>
-                <p className="text-white text-xl font-bold">{selectedPlayer.speed}</p>
-              </div>
-              <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">STR</p>
-                <p className="text-white text-xl font-bold">{selectedPlayer.strength}</p>
-              </div>
-              <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">SKL</p>
-                <p className="text-white text-xl font-bold">{selectedPlayer.skill}</p>
-              </div>
-              <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">STA</p>
-                <p className="text-white text-xl font-bold">{selectedPlayer.stamina}</p>
-              </div>
-              <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">DEF</p>
-                <p className="text-white text-xl font-bold">{selectedPlayer.defense}</p>
-              </div>
-              <div className="bg-gray-700 rounded p-3 text-center">
-                <p className="text-gray-400 text-xs">KCK</p>
-                <p className="text-white text-xl font-bold">{selectedPlayer.kicking}</p>
-              </div>
+              {[
+                { label: 'SPD', value: selectedPlayer.speed },
+                { label: 'STR', value: selectedPlayer.strength },
+                { label: 'SKL', value: selectedPlayer.skill },
+                { label: 'STA', value: selectedPlayer.stamina },
+                { label: 'DEF', value: selectedPlayer.defense },
+                { label: 'KCK', value: selectedPlayer.kicking },
+              ].map(stat => (
+                <div key={stat.label} className="bg-gray-700 rounded p-3 text-center">
+                  <p className="text-gray-400 text-xs">{stat.label}</p>
+                  <p className="text-white text-xl font-bold">{stat.value}</p>
+                </div>
+              ))}
             </div>
 
             <button
