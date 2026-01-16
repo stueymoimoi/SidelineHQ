@@ -1,44 +1,30 @@
 /**
  * SidelineHQ Game Engine Types
- * Central type definitions for match simulation
  */
 
+import { PROGRESS_STAGES } from './constants';
+
 // ===========================================
-// PLAYER TYPES
+// PROGRESS STAGE TYPE
 // ===========================================
 
-export type StatTier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+export type ProgressStage = typeof PROGRESS_STAGES[number];
 
-export type StatLabel = 
-  | 'NONE' 
-  | 'POOR' 
-  | 'OK' 
-  | 'GOOD' 
-  | 'GREAT' 
-  | 'EXCELLENT' 
-  | 'ELITE' 
-  | 'LEGEND';
-
-export type Position =
-  | 'Fullback'
-  | 'Winger'
-  | 'Centre'
-  | 'Five-Eighth'
-  | 'Halfback'
-  | 'Prop'
-  | 'Hooker'
-  | 'Second Row'
-  | 'Lock';
+// ===========================================
+// DATABASE MODELS
+// ===========================================
 
 export interface Player {
   id: string;
   team_id: string | null;
   first_name: string;
   last_name: string;
-  position: Position;
+  position: string;
+  secondary_position: string | null;
   age: number;
+  overall: number;
   
-  // Stats (1-100 scale currently, will be 1-8 tiers)
+  // Stats (1-8 tier scale)
   speed: number;
   strength: number;
   power: number;
@@ -47,66 +33,84 @@ export interface Player {
   tackling: number;
   kicking: number;
   
-  // Derived
-  overall: number;
-  potential: number;
+  // Hidden stats
+  potential?: number;
+  match_power?: number;
+  goal_kicking_ability?: number;
+  
+  // Training system
+  current_training: string | null;
+  training_progress: string | null;
   fatigue: number;
   
-  // Training
-  current_training: string | null;
-  training_progress: ProgressStage;
+  // Training system v2.0
+  training_affinity?: Record<string, 'high' | 'medium'>;
+  durability?: 'fragile' | 'normal' | 'durable' | 'ironman';
+  
+  // Timestamps
+  created_at?: string;
+  updated_at?: string;
 }
-
-// ===========================================
-// TEAM TYPES
-// ===========================================
 
 export interface Team {
   id: string;
   name: string;
   city: string;
   division: number;
+  
+  // Colors
   primary_color: string;
   secondary_color: string;
+  tertiary_color?: string;
+  
+  // Season stats
   wins: number;
   draws: number;
   losses: number;
   points_for: number;
   points_against: number;
+  
+  // Timestamps
+  created_at?: string;
+  updated_at?: string;
 }
 
-// ===========================================
-// TACTICS TYPES
-// ===========================================
-
-export type AttackFocus = 
-  | 'power'
-  | 'structured' 
-  | 'tempo' 
-  | 'edge';
-
-export type DefenseFocus = 
-  | 'rush' 
-  | 'slide' 
-  | 'jam' 
-  | 'territory';
+export interface Fixture {
+  id: string;
+  season: number;
+  round: number;
+  home_team_id: string;
+  away_team_id: string;
+  played: boolean;
+  
+  // Results (populated after match)
+  home_score?: number;
+  away_score?: number;
+  
+  // Timestamps
+  match_date?: string;
+  created_at?: string;
+}
 
 export interface TeamTactics {
+  id: string;
   team_id: string;
+  
+  // Tactical settings
   attack_focus: AttackFocus;
   defense_focus: DefenseFocus;
   
   // Starting 13
   pos_fullback: string | null;
-  pos_winger_l: string | null;
   pos_winger_r: string | null;
-  pos_centre_l: string | null;
   pos_centre_r: string | null;
+  pos_centre_l: string | null;
+  pos_winger_l: string | null;
   pos_five_eighth: string | null;
   pos_halfback: string | null;
   pos_prop_l: string | null;
-  pos_prop_r: string | null;
   pos_hooker: string | null;
+  pos_prop_r: string | null;
   pos_second_row_l: string | null;
   pos_second_row_r: string | null;
   pos_lock: string | null;
@@ -120,20 +124,62 @@ export interface TeamTactics {
   // Special roles
   goal_kicker: string | null;
   captain: string | null;
+  
+  // Timestamps
+  updated_at?: string;
+}
+
+export interface Notification {
+  id?: string;
+  team_id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  
+  // Optional references
+  player_id?: string;
+  fixture_id?: string;
+  
+  // Status
+  read?: boolean;
+  created_at?: string;
 }
 
 // ===========================================
-// MATCH TYPES
+// ENUMS / UNION TYPES
 // ===========================================
 
-export interface Fixture {
-  id: string;
-  season: number;
-  round: number;
-  home_team_id: string;
-  away_team_id: string;
-  played: boolean;
-}
+export type AttackFocus = 
+  | 'structured' 
+  | 'expansive' 
+  | 'direct' 
+  | 'kicking';
+
+export type DefenseFocus = 
+  | 'slide' 
+  | 'rush' 
+  | 'umbrella' 
+  | 'zone';
+
+export type NotificationType = 
+  | 'match_win'
+  | 'match_loss'
+  | 'match_draw'
+  | 'motm'
+  | 'motm_opponent'
+  | 'player_improvement'
+  | 'player_decline'
+  | 'player_retired'
+  | 'retirement_warning'
+  | 'player_released'
+  | 'free_agent_signed'
+  | 'free_agent_announcement'
+  | 'new_free_agent'
+  | 'system';
+
+// ===========================================
+// MATCH ENGINE TYPES
+// ===========================================
 
 export interface MatchResult {
   fixture_id: string;
@@ -147,31 +193,6 @@ export interface MatchResult {
   motm_reason: string;
 }
 
-export interface GameContext {
-  totalPoints: number;
-  margin: number;
-  teamWon: boolean;
-}
-
-// ===========================================
-// PLAYER STATS TYPES
-// ===========================================
-
-export interface GeneratedStats {
-  metres: number;
-  tackles: number;
-  missedTackles: number;
-  errors: number;
-  lineBreaks: number;
-  tackleBreaks: number;
-}
-
-export interface FullPlayerStats extends GeneratedStats {
-  tries: number;
-  tryAssists: number;
-  goals: number;
-}
-
 export interface PlayerMatchStats {
   fixture_id: string;
   player_id: string;
@@ -179,6 +200,8 @@ export interface PlayerMatchStats {
   jersey_number: number;
   player_name: string;
   ovr: number;
+  
+  // Performance
   points: number;
   tries: number;
   try_assists: number;
@@ -192,115 +215,4 @@ export interface PlayerMatchStats {
   tackle_breaks: number;
   minutes_played: number;
   rating: number;
-}
-
-export interface PlayerStatWithInfluence extends PlayerMatchStats {
-  motm_influence: number;
-  is_captain: boolean;
-}
-
-// ===========================================
-// POSITION CONFIG TYPES
-// ===========================================
-
-export interface PositionConfig {
-  metresBase: number;
-  tacklesBase: number;
-  touchesBase: number;
-}
-
-// ===========================================
-// TRAINING TYPES
-// ===========================================
-
-export type ProgressStage = 
-  | 'NONE' 
-  | 'POOR' 
-  | 'FAIR' 
-  | 'GOOD' 
-  | 'VERY GOOD' 
-  | 'EXCELLENT';
-
-export type TrainableStat = 
-  | 'Speed' 
-  | 'Strength' 
-  | 'Power' 
-  | 'Passing' 
-  | 'Stamina' 
-  | 'Tackling' 
-  | 'Kicking' 
-  | 'Rest';
-
-// ===========================================
-// FREE AGENCY TYPES
-// ===========================================
-
-export type PlayerType = 
-  | 'ambitious_star' 
-  | 'young_prospect' 
-  | 'journeyman' 
-  | 'veteran';
-
-export interface FreeAgent {
-  id: string;
-  player_id: string;
-  released_by_team_id: string;
-  available_round: number;
-  claimed: boolean;
-  players?: Player;
-}
-
-export interface FreeAgentClaim {
-  id: string;
-  free_agent_id: string;
-  team_id: string;
-  release_player_id: string | null;
-}
-
-export interface TeamScore {
-  teamId: string;
-  score: number;
-  releasePlayerId: string | null;
-}
-
-// ===========================================
-// NOTIFICATION TYPES
-// ===========================================
-
-export type NotificationType =
-  | 'match_win'
-  | 'match_loss'
-  | 'match_draw'
-  | 'motm'
-  | 'motm_opponent'
-  | 'player_improvement'
-  | 'free_agent_signed'
-  | 'free_agent_lost'
-  | 'free_agent_update';
-
-export interface Notification {
-  team_id: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  fixture_id?: string;
-  player_id?: string;
-}
-
-// ===========================================
-// TACTICAL BONUS TYPES
-// ===========================================
-
-export interface TacticalBonusResult {
-  bonus: number;
-  description: string;
-}
-
-// ===========================================
-// TRY DISTRIBUTION TYPES
-// ===========================================
-
-export interface TryDistribution {
-  tryScorers: Record<string, number>;
-  tryAssisters: Record<string, number>;
 }
