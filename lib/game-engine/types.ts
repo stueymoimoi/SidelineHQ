@@ -290,3 +290,12 @@ export type PlayerType =
   | 'young_prospect'
   | 'veteran'
   | 'journeyman';
+
+  // ===========================================
+// TACTICAL TYPES
+// ===========================================
+
+export interface TacticalBonusResult {
+  bonus: number;
+  description: string;
+}
