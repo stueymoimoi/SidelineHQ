@@ -287,4 +287,4 @@ export type PlayerType =
   | 'ambitious_star'
   | 'young_prospect'
   | 'veteran'
-  | 'standard';
+  | 'journeyman';
