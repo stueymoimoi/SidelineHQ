@@ -19,7 +19,10 @@ import {
   FATIGUE_PER_TRAINING,
   REST_RECOVERY
 } from '../game-engine/constants';
-
+import { 
+  calculateTraitModifiers, 
+  type PlayerTraitData 
+} from '../game-engine/traits';
 // ===========================================
 // CONSTANTS
 // ===========================================
@@ -272,7 +275,16 @@ function getAffinity(player: Player, stat: string): 'high' | 'medium' | 'none' {
 function getPositionConfig(position: string) {
   return POSITION_AGE_CONFIG[position] || POSITION_AGE_CONFIG['Lock'];
 }
-
+/**
+ * Extract trait data from player for modifier calculation
+ */
+function getPlayerTraitData(player: Player): PlayerTraitData {
+  return {
+    visibleTrait: (player.visible_trait as PlayerTraitData['visibleTrait']) || null,
+    visibleTraitPositive: player.visible_trait_positive ?? null,
+    hiddenTrait: (player.hidden_trait as PlayerTraitData['hiddenTrait']) || null,
+  };
+}
 // ===========================================
 // AFFINITY GENERATION
 // ===========================================
@@ -395,9 +407,28 @@ export function processPlayerTraining(player: Player): TrainingResult {
   const statAffinity = getAffinity(player, training);
   const affinityModifiers = AFFINITY_MODIFIERS[statAffinity];
 
-  // Calculate advance chance
-  const advanceChance = TRAINING_ADVANCE_BASE_CHANCE + ageModifiers.advance + affinityModifiers.advance;
-  
+  // Calculate trait modifiers (for Prodigy training bonus)
+  const traitData = getPlayerTraitData(player);
+  const traitMods = calculateTraitModifiers(traitData, {
+    isHome: false,
+    isFinals: false,
+    isOrigin: false,
+    currentMargin: 0,
+    marginAtHalftime: 0,
+    isSecondHalf: false,
+    opponentTeamId: '',
+  }, {
+    previousGameWon: null,
+    seasonsAtClub: 1,
+    gamesAtClubSinceTransfer: 99,
+    isCaptain: false,
+    isStarting: true,
+    currentFitness: 100 - (player.fatigue || 0),
+  });
+
+  // Calculate advance chance (with Prodigy bonus if applicable)
+  const baseAdvanceChance = TRAINING_ADVANCE_BASE_CHANCE + ageModifiers.advance + affinityModifiers.advance;
+  const advanceChance = Math.round(baseAdvanceChance * traitMods.trainingMultiplier);
   let effectiveProgress = currentProgress;
 
   // Chance to advance progress stage (unless already at EXCELLENT)

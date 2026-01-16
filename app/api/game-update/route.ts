@@ -37,7 +37,14 @@ import { calculateMotmInfluence, buildMotmReason } from '@/lib/game-engine/motm'
 import { calculateTacticalBonus } from '@/lib/game-engine/tactics';
 import { calculateTries, calculateKickingStats, calculateScore, distributeTries } from '@/lib/game-engine/scoring';
 import { processAllTraining } from '@/lib/training';
-
+import { 
+  calculateTraitModifiers, 
+  DEFAULT_MODIFIERS,
+  type PlayerTraitData,
+  type GameContext,
+  type MatchContext,
+  type TraitModifiers
+} from '@/lib/game-engine/traits';
 // ===========================================
 // SUPABASE CLIENT (Service Role for admin ops)
 // ===========================================
@@ -48,7 +55,17 @@ function getSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
+// ===========================================
+// EXTRACT TRAIT DATA FROM PLAYER
+// ===========================================
 
+function getPlayerTraitData(player: Player): PlayerTraitData {
+  return {
+    visibleTrait: (player.visible_trait as PlayerTraitData['visibleTrait']) || null,
+    visibleTraitPositive: player.visible_trait_positive ?? null,
+    hiddenTrait: (player.hidden_trait as PlayerTraitData['hiddenTrait']) || null,
+  };
+}
 // ===========================================
 // AUTO-GENERATE TACTICS FOR UNMANAGED TEAMS
 // ===========================================
@@ -241,7 +258,16 @@ export async function GET(request: Request) {
       // Distribute tries and assists
       const homeTryDist = distributeTries(playersMap, homeTries, homeTactics);
       const awayTryDist = distributeTries(playersMap, awayTries, awayTactics);
-      
+      // Build game context for trait calculations
+      const gameContext: GameContext = {
+        isHome: true, // Will be set per-player
+        isFinals: currentRound > 18, // Rounds 19+ are finals
+        isOrigin: false, // Regular season match
+        currentMargin: homeScore - awayScore, // Will be flipped for away team
+        marginAtHalftime: Math.round((homeScore - awayScore) * 0.4), // Approximate halftime margin
+        isSecondHalf: true, // Stats represent full game, weight toward 2nd half
+        opponentTeamId: '', // Will be set per-player
+      };
       // Generate player stats
       const fixtureStats: any[] = [];
       
@@ -254,11 +280,47 @@ export async function GET(request: Request) {
         const homePlayerId = homeTactics[field];
         if (homePlayerId && playersMap[homePlayerId]) {
           const player = playersMap[homePlayerId];
-          const stats = generatePlayerStats(player, jerseyNumber, minutes);
+          const isCaptain = homeTactics.captain === homePlayerId;
+          const isStarting = jerseyNumber <= 13;
+          
+          // Build contexts for trait calculation
+          const homeGameContext: GameContext = {
+            ...gameContext,
+            isHome: true,
+            currentMargin: homeScore - awayScore,
+            marginAtHalftime: Math.round((homeScore - awayScore) * 0.4),
+            opponentTeamId: fixture.away_team_id,
+          };
+          
+          const matchContext: MatchContext = {
+            previousGameWon: null, // TODO: Track previous results
+            seasonsAtClub: 1, // TODO: Track tenure
+            gamesAtClubSinceTransfer: 99, // TODO: Track transfer date
+            isCaptain,
+            isStarting,
+            currentFitness: 100 - (player.fatigue || 0),
+          };
+          
+          // Calculate trait modifiers
+          const traitData = getPlayerTraitData(player);
+          const traitMods = calculateTraitModifiers(traitData, homeGameContext, matchContext);
+          
+          // Generate base stats
+          const baseStats = generatePlayerStats(player, jerseyNumber, minutes);
+          
+          // Apply trait modifiers to stats
+          const stats = {
+            metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier),
+            tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier),
+            missedTackles: baseStats.missedTackles,
+            errors: baseStats.errors,
+            lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier),
+            tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier),
+          };
+          
           const tries = homeTryDist.tryScorers[homePlayerId] || 0;
           const tryAssists = homeTryDist.tryAssisters[homePlayerId] || 0;
           const isKicker = homeTactics.goal_kicker === homePlayerId;
-          const isCaptain = homeTactics.captain === homePlayerId;
           const goals = isKicker ? homeKicking.conversions + homeKicking.penalties : 0;
           const points = (tries * 4) + (goals * 2);
           
@@ -288,18 +350,56 @@ export async function GET(request: Request) {
             _is_captain: isCaptain
           });
           
-          fatigueUpdates[homePlayerId] = Math.min(100, (player.fatigue || 0) + FATIGUE_PER_MATCH);
+          // Apply fatigue with Iron Man modifier
+          const fatigueGain = Math.round(FATIGUE_PER_MATCH * traitMods.fatigueMultiplier);
+          fatigueUpdates[homePlayerId] = Math.min(100, (player.fatigue || 0) + fatigueGain);
         }
         
         // Away team player
         const awayPlayerId = awayTactics[field];
         if (awayPlayerId && playersMap[awayPlayerId]) {
           const player = playersMap[awayPlayerId];
-          const stats = generatePlayerStats(player, jerseyNumber, minutes);
+          const isCaptain = awayTactics.captain === awayPlayerId;
+          const isStarting = jerseyNumber <= 13;
+          
+          // Build contexts for trait calculation
+          const awayGameContext: GameContext = {
+            ...gameContext,
+            isHome: false,
+            currentMargin: awayScore - homeScore, // Flipped for away perspective
+            marginAtHalftime: Math.round((awayScore - homeScore) * 0.4),
+            opponentTeamId: fixture.home_team_id,
+          };
+          
+          const matchContext: MatchContext = {
+            previousGameWon: null, // TODO: Track previous results
+            seasonsAtClub: 1, // TODO: Track tenure
+            gamesAtClubSinceTransfer: 99, // TODO: Track transfer date
+            isCaptain,
+            isStarting,
+            currentFitness: 100 - (player.fatigue || 0),
+          };
+          
+          // Calculate trait modifiers
+          const traitData = getPlayerTraitData(player);
+          const traitMods = calculateTraitModifiers(traitData, awayGameContext, matchContext);
+          
+          // Generate base stats
+          const baseStats = generatePlayerStats(player, jerseyNumber, minutes);
+          
+          // Apply trait modifiers to stats
+          const stats = {
+            metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier),
+            tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier),
+            missedTackles: baseStats.missedTackles,
+            errors: baseStats.errors,
+            lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier),
+            tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier),
+          };
+          
           const tries = awayTryDist.tryScorers[awayPlayerId] || 0;
           const tryAssists = awayTryDist.tryAssisters[awayPlayerId] || 0;
           const isKicker = awayTactics.goal_kicker === awayPlayerId;
-          const isCaptain = awayTactics.captain === awayPlayerId;
           const goals = isKicker ? awayKicking.conversions + awayKicking.penalties : 0;
           const points = (tries * 4) + (goals * 2);
           
@@ -329,7 +429,9 @@ export async function GET(request: Request) {
             _is_captain: isCaptain
           });
           
-          fatigueUpdates[awayPlayerId] = Math.min(100, (player.fatigue || 0) + FATIGUE_PER_MATCH);
+          // Apply fatigue with Iron Man modifier
+          const fatigueGain = Math.round(FATIGUE_PER_MATCH * traitMods.fatigueMultiplier);
+          fatigueUpdates[awayPlayerId] = Math.min(100, (player.fatigue || 0) + fatigueGain);
         }
       }
       

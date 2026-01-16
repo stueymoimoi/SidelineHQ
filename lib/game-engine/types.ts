@@ -55,6 +55,11 @@ export interface Player {
   training_affinity?: Record<string, 'high' | 'medium'>;
   durability?: 'fragile' | 'normal' | 'durable' | 'ironman';
   
+  // Trait system
+  visible_trait?: string | null;
+  visible_trait_positive?: boolean | null;
+  hidden_trait?: string | null;
+  
   // Timestamps
   created_at?: string;
   updated_at?: string;
@@ -291,7 +296,7 @@ export type PlayerType =
   | 'veteran'
   | 'journeyman';
 
-  // ===========================================
+// ===========================================
 // TACTICAL TYPES
 // ===========================================
 
