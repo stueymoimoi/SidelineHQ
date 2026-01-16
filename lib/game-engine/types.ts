@@ -236,7 +236,6 @@ export interface GeneratedStats {
   errors: number;
   lineBreaks: number;
   tackleBreaks: number;
-  touches: number;
 }
 
 export interface FullPlayerStats extends GeneratedStats {
