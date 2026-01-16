@@ -254,3 +254,37 @@ export interface TryDistribution {
   tryScorers: Record<string, number>;
   tryAssisters: Record<string, number>;
 }
+
+// ===========================================
+// FREE AGENCY TYPES
+// ===========================================
+
+export interface FreeAgent {
+  id: string;
+  player_id: string;
+  released_by_team_id: string | null;
+  available_round: number;
+  claimed: boolean;
+  created_at?: string;
+  players?: Player;
+}
+
+export interface FreeAgentClaim {
+  id: string;
+  free_agent_id: string;
+  team_id: string;
+  release_player_id: string | null;
+  created_at?: string;
+}
+
+export interface TeamScore {
+  teamId: string;
+  score: number;
+  releasePlayerId: string | null;
+}
+
+export type PlayerType = 
+  | 'ambitious_star'
+  | 'young_prospect'
+  | 'veteran'
+  | 'standard';
