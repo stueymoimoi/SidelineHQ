@@ -2,13 +2,21 @@
  * SidelineHQ Game Engine Types
  */
 
-import { PROGRESS_STAGES } from './constants';
-
 // ===========================================
-// PROGRESS STAGE TYPE
+// PROGRESS STAGE TYPE (defined here to avoid circular import)
 // ===========================================
 
-export type ProgressStage = typeof PROGRESS_STAGES[number];
+export type ProgressStage = 'NONE' | 'POOR' | 'FAIR' | 'GOOD' | 'VERY GOOD' | 'EXCELLENT';
+
+// ===========================================
+// POSITION CONFIG TYPE
+// ===========================================
+
+export interface PositionConfig {
+  metresBase: number;
+  tacklesBase: number;
+  touchesBase: number;
+}
 
 // ===========================================
 // DATABASE MODELS
@@ -215,4 +223,35 @@ export interface PlayerMatchStats {
   tackle_breaks: number;
   minutes_played: number;
   rating: number;
+}
+
+// ===========================================
+// STAT GENERATION TYPES
+// ===========================================
+
+export interface GeneratedStats {
+  metres: number;
+  tackles: number;
+  missedTackles: number;
+  errors: number;
+  lineBreaks: number;
+  tackleBreaks: number;
+  touches: number;
+}
+
+export interface FullPlayerStats extends GeneratedStats {
+  tries: number;
+  tryAssists: number;
+  goals: number;
+}
+
+export interface GameContext {
+  totalPoints: number;
+  margin: number;
+  teamWon: boolean;
+}
+
+export interface TryDistribution {
+  tryScorers: Record<string, number>;
+  tryAssisters: Record<string, number>;
 }
