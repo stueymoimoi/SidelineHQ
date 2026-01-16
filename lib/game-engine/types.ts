@@ -182,6 +182,7 @@ export type NotificationType =
   | 'player_released'
   | 'free_agent_signed'
   | 'free_agent_announcement'
+  | 'free_agent_lost'
   | 'new_free_agent'
   | 'system';
 
