@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,6 +9,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+// ============================================
+// TYPES
+// ============================================
 
 interface Player {
   id: string;
@@ -21,6 +25,7 @@ interface Player {
   nationality: string;
   state: string | null;
   team_id: string;
+  visible_trait: string | null;
 }
 
 interface Team {
@@ -28,6 +33,10 @@ interface Team {
   name: string;
   division: number;
 }
+
+// ============================================
+// CONSTANTS
+// ============================================
 
 const REP_TEAMS = {
   origin: [
@@ -45,6 +54,40 @@ const REP_TEAMS = {
   ]
 };
 
+const TRAIT_DISPLAY_NAMES: Record<string, string> = {
+  fiery: 'Fiery',
+  confident: 'Confident',
+  showman: 'Showman',
+  professional: 'Professional',
+  clutch: 'Clutch',
+  prodigy: 'Prodigy',
+  leader: 'Leader',
+  loyal: 'Loyal',
+  composed: 'Composed',
+};
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+const getTraitDisplay = (trait: string | null): string | null => {
+  if (!trait) return null;
+  return TRAIT_DISPLAY_NAMES[trait] || trait.charAt(0).toUpperCase() + trait.slice(1);
+};
+
+const getOvrColor = (ovr: number): string => {
+  if (ovr >= 41) return 'bg-purple-500';
+  if (ovr >= 35) return 'bg-green-500';
+  if (ovr >= 29) return 'bg-green-600';
+  if (ovr >= 23) return 'bg-yellow-500';
+  if (ovr >= 17) return 'bg-orange-500';
+  return 'bg-red-500';
+};
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
 export default function RepHonoursPage() {
   const [loading, setLoading] = useState(true);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -55,11 +98,11 @@ export default function RepHonoursPage() {
   
   const router = useRouter();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // ============================================
+  // DATA LOADING (Dynamic batching - future-proof)
+  // ============================================
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -77,35 +120,83 @@ export default function RepHonoursPage() {
         setUserTeamId(coach.team_id);
       }
 
-      const { data: playersData } = await supabase
-        .from('players')
-        .select('id, first_name, last_name, position, age, overall, match_power, nationality, state, team_id');
-console.log('match_power type:', typeof playersData?.[0]?.match_power);
-      setAllPlayers(playersData || []);
+      // Fetch ALL players dynamically (no limit, future-proof)
+      const playerFields = 'id, first_name, last_name, position, age, overall, match_power, nationality, state, team_id, visible_trait';
+      const batchSize = 1000;
+      let allPlayersData: Player[] = [];
+      let offset = 0;
+      let hasMore = true;
 
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('players')
+          .select(playerFields)
+          .range(offset, offset + batchSize - 1);
+
+        if (error) {
+          console.error('Error fetching players batch:', error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allPlayersData = [...allPlayersData, ...data];
+          offset += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Fetch teams
       const { data: teamsData } = await supabase
         .from('teams')
         .select('id, name, division');
 
+      console.log(`Rep Honours: Loaded ${allPlayersData.length} players in ${Math.ceil(allPlayersData.length / batchSize)} batches`);
+
+      setAllPlayers(allPlayersData);
       setAllTeams(teamsData || []);
 
     } catch (err) {
-      console.error('Error:', err);
+      console.error('Error loading rep honours data:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
-  // Select best player for a position by match_power
-  const selectBestForPosition = (eligiblePlayers: Player[], position: string, count: number, excludeIds: Set<string>) => {
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ============================================
+  // TEAM LOOKUP (Memoized)
+  // ============================================
+
+  const teamMap = useMemo(() => {
+    return new Map(allTeams.map(t => [t.id, t]));
+  }, [allTeams]);
+
+  const getTeamName = useCallback((teamId: string): string => {
+    return teamMap.get(teamId)?.name || 'Unknown';
+  }, [teamMap]);
+
+  // ============================================
+  // SQUAD BUILDING LOGIC
+  // ============================================
+
+  const selectBestForPosition = useCallback((
+    eligiblePlayers: Player[], 
+    position: string, 
+    count: number, 
+    excludeIds: Set<string>
+  ): Player[] => {
     return eligiblePlayers
       .filter(p => p.position === position && !excludeIds.has(p.id))
       .sort((a, b) => b.match_power - a.match_power)
       .slice(0, count);
-  };
+  }, []);
 
-  // Build a 17-man squad with position mapping
-  const buildSquad = (eligiblePlayers: Player[]) => {
+  const buildSquad = useCallback((eligiblePlayers: Player[]) => {
     const squad: Record<string, Player | null> = {
       fullback: null,
       winger_l: null,
@@ -168,7 +259,7 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
     const lock = selectBestForPosition(eligiblePlayers, 'Lock', 1, selectedIds);
     if (lock[0]) { squad.lock = lock[0]; selectedIds.add(lock[0].id); }
 
-    // Bench - get best remaining by position
+    // Bench
     const benchProp = selectBestForPosition(eligiblePlayers, 'Prop', 1, selectedIds);
     if (benchProp[0]) { squad.bench_1 = benchProp[0]; selectedIds.add(benchProp[0].id); }
 
@@ -178,51 +269,40 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
     const benchSR = selectBestForPosition(eligiblePlayers, 'Second Row', 1, selectedIds);
     if (benchSR[0]) { squad.bench_3 = benchSR[0]; selectedIds.add(benchSR[0].id); }
 
-    // Utility - could be anyone remaining with high match power
     const remaining = eligiblePlayers
       .filter(p => !selectedIds.has(p.id))
       .sort((a, b) => b.match_power - a.match_power);
     if (remaining[0]) { squad.bench_4 = remaining[0]; selectedIds.add(remaining[0].id); }
 
     return squad;
-  };
+  }, [selectBestForPosition]);
 
-  // Get State of Origin squad
-  const getOriginSquad = (stateCode: string, u23Only: boolean = false) => {
+  // ============================================
+  // SQUAD GETTERS (Memoized)
+  // ============================================
+
+  const getOriginSquad = useCallback((stateCode: string, u23Only: boolean = false) => {
     let eligible = allPlayers.filter(p => p.nationality === 'AUS' && p.state === stateCode);
     if (u23Only) eligible = eligible.filter(p => p.age <= 23);
     return buildSquad(eligible);
-  };
+  }, [allPlayers, buildSquad]);
 
-  // Get National squad
-  const getNationalSquad = (nationalityCode: string, u23Only: boolean = false) => {
+  const getNationalSquad = useCallback((nationalityCode: string, u23Only: boolean = false) => {
     let eligible = allPlayers.filter(p => p.nationality === nationalityCode);
     if (u23Only) eligible = eligible.filter(p => p.age <= 23);
     return buildSquad(eligible);
-  };
+  }, [allPlayers, buildSquad]);
 
-  // Get team name by ID
-  const getTeamName = (teamId: string) => {
-    const team = allTeams.find(t => t.id === teamId);
-    return team ? team.name : 'Unknown';
-  };
+  const currentSquad = useMemo(() => {
+    if (allPlayers.length === 0) {
+      return {
+        fullback: null, winger_l: null, winger_r: null, centre_l: null, centre_r: null,
+        five_eighth: null, halfback: null, prop_l: null, prop_r: null, hooker: null,
+        second_row_l: null, second_row_r: null, lock: null,
+        bench_1: null, bench_2: null, bench_3: null, bench_4: null,
+      };
+    }
 
-  const getTeamDivision = (teamId: string) => {
-    const team = allTeams.find(t => t.id === teamId);
-    return team ? team.division : 0;
-  };
-
-  const getOvrColor = (ovr: number) => {
-    if (ovr >= 41) return 'bg-purple-500';
-    if (ovr >= 35) return 'bg-green-500';
-    if (ovr >= 29) return 'bg-green-600';
-    if (ovr >= 23) return 'bg-yellow-500';
-    if (ovr >= 17) return 'bg-orange-500';
-    return 'bg-red-500';
-  };
-
-  // Get current squad based on selection
-  const getCurrentSquad = () => {
     if (selectedTab === 'origin') {
       return getOriginSquad(selectedTeam, false);
     } else if (selectedTab === 'origin_u23') {
@@ -232,27 +312,30 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
     } else {
       return getNationalSquad(selectedTeam, true);
     }
-  };
+  }, [selectedTab, selectedTeam, allPlayers.length, getOriginSquad, getNationalSquad]);
 
-  // Get available teams for current tab
-  const getAvailableTeams = () => {
+  const availableTeams = useMemo(() => {
     if (selectedTab === 'origin' || selectedTab === 'origin_u23') {
       return REP_TEAMS.origin;
-    } else {
-      return REP_TEAMS.national;
     }
-  };
+    return REP_TEAMS.national;
+  }, [selectedTab]);
 
-  // Get current team info
-  const getCurrentTeamInfo = () => {
+  const teamInfo = useMemo(() => {
     if (selectedTab === 'origin' || selectedTab === 'origin_u23') {
       return REP_TEAMS.origin.find(t => t.code === selectedTeam);
-    } else {
-      return REP_TEAMS.national.find(t => t.code === selectedTeam);
     }
-  };
+    return REP_TEAMS.national.find(t => t.code === selectedTeam);
+  }, [selectedTab, selectedTeam]);
 
-  // Player slot component for the field
+  const myPlayersInSquad = useMemo(() => {
+    return Object.values(currentSquad).filter(p => p && p.team_id === userTeamId).length;
+  }, [currentSquad, userTeamId]);
+
+  // ============================================
+  // COMPONENTS
+  // ============================================
+
   const PlayerSlot = ({ player, number }: { player: Player | null; number: number }) => {
     if (!player) {
       return (
@@ -264,6 +347,7 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
     }
 
     const isMyPlayer = player.team_id === userTeamId;
+    const traitDisplay = getTraitDisplay(player.visible_trait);
     
     return (
       <div className={`bg-gray-800/90 rounded-lg p-2 min-w-[90px] text-center border-2 ${isMyPlayer ? 'border-yellow-500 ring-2 ring-yellow-500/50' : 'border-green-500'}`}>
@@ -278,16 +362,17 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
             {player.overall}
           </span>
         </div>
+        {traitDisplay && (
+          <p className="text-gray-400 text-[9px] mt-1">Trait: {traitDisplay}</p>
+        )}
         <p className="text-gray-500 text-[10px] truncate mt-1">{getTeamName(player.team_id)}</p>
       </div>
     );
   };
 
-  const currentSquad = getCurrentSquad();
-  const teamInfo = getCurrentTeamInfo();
-
-  // Count how many of user's players made the squad
-  const myPlayersInSquad = Object.values(currentSquad).filter(p => p && p.team_id === userTeamId).length;
+  // ============================================
+  // LOADING STATE
+  // ============================================
 
   if (loading) {
     return (
@@ -296,6 +381,10 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
       </div>
     );
   }
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -358,7 +447,7 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
 
         {/* Team Selection */}
         <div className="flex flex-wrap gap-2 mb-6">
-          {getAvailableTeams().map((team: any) => (
+          {availableTeams.map((team: any) => (
             <button
               key={team.code}
               onClick={() => setSelectedTeam(team.code)}
@@ -513,8 +602,8 @@ console.log('match_power type:', typeof playersData?.[0]?.match_power);
         <div className="bg-gray-800/50 rounded-lg p-4">
           <h4 className="text-white font-bold mb-2">ℹ️ How Rep Selection Works</h4>
           <ul className="text-gray-400 text-sm space-y-1">
-            <li>• Players are selected from <strong>all 10 divisions</strong> based on position fit</li>
-            <li>• Selection considers how well a player's stats suit their position</li>
+            <li>• Players are selected from <strong>all 10 divisions</strong> based on match power</li>
+            <li>• Match power measures how well a player's stats suit their position</li>
             <li>• A lower OVR player may be selected if they're perfect for their role</li>
             <li>• Your players are highlighted with ⭐ if they make a squad</li>
             <li>• U/23 teams only include players aged 23 or younger</li>
