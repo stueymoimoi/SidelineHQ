@@ -22,7 +22,8 @@ interface Player {
   age: number;
   overall: number;
   match_power: number;
-  birthplace: string;
+  state: string | null;
+  nationality: string | null;
   team_id: string;
   visible_trait: string | null;
   fatigue?: number;
@@ -148,7 +149,7 @@ export default function RepTeamsPage() {
       }
 
       // Fetch ALL players with dynamic batching
-      const playerFields = 'id, first_name, last_name, position, age, overall, match_power, birthplace, team_id, visible_trait, fatigue';
+      const playerFields = 'id, first_name, last_name, position, age, overall, match_power, state, nationality, team_id, visible_trait, fatigue';
       const batchSize = 1000;
       let allPlayersData: Player[] = [];
       let offset = 0;
@@ -295,7 +296,7 @@ export default function RepTeamsPage() {
   // ============================================
 
   const getOriginSquad = useCallback((stateCode: string, u23Only: boolean = false) => {
-    let eligible = allPlayers.filter(p => p.birthplace === stateCode);
+    let eligible = allPlayers.filter(p => p.state === stateCode);
     if (u23Only) eligible = eligible.filter(p => p.age <= 23);
     return buildSquad(eligible);
   }, [allPlayers, buildSquad]);
@@ -304,9 +305,11 @@ export default function RepTeamsPage() {
     let eligible: Player[];
     
     if (countryCode === 'AUS') {
-      eligible = allPlayers.filter(p => ['NSW', 'QLD', 'ROA'].includes(p.birthplace));
+      // Australians: NSW, QLD, or ROA (Rest of Australia)
+      eligible = allPlayers.filter(p => p.state && ['NSW', 'QLD', 'ROA'].includes(p.state));
     } else {
-      eligible = allPlayers.filter(p => p.birthplace === countryCode);
+      // International: use nationality field
+      eligible = allPlayers.filter(p => p.nationality === countryCode);
     }
     
     if (u23Only) eligible = eligible.filter(p => p.age <= 23);
