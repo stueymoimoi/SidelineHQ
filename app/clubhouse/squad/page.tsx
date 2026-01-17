@@ -33,6 +33,7 @@ interface Player {
   dominant_side: string | null;
   ovr_change: number | null;
   ovr_changed_at: string | null;
+  visible_trait: string | null;
 }
 
 interface Team {
@@ -460,27 +461,27 @@ export default function SquadPage() {
       }
 
       // 4. Notify ALL coaches in the league (including yourself)
-const { data: allCoaches } = await supabase
-  .from('coaches')
-  .select('team_id');
+      const { data: allCoaches } = await supabase
+        .from('coaches')
+        .select('team_id');
 
-if (allCoaches && allCoaches.length > 0) {
-  const notifications = allCoaches.map(c => ({
-    team_id: c.team_id,
-    type: c.team_id === coach.team_id ? 'player_released' : 'new_free_agent',
-    title: c.team_id === coach.team_id ? '👋 Player Released' : '🏪 New Free Agent',
-    message: c.team_id === coach.team_id 
-      ? `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`
-      : `${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) has been released and is now available!`,
-    player_id: selectedPlayer.id
-  }));
+      if (allCoaches && allCoaches.length > 0) {
+        const notifications = allCoaches.map(c => ({
+          team_id: c.team_id,
+          type: c.team_id === coach.team_id ? 'player_released' : 'new_free_agent',
+          title: c.team_id === coach.team_id ? '👋 Player Released' : '🏪 New Free Agent',
+          message: c.team_id === coach.team_id 
+            ? `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`
+            : `${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) has been released and is now available!`,
+          player_id: selectedPlayer.id
+        }));
 
-  const { error: notifError } = await supabase.from('notifications').insert(notifications);
-  
-  if (notifError) {
-    console.error('Notification error:', notifError);
-  }
-}
+        const { error: notifError } = await supabase.from('notifications').insert(notifications);
+        
+        if (notifError) {
+          console.error('Notification error:', notifError);
+        }
+      }
 
       // 6. Refresh data and close modal
       await loadData();
@@ -679,6 +680,13 @@ if (allCoaches && allCoaches.length > 0) {
                         </span>
                       )}
                     </div>
+                    {player.visible_trait && (
+                      <div className="mt-2">
+                        <span className="bg-gray-600 text-gray-200 text-xs px-2 py-1 rounded">
+                          {player.visible_trait}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-gray-500 text-xs mb-1">OVR</p>
@@ -755,6 +763,14 @@ if (allCoaches && allCoaches.length > 0) {
                 </p>
               </div>
             </div>
+
+            {/* Trait */}
+            {selectedPlayer.visible_trait && (
+              <div className="bg-gray-700 rounded p-3 mb-4">
+                <p className="text-gray-400 text-xs">Trait</p>
+                <p className="text-white font-semibold">{selectedPlayer.visible_trait}</p>
+              </div>
+            )}
 
             {/* Side explanation for edge positions */}
             {shouldShowSide(selectedPlayer.position) && (
