@@ -667,26 +667,12 @@ export default function SquadPage() {
                         ? `${player.nationality}, ${player.state}` 
                         : player.nationality}
                     </p>
-                    <div className="flex gap-2 mt-2">
-                      <span className={`${getPositionColor(player.position)} text-white text-xs px-2 py-1 rounded`}>
-                        {player.position}
-                      </span>
-                      {showSide && (
-                        <span 
-                          className={`${sideBadge.bg} text-white text-xs px-2 py-1 rounded font-bold`}
-                          title={sideBadge.title}
-                        >
-                          {sideBadge.text}
-                        </span>
+                    <div className="mt-2 text-sm text-gray-300">
+                      <p>Position: {player.position}{showSide && ` (${sideBadge.text})`}</p>
+                      {player.visible_trait && (
+                        <p>Trait: <span className="capitalize">{player.visible_trait}</span></p>
                       )}
                     </div>
-                    {player.visible_trait && (
-                      <div className="mt-2">
-                        <span className="bg-gray-600 text-gray-200 text-xs px-2 py-1 rounded">
-                          {player.visible_trait}
-                        </span>
-                      </div>
-                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-gray-500 text-xs mb-1">OVR</p>
@@ -768,7 +754,7 @@ export default function SquadPage() {
             {selectedPlayer.visible_trait && (
               <div className="bg-gray-700 rounded p-3 mb-4">
                 <p className="text-gray-400 text-xs">Trait</p>
-                <p className="text-white font-semibold">{selectedPlayer.visible_trait}</p>
+                <p className="text-white font-semibold capitalize">{selectedPlayer.visible_trait}</p>
               </div>
             )}
 
