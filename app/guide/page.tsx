@@ -1,12 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
-type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'schedule' | 'filmroom' | 'matchstats' | 'careers' | 'tips';
+type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'schedule' | 'filmroom' | 'matchstats' | 'careers' | 'traits' | 'tips';
 
 export default function GuidePage() {
+  const searchParams = useSearchParams();
   const [activeSection, setActiveSection] = useState<Section>('overview');
+
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (section && ['overview', 'stats', 'tactics', 'training', 'youth', 'freeagents', 'rep', 'schedule', 'filmroom', 'matchstats', 'careers', 'traits', 'tips'].includes(section)) {
+      setActiveSection(section as Section);
+    }
+  }, [searchParams]);
 
   const sections: { id: Section; title: string; icon: string }[] = [
     { id: 'overview', title: 'Getting Started', icon: '🏉' },
@@ -17,6 +26,7 @@ export default function GuidePage() {
     { id: 'filmroom', title: 'Film Room', icon: '🎬' },
     { id: 'training', title: 'Training', icon: '💪' },
     { id: 'careers', title: 'Player Careers', icon: '📈' },
+    { id: 'traits', title: 'Player Traits', icon: '🧬' },
     { id: 'youth', title: 'Youth Academy', icon: '🎓' },
     { id: 'freeagents', title: 'Free Agents', icon: '🏪' },
     { id: 'rep', title: 'Rep Honours', icon: '🏅' },
@@ -718,6 +728,83 @@ export default function GuidePage() {
                 </div>
               )}
 
+              {/* Player Traits - NEW SECTION */}
+              {activeSection === 'traits' && (
+                <div className="prose prose-invert max-w-none">
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    🧬 Player Traits
+                  </h2>
+
+                  <p className="text-gray-300">
+                    Some players have personality traits that affect their performance in certain situations. You'll see the trait name on their player card — but whether it helps or hurts is for you to discover.
+                  </p>
+
+                  <div className="bg-purple-500/20 border border-purple-500 rounded-lg p-4 my-4">
+                    <p className="text-purple-400 m-0">
+                      <strong>🔍 Discovery Gameplay:</strong> Traits are meant to be figured out through observation. Pay attention to how players perform in different situations and you'll start to see patterns.
+                    </p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">What We Can Tell You</h3>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>Not every player has a trait — most don't</li>
+                    <li>Traits affect performance in specific situations</li>
+                    <li>The same trait name can work differently for different players</li>
+                    <li>Traits are permanent — they don't change over time</li>
+                  </ul>
+
+                  <h3 className="text-xl text-white mt-6">Things to Watch For</h3>
+                  <p className="text-gray-300">
+                    When trying to understand a player's trait, consider tracking their performance across different situations:
+                  </p>
+                  <div className="bg-gray-700 rounded p-4 space-y-2 mt-3">
+                    <div className="flex justify-between text-gray-300">
+                      <span>Home vs Away</span>
+                      <span className="text-gray-500">Does location matter?</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Winning vs Losing</span>
+                      <span className="text-gray-500">How do they respond to pressure?</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Close Games vs Blowouts</span>
+                      <span className="text-gray-500">Do they rise to the occasion?</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>After Wins vs After Losses</span>
+                      <span className="text-gray-500">Does momentum affect them?</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Starting vs Bench</span>
+                      <span className="text-gray-500">Do they need a run-up?</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Using Traits Strategically</h3>
+                  <p className="text-gray-300">
+                    Once you've figured out what a trait does, you can use it to your advantage:
+                  </p>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>Start players in situations where their trait helps</li>
+                    <li>Bench players when conditions might hurt them</li>
+                    <li>Consider traits when choosing your captain</li>
+                    <li>Factor traits into transfer decisions</li>
+                  </ul>
+
+                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
+                    <p className="text-yellow-400 m-0">
+                      <strong>⚠️ Don't Assume:</strong> A trait that sounds positive might not always be — and vice versa. Trust your observations over your assumptions!
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
+                    <p className="text-blue-400 m-0">
+                      <strong>💡 Coaching Tip:</strong> Keep notes on your players' performances. Over time, patterns will emerge that help you understand what each trait really means for your squad.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Youth Development */}
               {activeSection === 'youth' && (
                 <div className="prose prose-invert max-w-none">
@@ -945,6 +1032,13 @@ export default function GuidePage() {
                       <h4 className="text-white font-bold m-0 mb-2">👴 Protect Your Veterans</h4>
                       <p className="text-gray-400 m-0">
                         Keep training your older players in key stats — it helps slow their decline. Focus on their most important skills.
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h4 className="text-white font-bold m-0 mb-2">🧬 Study Your Traits</h4>
+                      <p className="text-gray-400 m-0">
+                        Players with traits behave differently in certain situations. Track their performances and learn what makes them tick!
                       </p>
                     </div>
                   </div>

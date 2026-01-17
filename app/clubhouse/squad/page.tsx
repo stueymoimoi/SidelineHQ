@@ -726,10 +726,13 @@ export default function SquadPage() {
 
             {/* Trait */}
             {selectedPlayer.visible_trait && (
-              <div className="bg-gray-700 rounded p-3 mb-4">
-                <p className="text-gray-400 text-xs">Trait</p>
+              <Link 
+                href="/clubhouse/guide?section=traits"
+                className="block bg-gray-700 rounded p-3 mb-4 hover:bg-gray-600 transition cursor-pointer"
+              >
+                <p className="text-gray-400 text-xs">Trait <span className="text-gray-500 ml-1">ⓘ</span></p>
                 <p className="text-white font-semibold capitalize">{selectedPlayer.visible_trait}</p>
-              </div>
+              </Link>
             )}
 
             {/* Side explanation for edge positions */}
