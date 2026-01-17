@@ -30,6 +30,7 @@ import {
   REST_RECOVERY,
   MINUTES_WITH_ROTATION,
   calculateFatigueByMinutes,
+  getMinutesForPlayer,
 } from '@/lib/game-engine/constants';
 
 import type { Player, Team, Fixture, TeamTactics, Notification } from '@/lib/game-engine/types';
@@ -463,12 +464,13 @@ export async function GET(request: Request) {
         for (let i = 0; i < POSITION_FIELDS.length; i++) {
           const field = POSITION_FIELDS[i];
           const jerseyNumber = i + 1;
-          const minutes = MINUTES_WITH_ROTATION[jerseyNumber] ?? 0;
+        
           
           // Home team player
           const homePlayerId = homeTactics[field];
           if (homePlayerId && playersMap[homePlayerId]) {
             const player = playersMap[homePlayerId];
+            const minutes = getMinutesForPlayer(jerseyNumber, player.position);
             const isCaptain = homeTactics.captain === homePlayerId;
             const isStarting = jerseyNumber <= 13;
             
@@ -545,6 +547,7 @@ export async function GET(request: Request) {
           const awayPlayerId = awayTactics[field];
           if (awayPlayerId && playersMap[awayPlayerId]) {
             const player = playersMap[awayPlayerId];
+            const minutes = getMinutesForPlayer(jerseyNumber, player.position);
             const isCaptain = awayTactics.captain === awayPlayerId;
             const isStarting = jerseyNumber <= 13;
             

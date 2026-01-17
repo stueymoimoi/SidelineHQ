@@ -432,3 +432,34 @@ export const TACTICAL_SUB_CHANCE = 0.6;
 export const calculateFatigueByMinutes = (minutes: number, baseFatigue: number): number => {
   return Math.round(baseFatigue * (minutes / 80));
 };
+// Smart minutes based on player position
+export const getMinutesForPlayer = (jerseyNumber: number, position: string): number => {
+  // Starting 13 - based on position
+  if (jerseyNumber <= 13) {
+    // Props rotate
+    if (position === 'Prop') return 55;
+    // Everyone else plays 80
+    return 80;
+  }
+  
+  // Bench (14-17) - based on player's actual position
+  if (jerseyNumber >= 14 && jerseyNumber <= 17) {
+    switch (position) {
+      case 'Prop':
+        return 30;  // Prop rotation
+      case 'Hooker':
+        return 25;  // Hooker cover
+      case 'Second Row':
+      case 'Lock':
+        return 25;  // Forward rotation
+      case 'Halfback':
+      case 'Five-Eighth':
+        return 20;  // Utility cover
+      default:
+        // Backs (Fullback, Winger, Centre)
+        return 15;  // Tactical only, rarely used
+    }
+  }
+  
+  return 0;
+};
