@@ -353,3 +353,50 @@ export const ORIGIN_TEAM_COLORS = {
   NSW: { primary: '#87CEEB', secondary: '#1E3A5F', text: '#1a1a2e' },
   QLD: { primary: '#800020', secondary: '#FFD700', text: '#ffffff' }
 } as const;
+// =============================================
+// INJURY SYSTEM CONSTANTS
+// =============================================
+
+// Base injury chance per match (6%)
+export const BASE_INJURY_CHANCE = 0.06;
+
+// Durability modifiers (multiply base chance)
+export const DURABILITY_INJURY_MODIFIERS: Record<string, number> = {
+  fragile: 1.5,    // 9% chance
+  normal: 1.0,     // 6% chance
+  durable: 0.7,    // 4.2% chance
+  ironman: 0.4,    // 2.4% chance
+};
+
+// Fatigue tier modifiers (multiply base chance)
+// Remember: fatigue 0 = fresh, 100 = exhausted
+export const FATIGUE_INJURY_MODIFIERS: Record<string, number> = {
+  fresh: 1.0,      // fatigue 0-30
+  mild: 1.1,       // fatigue 31-50
+  moderate: 1.2,   // fatigue 51-70
+  high: 1.35,      // fatigue 71-85
+  exhausted: 1.5,  // fatigue 86-100
+};
+
+// Hidden trait modifiers
+export const TRAIT_INJURY_MODIFIERS: Record<string, number> = {
+  'Glass Cannon': 1.25,  // +25% injury risk
+  'Iron Man': 0.6,       // -40% injury risk
+};
+
+// Injury severity distribution (when injury occurs)
+export const INJURY_SEVERITY_WEIGHTS = {
+  minor: 60,      // 60% chance
+  moderate: 32,   // 32% chance
+  major: 8,       // 8% chance
+};
+
+// Training rules when injured
+export const INJURY_TRAINING_RULES: Record<string, 'none' | 'light' | 'full'> = {
+  minor: 'light',     // 50% training effectiveness
+  moderate: 'none',   // No training
+  major: 'none',      // No training
+};
+
+// REST recovery (30% fatigue reduction for non-playing players)
+export const REST_RECOVERY_PERCENT = 0.30;

@@ -14,6 +14,17 @@ const supabase = createClient(
 // TYPES
 // ============================================
 
+interface PlayerInjury {
+  id: string;
+  injury_type_id: string;
+  round_return: number;
+  is_active: boolean;
+  injury_types: {
+    name: string;
+    severity: 'minor' | 'moderate' | 'major';
+  }[];
+}
+
 interface Player {
   id: string;
   first_name: string;
@@ -27,7 +38,8 @@ interface Player {
   nationality: string;
   state: string | null;
   dominant_side: string | null;
-  visible_trait: string | null; // Added for trait display
+  visible_trait: string | null;
+  player_injuries?: PlayerInjury[];
 }
 
 interface Team {
@@ -104,6 +116,11 @@ const TRAIT_DISPLAY_NAMES: Record<string, string> = {
 // HELPER FUNCTIONS
 // ============================================
 
+const getActiveInjury = (player: Player): PlayerInjury | null => {
+  if (!player.player_injuries || player.player_injuries.length === 0) return null;
+  return player.player_injuries.find(i => i.is_active) || null;
+};
+
 const getSideBadge = (side: string | null) => {
   switch (side) {
     case 'left': return { text: 'L', bg: 'bg-orange-500', title: 'Left-sided specialist' };
@@ -157,6 +174,22 @@ const TraitBadge = ({ trait }: { trait: string | null }) => {
   );
 };
 
+const InjuryBadge = ({ injury }: { injury: PlayerInjury }) => {
+  const injuryType = injury.injury_types?.[0];
+  const severityColors = {
+    minor: 'bg-yellow-600/80 text-yellow-100',
+    moderate: 'bg-orange-600/80 text-orange-100',
+    major: 'bg-red-600/80 text-red-100',
+  };
+  const colorClass = injuryType ? severityColors[injuryType.severity] : 'bg-red-600/80 text-red-100';
+  
+  return (
+    <span className={`${colorClass} text-[9px] px-1.5 py-0.5 rounded font-medium`}>
+      🏥 R{injury.round_return}
+    </span>
+  );
+};
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -170,7 +203,7 @@ export default function TacticsPage() {
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
   const [showKickerModal, setShowKickerModal] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [teamId, setTeamId] = useState<string | null>(null); // Store verified team_id
+  const [teamId, setTeamId] = useState<string | null>(null);
   
   const router = useRouter();
 
@@ -200,6 +233,16 @@ export default function TacticsPage() {
     return [...players].sort((a, b) => b.kicking - a.kicking);
   }, [players]);
 
+  // Set of injured player IDs for quick lookup
+  const injuredPlayerIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const player of players) {
+      const injury = getActiveInjury(player);
+      if (injury) ids.add(player.id);
+    }
+    return ids;
+  }, [players]);
+
   // ============================================
   // DATABASE OPERATIONS
   // ============================================
@@ -210,7 +253,6 @@ export default function TacticsPage() {
     setSaveStatus('saving');
     
     try {
-      // Re-verify team ownership on every save (security)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/auth');
@@ -254,7 +296,7 @@ export default function TacticsPage() {
           attack_focus: tacticsToSave.attack_focus,
           defense_focus: tacticsToSave.defense_focus,
         })
-        .eq('team_id', coach.team_id); // Always use DB-verified team_id
+        .eq('team_id', coach.team_id);
 
       if (error) throw error;
       
@@ -299,9 +341,8 @@ export default function TacticsPage() {
           return;
         }
 
-        setTeamId(coach.team_id); // Store verified team_id
+        setTeamId(coach.team_id);
 
-        // Parallel fetch for performance
         const [teamResult, playersResult, tacticsResult] = await Promise.all([
           supabase
             .from('teams')
@@ -310,7 +351,7 @@ export default function TacticsPage() {
             .single(),
           supabase
             .from('players')
-            .select('id, first_name, last_name, position, age, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state, dominant_side, visible_trait')
+            .select('id, first_name, last_name, position, age, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state, dominant_side, visible_trait, player_injuries(id, injury_type_id, round_return, is_active, injury_types(name, severity))')
             .eq('team_id', coach.team_id)
             .order('overall', { ascending: false }),
           supabase
@@ -351,13 +392,19 @@ export default function TacticsPage() {
       console.error('Invalid player ID - not on team');
       return;
     }
+
+    // Block selecting injured players
+    if (playerId && injuredPlayerIds.has(playerId)) {
+      console.error('Cannot select injured player');
+      return;
+    }
     
     setTactics(prev => prev ? { ...prev, [posKey]: playerId || null } : null);
     setSelectedPosition(null);
-  }, [tactics, playerIdSet]);
+  }, [tactics, playerIdSet, injuredPlayerIds]);
 
   const handleClearPosition = useCallback((posKey: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent opening modal
+    e.stopPropagation();
     if (!tactics) return;
     setTactics(prev => prev ? { ...prev, [posKey]: null } : null);
   }, [tactics]);
@@ -382,13 +429,16 @@ export default function TacticsPage() {
     const isCaptain = tactics?.captain === player?.id;
     const showSide = player && SIDED_POSITIONS.has(player.position);
     const sideBadge = player ? getSideBadge(player.dominant_side) : null;
+    const activeInjury = player ? getActiveInjury(player) : null;
     
     return (
       <div
         onClick={() => setSelectedPosition(posKey)}
-        className="bg-gray-800/90 rounded-lg p-2 cursor-pointer hover:bg-gray-700 transition border-2 border-gray-600 hover:border-green-500 min-w-[100px] text-center relative group"
+        className={`bg-gray-800/90 rounded-lg p-2 cursor-pointer hover:bg-gray-700 transition border-2 min-w-[100px] text-center relative group ${
+          activeInjury ? 'border-red-500 bg-red-900/30' : 'border-gray-600 hover:border-green-500'
+        }`}
       >
-        {/* Clear button - shows on hover */}
+        {/* Clear button */}
         {player && (
           <button
             onClick={(e) => handleClearPosition(posKey, e)}
@@ -418,7 +468,12 @@ export default function TacticsPage() {
                 </span>
               )}
             </div>
-            {player.visible_trait && (
+            {activeInjury && (
+              <div className="mt-1">
+                <InjuryBadge injury={activeInjury} />
+              </div>
+            )}
+            {!activeInjury && player.visible_trait && (
               <div className="mt-1">
                 <TraitBadge trait={player.visible_trait} />
               </div>
@@ -489,6 +544,24 @@ export default function TacticsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
+
+        {/* Injured Players Warning */}
+        {injuredPlayerIds.size > 0 && (
+          <div className="bg-red-900/30 border border-red-500 rounded-xl p-4 mb-6">
+            <h3 className="text-red-400 font-bold mb-2">🏥 Injured Players ({injuredPlayerIds.size})</h3>
+            <div className="flex flex-wrap gap-2">
+              {players.filter(p => injuredPlayerIds.has(p.id)).map(p => {
+                const injury = getActiveInjury(p);
+                const injuryType = injury?.injury_types?.[0];
+                return (
+                  <span key={p.id} className="bg-red-800/50 text-red-200 text-sm px-2 py-1 rounded">
+                    {p.first_name} {p.last_name} - {injuryType?.name || 'Injured'} (R{injury?.round_return})
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ATTACK & DEFENSE FOCUS - Side by side */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -696,7 +769,6 @@ export default function TacticsPage() {
             value={tactics?.captain || ''}
             onChange={(e) => {
               const playerId = e.target.value;
-              // Security: Validate player belongs to team
               if (playerId && !playerIdSet.has(playerId)) return;
               setTactics(prev => prev ? { ...prev, captain: playerId || null } : null);
             }}
@@ -728,6 +800,10 @@ export default function TacticsPage() {
               <span className="text-gray-400">Personality</span>
             </span>
             <span className="flex items-center gap-1">
+              <span className="bg-red-600 text-white px-1.5 rounded font-bold">🏥</span>
+              <span className="text-gray-400">Injured</span>
+            </span>
+            <span className="flex items-center gap-1">
               <span className="text-gray-400">🎯 Kicker</span>
             </span>
             <span className="flex items-center gap-1">
@@ -742,11 +818,11 @@ export default function TacticsPage() {
       {selectedPosition && (
         <div 
           className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-          onClick={() => setSelectedPosition(null)} // Click outside to close
+          onClick={() => setSelectedPosition(null)}
         >
           <div 
             className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-white">Select Player</h3>
@@ -768,18 +844,24 @@ export default function TacticsPage() {
               
               {players.map((p) => {
                 const alreadySelected = selectedPlayerIds.has(p.id) && (tactics as any)?.[selectedPosition] !== p.id;
+                const isInjured = injuredPlayerIds.has(p.id);
+                const activeInjury = getActiveInjury(p);
+                const injuryType = activeInjury?.injury_types?.[0];
                 const showSide = SIDED_POSITIONS.has(p.position);
                 const sideBadge = getSideBadge(p.dominant_side);
+                const isDisabled = alreadySelected || isInjured;
                 
                 return (
                   <button
                     key={p.id}
-                    onClick={() => !alreadySelected && handleSelectPlayer(selectedPosition, p.id)}
-                    disabled={alreadySelected}
+                    onClick={() => !isDisabled && handleSelectPlayer(selectedPosition, p.id)}
+                    disabled={isDisabled}
                     className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
-                      alreadySelected 
-                        ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
-                        : 'bg-gray-700 hover:bg-gray-600 text-white'
+                      isInjured
+                        ? 'bg-red-900/30 text-red-300 cursor-not-allowed border border-red-800/50'
+                        : alreadySelected 
+                          ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
+                          : 'bg-gray-700 hover:bg-gray-600 text-white'
                     }`}
                   >
                     <div>
@@ -790,11 +872,21 @@ export default function TacticsPage() {
                             {sideBadge.text}
                           </span>
                         )}
-                        {p.visible_trait && <TraitBadge trait={p.visible_trait} />}
+                        {isInjured && activeInjury && (
+                          <InjuryBadge injury={activeInjury} />
+                        )}
+                        {!isInjured && p.visible_trait && <TraitBadge trait={p.visible_trait} />}
                       </div>
-                      <div className="text-sm text-gray-400">{p.position} • Age {p.age}</div>
+                      <div className="text-sm text-gray-400">
+                        {p.position} • Age {p.age}
+                        {isInjured && injuryType && (
+                          <span className="text-red-400 ml-2">• {injuryType.name}</span>
+                        )}
+                      </div>
                     </div>
-                    <span className="font-bold text-green-500">{p.overall}</span>
+                    <span className={`font-bold ${isInjured ? 'text-red-400' : 'text-green-500'}`}>
+                      {isInjured ? '🏥' : p.overall}
+                    </span>
                   </button>
                 );
               })}
@@ -834,28 +926,37 @@ export default function TacticsPage() {
               {playersSortedByKicking.map((p) => {
                 const stats = getConversionDisplay(p);
                 const isCurrentKicker = tactics?.goal_kicker === p.id;
+                const isInjured = injuredPlayerIds.has(p.id);
+                const activeInjury = getActiveInjury(p);
                 
                 return (
                   <button
                     key={p.id}
                     onClick={() => {
+                      if (isInjured) return;
                       setTactics(prev => prev ? { ...prev, goal_kicker: p.id } : null);
                       setShowKickerModal(false);
                     }}
+                    disabled={isInjured}
                     className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
-                      isCurrentKicker
-                        ? 'bg-green-600/30 border-2 border-green-500'
-                        : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
+                      isInjured
+                        ? 'bg-red-900/30 text-red-300 cursor-not-allowed border border-red-800/50'
+                        : isCurrentKicker
+                          ? 'bg-green-600/30 border-2 border-green-500'
+                          : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
                     }`}
                   >
                     <div>
                       <div className="text-white font-bold flex items-center gap-2">
                         {p.first_name} {p.last_name}
-                        {p.visible_trait && <TraitBadge trait={p.visible_trait} />}
+                        {isInjured && activeInjury && <InjuryBadge injury={activeInjury} />}
+                        {!isInjured && p.visible_trait && <TraitBadge trait={p.visible_trait} />}
                       </div>
                       <div className="text-sm text-gray-400">{p.position} • Kicking: {p.kicking}</div>
                     </div>
-                    <span className={`font-bold ${stats.color}`}>{stats.rate}</span>
+                    <span className={`font-bold ${isInjured ? 'text-red-400' : stats.color}`}>
+                      {isInjured ? '🏥' : stats.rate}
+                    </span>
                   </button>
                 );
               })}

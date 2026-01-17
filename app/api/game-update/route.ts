@@ -38,6 +38,7 @@ import { calculateMotmInfluence, buildMotmReason } from '@/lib/game-engine/motm'
 import { calculateTacticalBonus } from '@/lib/game-engine/tactics';
 import { calculateTries, calculateKickingStats, calculateScore, distributeTries } from '@/lib/game-engine/scoring';
 import { processAllTraining } from '@/lib/training';
+import { processMatchInjuries, saveInjuries, processInjuryRecoveries } from '@/lib/game-engine/injury-processing';
 
 // Origin imports
 import { 
@@ -298,7 +299,24 @@ export async function GET(request: Request) {
         Object.entries(originResult.fatigueUpdates).forEach(([playerId, fatigue]) => {
           fatigueUpdates[playerId] = fatigue;
         });
+        // ===========================================
+        // ORIGIN INJURY CHECK
+        // ===========================================
+        const originPlayingIds = Object.keys(originResult.fatigueUpdates);
+        const { injuries: originInjuries, notifications: originInjuryNotifications } = await processMatchInjuries(
+          supabase,
+          originPlayingIds,
+          playersMap,
+          SEASON,
+          currentRound,
+          'origin'
+        );
         
+        if (originInjuries.length > 0) {
+          await saveInjuries(supabase, originInjuries, SEASON, currentRound, 'origin');
+          allNotifications.push(...originInjuryNotifications);
+          logs.push(`Origin Injuries: ${originInjuries.map(i => `${i.playerName} (${i.injuryName})`).join(', ')}`);
+        }
         // REST recovery for non-Origin players
         const originPlayerIds = new Set(Object.keys(originResult.fatigueUpdates));
         for (const player of allPlayers) {
@@ -700,9 +718,41 @@ export async function GET(request: Request) {
             fixture_id: fixture.id
           });
         }
+        // ===========================================
+        // INJURY CHECK FOR THIS MATCH
+        // ===========================================
+        const matchPlayerIds = fixtureStats.map(s => s.player_id);
+        const { injuries: matchInjuries, notifications: injuryNotifications } = await processMatchInjuries(
+          supabase,
+          matchPlayerIds,
+          playersMap,
+          SEASON,
+          currentRound,
+          'match'
+        );
         
+        if (matchInjuries.length > 0) {
+          await saveInjuries(supabase, matchInjuries, SEASON, currentRound, 'match');
+          allNotifications.push(...injuryNotifications);
+          logs.push(`  ↳ Injuries: ${matchInjuries.map(i => `${i.playerName} (${i.injuryName})`).join(', ')}`);
+        }
         logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name}`);
       }
+      // ===========================================
+      // REST RECOVERY FOR NON-PLAYING PLAYERS
+      // ===========================================
+      const playingPlayerIds = new Set(Object.keys(fatigueUpdates));
+      
+      for (const player of allPlayers) {
+        if (player.team_id && !playingPlayerIds.has(player.id)) {
+          // Player didn't play - apply 30% fatigue recovery
+          const currentFatigue = player.fatigue || 0;
+          const newFatigue = Math.round(currentFatigue * 0.7); // 30% reduction
+          fatigueUpdates[player.id] = Math.max(0, newFatigue);
+        }
+      }
+      
+      logs.push(`REST recovery applied to ${allPlayers.length - playingPlayerIds.size} non-playing players`);
     } // End of club matches block
     
     logs.push(`Matches simulated in ${Date.now() - startTime}ms`);
@@ -758,7 +808,20 @@ export async function GET(request: Request) {
     }
     
     logs.push(`Match data saved in ${Date.now() - startTime}ms`);
+    // ===========================================
+    // PHASE 3.5: PROCESS INJURY RECOVERIES
+    // ===========================================
     
+    const { recoveredCount, notifications: recoveryNotifications } = await processInjuryRecoveries(
+      supabase,
+      currentRound,
+      SEASON
+    );
+    
+    if (recoveredCount > 0) {
+      await supabase.from('notifications').insert(recoveryNotifications);
+      logs.push(`Injuries: ${recoveredCount} player${recoveredCount > 1 ? 's' : ''} recovered`);
+    }
     // ===========================================
     // PHASE 4: PROCESS TRAINING
     // ===========================================

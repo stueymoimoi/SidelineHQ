@@ -372,3 +372,34 @@ export interface OriginPlayerStats {
 }
 
 export type OriginTeam = 'NSW' | 'QLD';
+// =============================================
+// INJURY SYSTEM TYPES
+// =============================================
+
+export interface InjuryType {
+  id: string;
+  name: string;
+  body_part: string;
+  severity: 'minor' | 'moderate' | 'major';
+  min_recovery_rounds: number;
+  max_recovery_rounds: number;
+  created_at?: string;
+}
+
+export interface PlayerInjury {
+  id: string;
+  player_id: string;
+  injury_type_id: string;
+  team_id: string;
+  season: number;
+  round_injured: number;
+  rounds_out: number;
+  round_return: number;
+  injury_context: 'match' | 'origin';
+  is_active: boolean;
+  created_at?: string;
+  recovered_at?: string;
+  // Joined data
+  injury_types?: InjuryType;
+  players?: { first_name: string; last_name: string };
+}
