@@ -80,7 +80,7 @@ export default function RepHonoursPage() {
       const { data: playersData } = await supabase
         .from('players')
         .select('id, first_name, last_name, position, age, overall, match_power, nationality, state, team_id');
-
+console.log('match_power type:', typeof playersData?.[0]?.match_power);
       setAllPlayers(playersData || []);
 
       const { data: teamsData } = await supabase
