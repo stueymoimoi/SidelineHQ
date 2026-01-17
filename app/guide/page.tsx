@@ -745,6 +745,37 @@ function GuideContent() {
                     </p>
                   </div>
 
+                  <h3 className="text-xl text-white mt-6">Known Traits</h3>
+                  <p className="text-gray-300">
+                    These are the traits you might see on your players:
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Fiery</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Confident</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Showman</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Composed</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Clutch</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Prodigy</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Leader</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-semibold m-0">Loyal</p>
+                    </div>
+                  </div>
+
                   <h3 className="text-xl text-white mt-6">What We Can Tell You</h3>
                   <ul className="text-gray-300 space-y-2">
                     <li>Not every player has a trait — most don't</li>

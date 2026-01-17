@@ -728,6 +728,7 @@ export default function SquadPage() {
             {selectedPlayer.visible_trait && (
               <Link 
                 href="/clubhouse/guide?section=traits"
+                onClick={(e) => e.stopPropagation()}
                 className="block bg-gray-700 rounded p-3 mb-4 hover:bg-gray-600 transition cursor-pointer"
               >
                 <p className="text-gray-400 text-xs">Trait <span className="text-gray-500 ml-1">ⓘ</span></p>
