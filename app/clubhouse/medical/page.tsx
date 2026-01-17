@@ -47,10 +47,6 @@ interface Team {
   secondary_color: string;
 }
 
-interface GameState {
-  current_round: number;
-}
-
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
@@ -120,7 +116,7 @@ export default function MedicalRoomPage() {
         }
 
         // Fetch all data in parallel
-        const [teamResult, activeResult, historyResult, gameStateResult] = await Promise.all([
+        const [teamResult, activeResult, historyResult, fixturesResult] = await Promise.all([
           supabase
             .from('teams')
             .select('id, name, primary_color, secondary_color')
@@ -140,15 +136,25 @@ export default function MedicalRoomPage() {
             .order('created_at', { ascending: false })
             .limit(20),
           supabase
-            .from('game_state')
-            .select('current_round')
-            .single(),
+            .from('fixtures')
+            .select('round')
+            .eq('season', 0)
+            .eq('played', false)
+            .order('round', { ascending: true })
+            .limit(1),
         ]);
 
         setTeam(teamResult.data);
         setActiveInjuries(activeResult.data || []);
         setInjuryHistory(historyResult.data || []);
-        setCurrentRound(gameStateResult.data?.current_round || 1);
+        
+        // Get current round from next unplayed fixture
+        const nextRound = fixturesResult.data?.[0]?.round || 1;
+        setCurrentRound(nextRound);
+
+        setTeam(teamResult.data);
+        setActiveInjuries(activeResult.data || []);
+        setInjuryHistory(historyResult.data || []);
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
