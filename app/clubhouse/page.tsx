@@ -341,7 +341,7 @@ export default function ClubhousePage() {
           </Link>
           <Link href="/clubhouse/rep-honours" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">🏅</div>
-            <p className="text-white font-bold">Rep Honours</p>
+            <p className="text-white font-bold">Rep Teams</p>
             <p className="text-gray-500 text-sm">Origin & National</p>
           </Link>
         </div>

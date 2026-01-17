@@ -95,14 +95,19 @@ const getOvrColor = (ovr: number): string => {
   return 'bg-red-500';
 };
 
-const getFitnessDisplay = (fatigue: number = 0): { label: string; color: string; percent: number } => {
-  const fitness = 100 - fatigue;
-  if (fitness >= 90) return { label: 'Peak', color: 'text-green-400', percent: fitness };
-  if (fitness >= 70) return { label: 'Fresh', color: 'text-green-300', percent: fitness };
-  if (fitness >= 50) return { label: 'OK', color: 'text-yellow-400', percent: fitness };
-  if (fitness >= 30) return { label: 'Tired', color: 'text-orange-400', percent: fitness };
-  return { label: 'Exhausted', color: 'text-red-400', percent: fitness };
-};
+// ============================================
+// COMPONENTS
+// ============================================
+
+const GoalPosts = ({ flipped = false }: { flipped?: boolean }) => (
+  <svg width="80" height="40" viewBox="0 0 80 40" className={flipped ? 'rotate-180' : ''}>
+    <rect x="15" y="20" width="4" height="20" fill="white" opacity="0.9" />
+    <rect x="61" y="20" width="4" height="20" fill="white" opacity="0.9" />
+    <rect x="15" y="16" width="50" height="4" fill="white" opacity="0.9" />
+    <rect x="16" y="0" width="2" height="16" fill="white" opacity="0.9" />
+    <rect x="62" y="0" width="2" height="16" fill="white" opacity="0.9" />
+  </svg>
+);
 
 // ============================================
 // MAIN COMPONENT
@@ -153,7 +158,7 @@ export default function RepTeamsPage() {
         const { data, error } = await supabase
           .from('players')
           .select(playerFields)
-          .not('team_id', 'is', null) // Only players on teams
+          .not('team_id', 'is', null)
           .range(offset, offset + batchSize - 1);
 
         if (error) break;
@@ -259,7 +264,7 @@ export default function RepTeamsPage() {
       }
     }
     
-    // Bench: Prop, Hooker, Second Row, Utility
+    // Bench
     const benchPositions = [
       { key: 'bench_1', pos: 'Prop' },
       { key: 'bench_2', pos: 'Hooker' },
@@ -296,8 +301,6 @@ export default function RepTeamsPage() {
   }, [allPlayers, buildSquad]);
 
   const getInternationalSquad = useCallback((countryCode: string, u23Only: boolean = false) => {
-    // Map birthplace to international eligibility
-    // ROA (Rest of Australia) players are eligible for Australia
     let eligible: Player[];
     
     if (countryCode === 'AUS') {
@@ -344,33 +347,32 @@ export default function RepTeamsPage() {
   }, [currentSquad, userTeamId]);
 
   // ============================================
-  // PLAYER CARD COMPONENT (Clickable!)
+  // PLAYER CARD COMPONENT (Matches Tactics Page)
   // ============================================
 
-  const PlayerCard = ({ player, number }: { player: Player | null; number: number }) => {
+  const PlayerCard = ({ player, label, number }: { player: Player | null; label: string; number: number }) => {
+    const isMyPlayer = player?.team_id === userTeamId;
+    const traitDisplay = player?.visible_trait ? TRAIT_DISPLAY[player.visible_trait] || player.visible_trait : null;
+    
     if (!player) {
       return (
-        <div className="bg-gray-800/70 rounded-lg p-2 min-w-[100px] text-center border-2 border-dashed border-gray-600">
-          <div className="text-xs text-gray-500">#{number}</div>
+        <div className="bg-gray-800/90 rounded-lg p-2 min-w-[100px] text-center border-2 border-gray-600 border-dashed">
+          <div className="text-xs text-gray-400">#{number} {label}</div>
           <div className="text-gray-600 text-sm py-2">—</div>
         </div>
       );
     }
-
-    const isMyPlayer = player.team_id === userTeamId;
-    const traitDisplay = player.visible_trait ? TRAIT_DISPLAY[player.visible_trait] || player.visible_trait : null;
-    const fitness = getFitnessDisplay(player.fatigue);
     
     return (
       <Link 
         href={`/player/${player.id}`}
-        className={`block bg-gray-800/90 rounded-lg p-2 min-w-[100px] text-center border-2 transition-all hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 ${
-          isMyPlayer ? 'border-yellow-500 ring-2 ring-yellow-500/30' : 'border-gray-600 hover:border-blue-500'
+        className={`block bg-gray-800/90 rounded-lg p-2 min-w-[100px] text-center border-2 transition-all hover:bg-gray-700 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 ${
+          isMyPlayer ? 'border-yellow-500 ring-2 ring-yellow-500/30' : 'border-gray-600 hover:border-green-500'
         }`}
       >
-        <div className="text-xs text-gray-400 flex items-center justify-center gap-1">
-          #{number}
-          {isMyPlayer && <span className="text-yellow-500">⭐</span>}
+        <div className="text-xs text-gray-400">
+          #{number} {label}
+          {isMyPlayer && <span className="text-yellow-500 ml-1">⭐</span>}
         </div>
         <p className="text-white text-xs truncate">{player.first_name}</p>
         <p className="text-white font-bold text-sm truncate">{player.last_name}</p>
@@ -381,15 +383,13 @@ export default function RepTeamsPage() {
           </span>
         </div>
         
-        <div className="flex justify-between items-center mt-1 text-[10px]">
-          <span className="text-gray-400">{player.position.slice(0, 3)}</span>
-          <span className={fitness.color}>{fitness.percent}%</span>
-        </div>
-        
         {traitDisplay && (
-          <p className="text-gray-400 text-[9px] mt-1 truncate">Trait: {traitDisplay}</p>
+          <span className="bg-purple-600/80 text-purple-100 text-[9px] px-1.5 py-0.5 rounded font-medium mt-1 inline-block">
+            {traitDisplay}
+          </span>
         )}
-        <p className="text-gray-500 text-[10px] truncate mt-1">{getTeamName(player.team_id)}</p>
+        
+        <p className="text-gray-500 text-[10px] truncate mt-1">{player.position}</p>
       </Link>
     );
   };
@@ -400,7 +400,7 @@ export default function RepTeamsPage() {
 
   const OriginSeriesTracker = () => {
     if (!originSeries && originFixtures.length === 0) {
-      return null; // Don't show if Origin system not set up yet
+      return null;
     }
 
     const nswWins = originSeries?.nsw_wins || 0;
@@ -490,15 +490,14 @@ export default function RepTeamsPage() {
           </Link>
           <h1 className="text-3xl font-bold text-white">🏅 Representative Teams</h1>
           <p className="text-white/80 mt-1">
-            The best players from across all divisions, selected by position performance.
-            Click any player to view their full profile.
+            The best players from across all divisions. Click any player to view their full profile.
           </p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-6">
         
-        {/* Origin Series Tracker (only shows if Origin data exists) */}
+        {/* Origin Series Tracker */}
         {(selectedTab === 'origin' || selectedTab === 'origin_u23') && <OriginSeriesTracker />}
         
         {/* Tab Selection */}
@@ -568,8 +567,8 @@ export default function RepTeamsPage() {
               </h2>
               <p className="opacity-80 text-sm">
                 {(selectedTab === 'origin' || selectedTab === 'origin_u23') 
-                  ? 'State of Origin • Selected by Match Power' 
-                  : 'International Team • Selected by Match Power'}
+                  ? 'State of Origin • Current Squad' 
+                  : 'International Team • Current Squad'}
               </p>
             </div>
             {myPlayersInSquad > 0 && (
@@ -581,63 +580,94 @@ export default function RepTeamsPage() {
           </div>
         </div>
 
-        {/* Football Field Layout */}
+        {/* Football Field Layout - MATCHES TACTICS PAGE */}
         <div 
-          className="rounded-xl p-4 mb-6 relative overflow-hidden border-4 border-white/30"
+          className="rounded-xl p-6 mb-6 relative overflow-hidden border-4 border-white/50"
           style={{
             background: 'linear-gradient(to bottom, #2d5a27 0%, #3d7a37 50%, #2d5a27 100%)',
-            minHeight: '680px'
+            minHeight: '750px'
           }}
         >
+          {/* Direction Indicator - Left Side */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
+            <div className="w-1 h-24 bg-gradient-to-t from-transparent via-white/60 to-white rounded-full"></div>
+            <span className="text-white/80 text-xs font-bold tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+              ATTACK
+            </span>
+            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-white/80"></div>
+          </div>
+
+          {/* Opposition Goal Posts (top) */}
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <GoalPosts />
+            <div className="text-white/50 text-xs font-bold mt-1">OPPOSITION</div>
+          </div>
+          
+          {/* Opposition Try Line */}
+          <div className="absolute top-16 inset-x-4 border-t-4 border-white/70 border-dashed"></div>
+
           {/* Field Lines */}
-          <div className="absolute top-20 inset-x-4 border-t-4 border-white/80 rounded"></div>
-          <div className="absolute top-[30%] inset-x-4 border-t-2 border-white/30"></div>
+          <div className="absolute top-[25%] inset-x-4 border-t-2 border-white/30"></div>
+          <div className="absolute top-[40%] inset-x-4 border-t-2 border-white/30"></div>
           <div className="absolute top-1/2 inset-x-4 border-t-2 border-white/50"></div>
-          <div className="absolute top-[70%] inset-x-4 border-t-2 border-white/30"></div>
-          <div className="absolute bottom-20 inset-x-4 border-t-4 border-white/80 rounded"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 border-2 border-white/40 rounded-full"></div>
+          <div className="absolute top-[60%] inset-x-4 border-t-2 border-white/30"></div>
+          <div className="absolute top-[75%] inset-x-4 border-t-2 border-white/30"></div>
 
-          {/* Positions Layout */}
+          {/* Your Try Line */}
+          <div className="absolute bottom-16 inset-x-4 border-t-4 border-white/70 border-dashed"></div>
+          
+          {/* Your Goal Posts (bottom) */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <div className="text-white/50 text-xs font-bold mb-1">YOUR GOAL</div>
+            <GoalPosts flipped />
+          </div>
+
+          {/* Positions Layout - SAME AS TACTICS PAGE */}
           <div className="relative z-10 flex flex-col items-center gap-3 pt-24 pb-24">
-            
-            {/* Fullback */}
-            <div className="flex justify-center">
-              <PlayerCard player={currentSquad.fullback} number={1} />
+            {/* Props & Hooker */}
+            <div className="flex justify-center gap-4">
+              <PlayerCard player={currentSquad.prop_l} label="PR" number={8} />
+              <PlayerCard player={currentSquad.hooker} label="HK" number={9} />
+              <PlayerCard player={currentSquad.prop_r} label="PR" number={10} />
             </div>
 
-            {/* Wingers */}
-            <div className="flex justify-between w-full max-w-md px-4">
-              <PlayerCard player={currentSquad.winger_l} number={2} />
-              <PlayerCard player={currentSquad.winger_r} number={5} />
-            </div>
-
-            {/* Centres */}
-            <div className="flex justify-center gap-20">
-              <PlayerCard player={currentSquad.centre_l} number={3} />
-              <PlayerCard player={currentSquad.centre_r} number={4} />
-            </div>
-
-            {/* Five-Eighth & Halfback */}
-            <div className="flex justify-center gap-6">
-              <PlayerCard player={currentSquad.five_eighth} number={6} />
-              <PlayerCard player={currentSquad.halfback} number={7} />
+            {/* Second Row */}
+            <div className="flex justify-center gap-24">
+              <PlayerCard player={currentSquad.second_row_l} label="2R" number={11} />
+              <PlayerCard player={currentSquad.second_row_r} label="2R" number={12} />
             </div>
 
             {/* Lock */}
             <div className="flex justify-center">
-              <PlayerCard player={currentSquad.lock} number={13} />
+              <PlayerCard player={currentSquad.lock} label="LK" number={13} />
             </div>
 
-            {/* Second Row */}
-            <div className="flex justify-center gap-20">
-              <PlayerCard player={currentSquad.second_row_l} number={11} />
-              <PlayerCard player={currentSquad.second_row_r} number={12} />
+            {/* Halfback */}
+            <div className="flex justify-center">
+              <PlayerCard player={currentSquad.halfback} label="HB" number={7} />
             </div>
 
-            {/* Front Row */}
-            <div className="flex justify-center gap-2">
-              <PlayerCard player={currentSquad.prop_l} number={8} />
-              <PlayerCard player={currentSquad.hooker} number={9} />
-              <PlayerCard player={currentSquad.prop_r} number={10} />
+            {/* Five-Eighth */}
+            <div className="flex justify-center">
+              <PlayerCard player={currentSquad.five_eighth} label="FE" number={6} />
+            </div>
+
+            {/* Centres */}
+            <div className="flex justify-center gap-24">
+              <PlayerCard player={currentSquad.centre_l} label="LC" number={3} />
+              <PlayerCard player={currentSquad.centre_r} label="RC" number={4} />
+            </div>
+
+            {/* Wingers */}
+            <div className="flex justify-between w-full max-w-lg px-4">
+              <PlayerCard player={currentSquad.winger_l} label="LW" number={2} />
+              <PlayerCard player={currentSquad.winger_r} label="RW" number={5} />
+            </div>
+
+            {/* Fullback */}
+            <div className="flex justify-center">
+              <PlayerCard player={currentSquad.fullback} label="FB" number={1} />
             </div>
           </div>
         </div>
@@ -645,11 +675,11 @@ export default function RepTeamsPage() {
         {/* Bench */}
         <div className="bg-gray-800 rounded-xl p-4 mb-6">
           <h3 className="text-white font-bold mb-3">🪑 Interchange</h3>
-          <div className="flex justify-center gap-3 flex-wrap">
-            <PlayerCard player={currentSquad.bench_1} number={14} />
-            <PlayerCard player={currentSquad.bench_2} number={15} />
-            <PlayerCard player={currentSquad.bench_3} number={16} />
-            <PlayerCard player={currentSquad.bench_4} number={17} />
+          <div className="flex justify-center gap-4 flex-wrap">
+            <PlayerCard player={currentSquad.bench_1} label="B" number={14} />
+            <PlayerCard player={currentSquad.bench_2} label="B" number={15} />
+            <PlayerCard player={currentSquad.bench_3} label="B" number={16} />
+            <PlayerCard player={currentSquad.bench_4} label="B" number={17} />
           </div>
         </div>
 
@@ -663,9 +693,8 @@ export default function RepTeamsPage() {
         <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
           <h4 className="text-white font-bold mb-2">ℹ️ How Representative Selection Works</h4>
           <ul className="text-gray-400 text-sm space-y-1">
-            <li>• Players are selected from <strong className="text-white">all 10 divisions</strong> based on <strong className="text-green-400">Match Power</strong></li>
-            <li>• Match Power measures how well a player's stats suit their specific position</li>
-            <li>• A lower OVR player may be selected if they're a perfect fit for their role</li>
+            <li>• Players are selected from <strong className="text-white">all 10 divisions</strong> based on <strong className="text-green-400">positional performance</strong></li>
+            <li>• Selection considers overall rating and position-specific attributes</li>
             <li>• <strong className="text-sky-400">State of Origin</strong>: NSW & QLD birthplace only</li>
             <li>• <strong className="text-green-400">International</strong>: Based on birthplace (ROA players eligible for Australia)</li>
             <li>• <strong className="text-purple-400">U/23</strong>: Only players aged 23 or younger</li>
