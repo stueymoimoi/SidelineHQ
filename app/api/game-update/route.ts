@@ -27,6 +27,7 @@ import {
   POSITION_FIELDS,
   MINUTES_BY_JERSEY,
   MOTM_MIN_RATING,
+  REST_RECOVERY,
 } from '@/lib/game-engine/constants';
 
 import type { Player, Team, Fixture, TeamTactics, Notification } from '@/lib/game-engine/types';
@@ -37,6 +38,13 @@ import { calculateMotmInfluence, buildMotmReason } from '@/lib/game-engine/motm'
 import { calculateTacticalBonus } from '@/lib/game-engine/tactics';
 import { calculateTries, calculateKickingStats, calculateScore, distributeTries } from '@/lib/game-engine/scoring';
 import { processAllTraining } from '@/lib/training';
+import { 
+  selectOriginSquad, 
+  isOriginRound, 
+  getSquadPlayerIds,
+  getOriginGameNumber 
+} from '@/lib/origin/selection';
+import { simulateOriginMatch } from '@/lib/origin/simulation';
 import { 
   calculateTraitModifiers, 
   DEFAULT_MODIFIERS,

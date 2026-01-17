@@ -335,3 +335,21 @@ export const POSITIONS = [
   'Second Row',
   'Lock'
 ] as const;
+// ===========================================
+// ORIGIN CONSTANTS
+// ===========================================
+
+/** Rounds when Origin games occur (Season 0) */
+export const ORIGIN_ROUNDS = [9, 12, 15] as const;
+
+/** Origin team display names */
+export const ORIGIN_TEAM_NAMES = {
+  NSW: 'NSW Blues',
+  QLD: 'QLD Maroons'
+} as const;
+
+/** Origin team colors for UI */
+export const ORIGIN_TEAM_COLORS = {
+  NSW: { primary: '#87CEEB', secondary: '#1E3A5F', text: '#1a1a2e' },
+  QLD: { primary: '#800020', secondary: '#FFD700', text: '#ffffff' }
+} as const;

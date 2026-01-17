@@ -32,6 +32,10 @@ export interface Player {
   age: number;
   overall: number;
   
+  // Origin eligibility
+  state?: string | null;
+  nationality?: string | null;
+  
   // Stats (1-8 tier scale)
   speed: number;
   strength: number;
@@ -190,7 +194,9 @@ export type NotificationType =
   | 'free_agent_lost'
   | 'free_agent_update'
   | 'new_free_agent'
-  | 'system';
+  | 'system'
+  | 'origin_selection'
+| 'origin_motm';
 
 // ===========================================
 // MATCH ENGINE TYPES
@@ -304,3 +310,65 @@ export interface TacticalBonusResult {
   bonus: number;
   description: string;
 }
+// ===========================================
+// ORIGIN SYSTEM TYPES
+// ===========================================
+
+export interface OriginSeries {
+  id: string;
+  season: number;
+  nsw_wins: number;
+  qld_wins: number;
+  series_winner: 'NSW' | 'QLD' | null;
+  series_status: 'scheduled' | 'in_progress' | 'complete';
+}
+
+export interface OriginFixture {
+  id: string;
+  season: number;
+  game_number: 1 | 2 | 3;
+  round: number;
+  venue: string | null;
+  home_team: 'NSW' | 'QLD';
+  away_team: 'NSW' | 'QLD';
+  played: boolean;
+  home_score: number | null;
+  away_score: number | null;
+  motm_player_id: string | null;
+  motm_reason: string | null;
+}
+
+export interface OriginSelection {
+  id: string;
+  origin_fixture_id: string;
+  player_id: string;
+  team: 'NSW' | 'QLD';
+  jersey_number: number;
+  position_name: string;
+  is_captain: boolean;
+}
+
+export interface OriginPlayerStats {
+  id: string;
+  origin_fixture_id: string;
+  player_id: string;
+  team: 'NSW' | 'QLD';
+  jersey_number: number;
+  player_name: string;
+  ovr: number;
+  points: number;
+  tries: number;
+  try_assists: number;
+  goals_made: number;
+  goals_attempted: number;
+  metres: number;
+  tackles: number;
+  missed_tackles: number;
+  errors: number;
+  line_breaks: number;
+  tackle_breaks: number;
+  minutes_played: number;
+  rating: number;
+}
+
+export type OriginTeam = 'NSW' | 'QLD';
