@@ -242,7 +242,7 @@ export const YOUNG_PROSPECT_AGE_THRESHOLD = 21;
 export const VETERAN_AGE_THRESHOLD = 30;
 
 /** Maximum squad size */
-export const MAX_SQUAD_SIZE = 25;
+export const MAX_SQUAD_SIZE = 30;
 
 /** Minimum squad size */
 export const MIN_SQUAD_SIZE = 17;
