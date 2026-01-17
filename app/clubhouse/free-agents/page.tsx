@@ -1,14 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { MAX_SQUAD_SIZE } from '@/lib/game-engine/constants';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+// ============================================
+// TYPES
+// ============================================
 
 interface Team {
   id: string;
@@ -16,6 +21,7 @@ interface Team {
   city: string;
   primary_color: string;
   secondary_color: string;
+  division: number;
 }
 
 interface Player {
@@ -25,6 +31,9 @@ interface Player {
   position: string;
   overall: number;
   age: number;
+  nationality: string;
+  state: string | null;
+  visible_trait: string | null;
 }
 
 interface FreeAgent {
@@ -32,7 +41,7 @@ interface FreeAgent {
   player_id: string;
   available_round: number;
   claimed: boolean;
-  players: Player;
+  player: Player; // Flattened single player object
 }
 
 interface Claim {
@@ -41,6 +50,63 @@ interface Claim {
   team_id: string;
   release_player_id: string | null;
 }
+
+// ============================================
+// CONSTANTS
+// ============================================
+
+const MAX_CLAIMS = 3;
+const RELEASE_THRESHOLD = MAX_SQUAD_SIZE - 8;
+
+const POSITION_COLORS: Record<string, string> = {
+  'Fullback': 'bg-purple-600',
+  'Winger': 'bg-blue-600',
+  'Centre': 'bg-green-600',
+  'Five-Eighth': 'bg-yellow-600',
+  'Halfback': 'bg-yellow-500',
+  'Prop': 'bg-red-600',
+  'Hooker': 'bg-orange-600',
+  'Second Row': 'bg-pink-600',
+  'Lock': 'bg-red-700',
+};
+
+const TRAIT_DISPLAY_NAMES: Record<string, string> = {
+  fiery: 'Fiery',
+  confident: 'Confident',
+  showman: 'Showman',
+  professional: 'Professional',
+  clutch: 'Clutch',
+  prodigy: 'Prodigy',
+  leader: 'Leader',
+  loyal: 'Loyal',
+  composed: 'Composed',
+};
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+const formatNationality = (nationality: string, state: string | null): string => {
+  return state ? `${nationality}, ${state}` : nationality;
+};
+
+const getTraitDisplay = (trait: string | null): string | null => {
+  if (!trait) return null;
+  return TRAIT_DISPLAY_NAMES[trait] || trait.charAt(0).toUpperCase() + trait.slice(1);
+};
+
+const getOvrBgColor = (ovr: number): string => {
+  if (ovr >= 45) return 'bg-purple-500';
+  if (ovr >= 40) return 'bg-green-500';
+  if (ovr >= 35) return 'bg-green-600';
+  if (ovr >= 30) return 'bg-yellow-500';
+  if (ovr >= 25) return 'bg-orange-500';
+  return 'bg-red-500';
+};
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
 
 export default function FreeAgentsPage() {
   const [loading, setLoading] = useState(true);
@@ -55,14 +121,15 @@ export default function FreeAgentsPage() {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedFreeAgent, setSelectedFreeAgent] = useState<FreeAgent | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [selectedPlayerCard, setSelectedPlayerCard] = useState<Player | null>(null);
   const [processing, setProcessing] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const claimedFreeAgentIds = useMemo(() => {
+    return new Set(claims.map(c => c.free_agent_id));
+  }, [claims]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -83,78 +150,89 @@ export default function FreeAgentsPage() {
 
       setTeamId(coach.team_id);
 
-      const { data: teamData } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', coach.team_id)
-        .single();
+      const [teamResult, playersResult, fixturesResult, claimsResult] = await Promise.all([
+        supabase
+          .from('teams')
+          .select('id, name, city, primary_color, secondary_color, division')
+          .eq('id', coach.team_id)
+          .single(),
+        supabase
+          .from('players')
+          .select('id, first_name, last_name, position, overall, age, nationality, state, visible_trait')
+          .eq('team_id', coach.team_id)
+          .order('overall', { ascending: true }),
+        supabase
+          .from('fixtures')
+          .select('round')
+          .eq('played', false)
+          .order('round', { ascending: true })
+          .limit(1),
+        supabase
+          .from('free_agent_claims')
+          .select('id, free_agent_id, team_id, release_player_id')
+          .eq('team_id', coach.team_id),
+      ]);
 
-      setTeam(teamData);
+      setTeam(teamResult.data);
+      setPlayers(playersResult.data || []);
+      setClaims(claimsResult.data || []);
 
-      // Get squad
-      const { data: playersData } = await supabase
-        .from('players')
-        .select('*')
-        .eq('team_id', coach.team_id)
-        .order('overall', { ascending: true });
-
-      setPlayers(playersData || []);
-
-      // Get current round
-      const { data: fixtures } = await supabase
-        .from('fixtures')
-        .select('round')
-        .eq('played', false)
-        .order('round', { ascending: true })
-        .limit(1);
-
-      const round = fixtures && fixtures.length > 0 ? fixtures[0].round : 1;
+      const round = fixturesResult.data?.[0]?.round || 1;
       setCurrentRound(round);
 
-      // Get ladder position
       const { data: allTeams } = await supabase
         .from('teams')
-        .select('*')
-        .eq('division', 1);
+        .select('id, wins, draws, points_for, points_against')
+        .eq('division', teamResult.data?.division || 1);
 
       if (allTeams) {
-        const sorted = allTeams.sort((a, b) => {
+        const sorted = [...allTeams].sort((a, b) => {
           const aPoints = (a.wins * 2) + a.draws;
           const bPoints = (b.wins * 2) + b.draws;
           if (bPoints !== aPoints) return bPoints - aPoints;
           return (b.points_for - b.points_against) - (a.points_for - a.points_against);
         });
         const pos = sorted.findIndex(t => t.id === coach.team_id) + 1;
-        setLadderPosition(pos);
+        setLadderPosition(pos || 1);
       }
 
-      // Get available free agents
       const { data: freeAgentsData } = await supabase
         .from('free_agents')
-        .select('*, players(*)')
+        .select(`
+          id, player_id, available_round, claimed,
+          players (id, first_name, last_name, position, overall, age, nationality, state, visible_trait)
+        `)
         .eq('claimed', false)
         .lte('available_round', round);
 
-      setFreeAgents(freeAgentsData || []);
+      // Transform: flatten players array to single player object
+      const transformedFreeAgents: FreeAgent[] = (freeAgentsData || [])
+        .map(fa => {
+          const playerData = Array.isArray(fa.players) ? fa.players[0] : fa.players;
+          return {
+            id: fa.id,
+            player_id: fa.player_id,
+            available_round: fa.available_round,
+            claimed: fa.claimed,
+            player: playerData as Player
+          };
+        })
+        .filter(fa => fa.player);
 
-      // Get my claims
-      const { data: myClaims } = await supabase
-        .from('free_agent_claims')
-        .select('*')
-        .eq('team_id', coach.team_id);
+      setFreeAgents(transformedFreeAgents);
 
-      setClaims(myClaims || []);
+      if (transformedFreeAgents.length > 0) {
+        const freeAgentIds = transformedFreeAgents.map(fa => fa.id);
+        const { data: allClaims } = await supabase
+          .from('free_agent_claims')
+          .select('free_agent_id')
+          .in('free_agent_id', freeAgentIds);
 
-      // Get claim counts for each free agent
-      if (freeAgentsData && freeAgentsData.length > 0) {
         const counts: Record<string, number> = {};
-        for (const fa of freeAgentsData) {
-          const { count } = await supabase
-            .from('free_agent_claims')
-            .select('*', { count: 'exact', head: true })
-            .eq('free_agent_id', fa.id);
-          counts[fa.id] = count || 0;
-        }
+        freeAgentIds.forEach(id => { counts[id] = 0; });
+        allClaims?.forEach(claim => {
+          counts[claim.free_agent_id] = (counts[claim.free_agent_id] || 0) + 1;
+        });
         setClaimCounts(counts);
       }
 
@@ -163,29 +241,34 @@ export default function FreeAgentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
-  const openRequestModal = (freeAgent: FreeAgent) => {
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const openRequestModal = useCallback((freeAgent: FreeAgent) => {
     setSelectedFreeAgent(freeAgent);
-    if (players.length >= 25) {
-      // Squad full - shouldn't reach here due to button disable, but safety check
+    if (players.length >= MAX_SQUAD_SIZE) {
       return;
     }
-    if (players.length >= 22) {
-      // Need to release someone to make room
+    if (players.length >= RELEASE_THRESHOLD) {
       setShowRequestModal(true);
     } else {
-      // Squad has space, submit directly
       submitRequest(freeAgent, null);
     }
-  };
+  }, [players.length]);
 
-  const submitRequest = async (freeAgent: FreeAgent, releasePlayerId: string | null) => {
+  const submitRequest = useCallback(async (freeAgent: FreeAgent, releasePlayerId: string | null) => {
+    if (!teamId) return;
     setProcessing(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        router.push('/auth');
+        return;
+      }
 
       const { data: coach } = await supabase
         .from('coaches')
@@ -193,7 +276,18 @@ export default function FreeAgentsPage() {
         .eq('user_id', user.id)
         .single();
 
-      if (!coach?.team_id) return;
+      if (!coach?.team_id || coach.team_id !== teamId) {
+        console.error('Team ID mismatch');
+        return;
+      }
+
+      if (releasePlayerId) {
+        const playerExists = players.some(p => p.id === releasePlayerId);
+        if (!playerExists) {
+          console.error('Invalid release player ID');
+          return;
+        }
+      }
 
       await supabase.from('free_agent_claims').insert({
         free_agent_id: freeAgent.id,
@@ -210,9 +304,10 @@ export default function FreeAgentsPage() {
       setSelectedFreeAgent(null);
       setSelectedPlayer(null);
     }
-  };
+  }, [teamId, players, loadData, router]);
 
-  const cancelRequest = async (freeAgentId: string) => {
+  const cancelRequest = useCallback(async (freeAgentId: string) => {
+    if (!teamId) return;
     setProcessing(true);
 
     try {
@@ -225,7 +320,10 @@ export default function FreeAgentsPage() {
         .eq('user_id', user.id)
         .single();
 
-      if (!coach?.team_id) return;
+      if (!coach?.team_id || coach.team_id !== teamId) {
+        console.error('Team ID mismatch');
+        return;
+      }
 
       await supabase
         .from('free_agent_claims')
@@ -239,33 +337,17 @@ export default function FreeAgentsPage() {
     } finally {
       setProcessing(false);
     }
-  };
+  }, [teamId, loadData]);
 
-  const hasClaimed = (freeAgentId: string) => {
-    return claims.some(c => c.free_agent_id === freeAgentId);
-  };
+  const closeRequestModal = useCallback(() => {
+    setShowRequestModal(false);
+    setSelectedFreeAgent(null);
+    setSelectedPlayer(null);
+  }, []);
 
-  const getPositionColor = (position: string) => {
-    const colors: Record<string, string> = {
-      'Fullback': 'bg-purple-600',
-      'Winger': 'bg-blue-600',
-      'Centre': 'bg-green-600',
-      'Five-Eighth': 'bg-yellow-600',
-      'Halfback': 'bg-yellow-500',
-      'Prop': 'bg-red-600',
-      'Hooker': 'bg-orange-600',
-      'Second Row': 'bg-pink-600',
-      'Lock': 'bg-red-700',
-    };
-    return colors[position] || 'bg-gray-600';
-  };
-
-  const getOverallColor = (overall: number) => {
-    if (overall >= 75) return 'text-green-400';
-    if (overall >= 65) return 'text-yellow-400';
-    if (overall >= 55) return 'text-orange-400';
-    return 'text-red-400';
-  };
+  const closePlayerCard = useCallback(() => {
+    setSelectedPlayerCard(null);
+  }, []);
 
   if (loading) {
     return (
@@ -281,7 +363,7 @@ export default function FreeAgentsPage() {
       <div 
         className="p-6"
         style={{
-          background: `linear-gradient(135deg, ${team?.primary_color} 0%, ${team?.secondary_color} 100%)`
+          background: `linear-gradient(135deg, ${team?.primary_color || '#1f2937'} 0%, ${team?.secondary_color || '#111827'} 100%)`
         }}
       >
         <div className="max-w-4xl mx-auto">
@@ -304,22 +386,21 @@ export default function FreeAgentsPage() {
             </div>
             <div className="text-center">
               <p className="text-gray-400 text-sm">Pending claims</p>
-              <p className={`text-xl font-bold ${claims.length >= 3 ? 'text-red-400' : 'text-green-400'}`}>
-                {claims.length}/3
+              <p className={`text-xl font-bold ${claims.length >= MAX_CLAIMS ? 'text-red-400' : 'text-green-400'}`}>
+                {claims.length}/{MAX_CLAIMS}
               </p>
             </div>
             <div className="text-right">
               <p className="text-gray-400 text-sm">Squad size</p>
-              <p className={`text-xl font-bold ${players.length >= 25 ? 'text-red-400' : 'text-green-400'}`}>
-                {players.length}/25
+              <p className={`text-xl font-bold ${players.length >= MAX_SQUAD_SIZE ? 'text-red-400' : 'text-green-400'}`}>
+                {players.length}/{MAX_SQUAD_SIZE}
               </p>
             </div>
           </div>
           <div className="bg-blue-500/20 border border-blue-500 rounded p-3">
             <p className="text-blue-400 text-sm">
-              <strong>How it works:</strong> Request up to 3 players. During game updates (Tue/Thu/Sun 6pm), 
-              the system assigns players based on division, ladder position, squad needs, and player preference. 
-              Players choose teams that suit their ambitions!
+              <strong>How it works:</strong> Request up to {MAX_CLAIMS} players. During game updates (Tue/Thu/Sun 6pm), 
+              the system assigns players based on division, ladder position, squad needs, and player preference.
             </p>
           </div>
         </div>
@@ -337,24 +418,32 @@ export default function FreeAgentsPage() {
           ) : (
             <div className="space-y-3">
               {freeAgents.map(fa => {
-                const claimed = hasClaimed(fa.id);
+                const claimed = claimedFreeAgentIds.has(fa.id);
                 const interestCount = claimCounts[fa.id] || 0;
+                const traitDisplay = getTraitDisplay(fa.player.visible_trait);
                 
                 return (
                   <div key={fa.id} className="bg-gray-700 rounded-lg p-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className={`text-2xl font-bold ${getOverallColor(fa.players.overall)}`}>
-                          {fa.players.overall}
+                      <div 
+                        className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition"
+                        onClick={() => setSelectedPlayerCard(fa.player)}
+                      >
+                        <div className={`${getOvrBgColor(fa.player.overall)} text-white text-xl font-bold px-3 py-1 rounded`}>
+                          {fa.player.overall}
                         </div>
                         <div>
-                          <p className="text-white font-bold">{fa.players.first_name} {fa.players.last_name}</p>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(fa.players.position)}`}>
-                              {fa.players.position}
+                          <p className="text-white font-bold">{fa.player.first_name} {fa.player.last_name}</p>
+                          <p className="text-gray-500 text-xs">{formatNationality(fa.player.nationality, fa.player.state)}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-xs px-2 py-0.5 rounded text-white ${POSITION_COLORS[fa.player.position] || 'bg-gray-600'}`}>
+                              {fa.player.position}
                             </span>
-                            <span className="text-gray-400 text-sm">Age {fa.players.age}</span>
+                            <span className="text-gray-400 text-sm">Age {fa.player.age}</span>
                           </div>
+                          {traitDisplay && (
+                            <p className="text-gray-400 text-xs mt-1">Trait: {traitDisplay}</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -371,10 +460,10 @@ export default function FreeAgentsPage() {
                           >
                             📋 Requested
                           </button>
-                        ) : claims.length >= 3 ? (
+                        ) : claims.length >= MAX_CLAIMS ? (
                           <span className="text-gray-500 text-sm">Claim limit reached</span>
-                        ) : players.length >= 25 ? (
-                          <span className="text-gray-500 text-sm">Squad full (25)</span>
+                        ) : players.length >= MAX_SQUAD_SIZE ? (
+                          <span className="text-gray-500 text-sm">Squad full ({MAX_SQUAD_SIZE})</span>
                         ) : (
                           <button
                             onClick={() => openRequestModal(fa)}
@@ -394,41 +483,112 @@ export default function FreeAgentsPage() {
         </div>
       </div>
 
+      {/* Player Card Popup */}
+      {selectedPlayerCard && (
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+          onClick={closePlayerCard}
+        >
+          <div 
+            className="bg-gray-800 rounded-lg p-6 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-gray-400 text-sm">{selectedPlayerCard.first_name}</p>
+                <p className="text-white text-2xl font-bold">{selectedPlayerCard.last_name}</p>
+                <p className="text-gray-500 text-xs">{formatNationality(selectedPlayerCard.nationality, selectedPlayerCard.state)}</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={closePlayerCard}
+                  className="text-gray-400 hover:text-white text-2xl leading-none"
+                >
+                  ×
+                </button>
+                <div className={`${getOvrBgColor(selectedPlayerCard.overall)} text-white text-2xl font-bold px-3 py-1 rounded`}>
+                  {selectedPlayerCard.overall}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-sm px-3 py-1 rounded text-white ${POSITION_COLORS[selectedPlayerCard.position] || 'bg-gray-600'}`}>
+                  {selectedPlayerCard.position}
+                </span>
+              </div>
+              
+              {selectedPlayerCard.visible_trait && (
+                <p className="text-gray-400">Trait: {getTraitDisplay(selectedPlayerCard.visible_trait)}</p>
+              )}
+              
+              <p className="text-gray-400">Age: {selectedPlayerCard.age}</p>
+            </div>
+
+            <button
+              onClick={closePlayerCard}
+              className="w-full mt-6 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Request Modal (release required) */}
       {showRequestModal && selectedFreeAgent && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-2">Select Player to Release</h3>
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+          onClick={closeRequestModal}
+        >
+          <div 
+            className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-xl font-bold text-white">Select Player to Release</h3>
+              <button onClick={closeRequestModal} className="text-gray-400 hover:text-white text-2xl">×</button>
+            </div>
             <p className="text-gray-400 mb-4">
-              If you win <strong className="text-white">{selectedFreeAgent.players.first_name} {selectedFreeAgent.players.last_name}</strong>, 
+              If you win <strong className="text-white">{selectedFreeAgent.player.first_name} {selectedFreeAgent.player.last_name}</strong>, 
               who would you release to make room?
             </p>
 
             <div className="space-y-2 mb-4">
-              {players.map(player => (
-                <div
-                  key={player.id}
-                  onClick={() => setSelectedPlayer(player)}
-                  className={`p-3 rounded-lg cursor-pointer transition ${
-                    selectedPlayer?.id === player.id 
-                      ? 'bg-red-600/30 border-2 border-red-500' 
-                      : 'bg-gray-700 hover:bg-gray-600'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`text-lg font-bold ${getOverallColor(player.overall)}`}>{player.overall}</div>
-                      <div>
-                        <p className="text-white">{player.first_name} {player.last_name}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded text-white ${getPositionColor(player.position)}`}>
-                          {player.position}
-                        </span>
+              {players.map(player => {
+                const traitDisplay = getTraitDisplay(player.visible_trait);
+                return (
+                  <div
+                    key={player.id}
+                    onClick={() => setSelectedPlayer(player)}
+                    className={`p-3 rounded-lg cursor-pointer transition ${
+                      selectedPlayer?.id === player.id 
+                        ? 'bg-red-600/30 border-2 border-red-500' 
+                        : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`${getOvrBgColor(player.overall)} text-white text-sm font-bold px-2 py-1 rounded`}>
+                          {player.overall}
+                        </div>
+                        <div>
+                          <p className="text-white font-bold">{player.first_name} {player.last_name}</p>
+                          <p className="text-gray-500 text-xs">{formatNationality(player.nationality, player.state)}</p>
+                          <span className={`text-xs px-2 py-0.5 rounded text-white ${POSITION_COLORS[player.position] || 'bg-gray-600'}`}>
+                            {player.position}
+                          </span>
+                          {traitDisplay && (
+                            <p className="text-gray-400 text-xs mt-1">Trait: {traitDisplay}</p>
+                          )}
+                        </div>
                       </div>
+                      <div className="text-gray-400 text-sm">Age {player.age}</div>
                     </div>
-                    <div className="text-gray-400 text-sm">Age {player.age}</div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {selectedPlayer && (
@@ -439,11 +599,7 @@ export default function FreeAgentsPage() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  setShowRequestModal(false);
-                  setSelectedFreeAgent(null);
-                  setSelectedPlayer(null);
-                }}
+                onClick={closeRequestModal}
                 className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
               >
                 Cancel
