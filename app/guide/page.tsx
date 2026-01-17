@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'schedule' | 'filmroom' | 'matchstats' | 'careers' | 'traits' | 'tips';
 
-export default function GuidePage() {
+function GuideContent() {
   const searchParams = useSearchParams();
   const [activeSection, setActiveSection] = useState<Section>('overview');
 
@@ -1056,5 +1056,17 @@ export default function GuidePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function GuidePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading guide...</div>
+      </div>
+    }>
+      <GuideContent />
+    </Suspense>
   );
 }
