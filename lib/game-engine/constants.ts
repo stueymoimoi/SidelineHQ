@@ -400,3 +400,35 @@ export const INJURY_TRAINING_RULES: Record<string, 'none' | 'light' | 'full'> = 
 
 // REST recovery (30% fatigue reduction for non-playing players)
 export const REST_RECOVERY_PERCENT = 0.30;
+// =============================================
+// INTERCHANGE SYSTEM CONSTANTS
+// =============================================
+
+// Standard minutes played by position (with prop rotation)
+export const MINUTES_WITH_ROTATION: Record<number, number> = {
+  1: 80,   // Fullback - full game
+  2: 80,   // Winger L - full game
+  3: 80,   // Centre L - full game
+  4: 80,   // Centre R - full game
+  5: 80,   // Winger R - full game
+  6: 80,   // Five-Eighth - full game
+  7: 80,   // Halfback - full game
+  8: 55,   // Prop L - rotates (30 on, off, 25 back)
+  9: 80,   // Hooker - full game
+  10: 55,  // Prop R - rotates
+  11: 80,  // Second Row L - full game
+  12: 80,  // Second Row R - full game
+  13: 80,  // Lock - full game
+  14: 30,  // Bench 1 (prop rotation)
+  15: 30,  // Bench 2 (prop rotation)
+  16: 20,  // Bench 3 (tactical - used ~60% of games)
+  17: 20,  // Bench 4 (tactical - used ~60% of games)
+};
+
+// Chance that bench 3/4 get used (tactical subs)
+export const TACTICAL_SUB_CHANCE = 0.6;
+
+// Fatigue multiplier based on minutes (minutes / 80)
+export const calculateFatigueByMinutes = (minutes: number, baseFatigue: number): number => {
+  return Math.round(baseFatigue * (minutes / 80));
+};

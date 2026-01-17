@@ -28,6 +28,8 @@ import {
   MINUTES_BY_JERSEY,
   MOTM_MIN_RATING,
   REST_RECOVERY,
+  MINUTES_WITH_ROTATION,
+  calculateFatigueByMinutes,
 } from '@/lib/game-engine/constants';
 
 import type { Player, Team, Fixture, TeamTactics, Notification } from '@/lib/game-engine/types';
@@ -461,7 +463,7 @@ export async function GET(request: Request) {
         for (let i = 0; i < POSITION_FIELDS.length; i++) {
           const field = POSITION_FIELDS[i];
           const jerseyNumber = i + 1;
-          const minutes = MINUTES_BY_JERSEY[jerseyNumber] ?? 0;
+          const minutes = MINUTES_WITH_ROTATION[jerseyNumber] ?? 0;
           
           // Home team player
           const homePlayerId = homeTactics[field];
@@ -533,7 +535,9 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
-            const fatigueGain = Math.round(FATIGUE_PER_MATCH * traitMods.fatigueMultiplier);
+            const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
+            const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
+            const fatigueGain = Math.round(baseFatigueGain * traitMods.fatigueMultiplier);
             fatigueUpdates[homePlayerId] = Math.min(100, (player.fatigue || 0) + fatigueGain);
           }
           
@@ -607,7 +611,9 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
-            const fatigueGain = Math.round(FATIGUE_PER_MATCH * traitMods.fatigueMultiplier);
+            const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
+            const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
+            const fatigueGain = Math.round(baseFatigueGain * traitMods.fatigueMultiplier);
             fatigueUpdates[awayPlayerId] = Math.min(100, (player.fatigue || 0) + fatigueGain);
           }
         }
