@@ -88,11 +88,12 @@ const TRAIT_DISPLAY: Record<string, string> = {
 // ============================================
 
 const getOvrColor = (ovr: number): string => {
-  if (ovr >= 41) return 'bg-purple-500';
-  if (ovr >= 35) return 'bg-green-500';
-  if (ovr >= 29) return 'bg-green-600';
-  if (ovr >= 23) return 'bg-yellow-500';
-  if (ovr >= 17) return 'bg-orange-500';
+  if (ovr >= 50) return 'bg-green-500';
+  if (ovr >= 45) return 'bg-purple-500';
+  if (ovr >= 40) return 'bg-blue-500';
+  if (ovr >= 35) return 'bg-teal-500';
+  if (ovr >= 30) return 'bg-yellow-500';
+  if (ovr >= 25) return 'bg-orange-500';
   return 'bg-red-500';
 };
 
@@ -355,7 +356,7 @@ export default function RepTeamsPage() {
 
   const PlayerCard = ({ player, label, number }: { player: Player | null; label: string; number: number }) => {
     const isMyPlayer = player?.team_id === userTeamId;
-    const traitDisplay = player?.visible_trait ? TRAIT_DISPLAY[player.visible_trait] || player.visible_trait : null;
+    const traitDisplay = player?.visible_trait ? TRAIT_DISPLAY[player.visible_trait] || player.visible_trait.charAt(0).toUpperCase() + player.visible_trait.slice(1) : null;
     
     if (!player) {
       return (
@@ -387,9 +388,7 @@ export default function RepTeamsPage() {
         </div>
         
         {traitDisplay && (
-          <span className="bg-purple-600/80 text-purple-100 text-[9px] px-1.5 py-0.5 rounded font-medium mt-1 inline-block">
-            {traitDisplay}
-          </span>
+          <p className="text-gray-400 text-[10px] mt-1">{traitDisplay}</p>
         )}
         
         <p className="text-gray-500 text-[10px] truncate mt-1">{player.position}</p>
