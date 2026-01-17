@@ -727,7 +727,7 @@ export default function SquadPage() {
             {/* Trait */}
             {selectedPlayer.visible_trait && (
               <button 
-                onClick={() => router.push('/clubhouse/guide?section=traits')}
+                onClick={() => router.push('/guide?section=traits')}
                 className="w-full text-left bg-gray-700 rounded p-3 mb-4 hover:bg-gray-600 transition cursor-pointer"
               >
                 <p className="text-gray-400 text-xs">Trait <span className="text-gray-500 ml-1">ⓘ</span></p>
