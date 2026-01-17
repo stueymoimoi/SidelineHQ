@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,6 +9,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+// ============================================
+// TYPES
+// ============================================
 
 interface Team {
   id: string;
@@ -37,259 +41,182 @@ interface Player {
   fatigue: number;
   current_training: string | null;
   training_progress: string | null;
+  nationality: string;
+  state: string | null;
+  visible_trait: string | null;
 }
 
-// ===========================================
-// TIER SYSTEM - Converts 1-8 to display words
-// ===========================================
+// ============================================
+// CONSTANTS
+// ============================================
+
+const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'] as const;
+const POSITIONS = ['Fullback', 'Winger', 'Centre', 'Five-Eighth', 'Halfback', 'Prop', 'Hooker', 'Second Row', 'Lock'] as const;
+const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'] as const;
+
+const VALID_STAT_KEYS = ['speed', 'strength', 'power', 'passing', 'stamina', 'tackling', 'kicking'] as const;
+type StatKey = typeof VALID_STAT_KEYS[number];
+
 const STAT_TIERS: Record<number, string> = {
-  1: 'None',
-  2: 'Poor',
-  3: 'Fair',
-  4: 'OK',
-  5: 'Good',
-  6: 'Very Good',
-  7: 'Excellent',
-  8: 'Elite',
+  1: 'None', 2: 'Poor', 3: 'Fair', 4: 'OK',
+  5: 'Good', 6: 'Very Good', 7: 'Excellent', 8: 'Elite',
 };
 
-// Abbreviated versions for compact display
 const STAT_TIERS_SHORT: Record<number, string> = {
-  1: 'None',
-  2: 'Poor',
-  3: 'Fair',
-  4: 'OK',
-  5: 'Good',
-  6: 'V.Good',
-  7: 'Excel',
-  8: 'Elite',
+  1: 'None', 2: 'Poor', 3: 'Fair', 4: 'OK',
+  5: 'Good', 6: 'V.Good', 7: 'Excel', 8: 'Elite',
 };
 
-/**
- * Converts a stat value (1-8) to its tier word
- * Returns 'None' for any invalid/out-of-range values
- */
-const getStatTier = (value: number, short: boolean = false): string => {
+const TRAIT_DISPLAY_NAMES: Record<string, string> = {
+  fiery: 'Fiery',
+  confident: 'Confident',
+  showman: 'Showman',
+  professional: 'Professional',
+  clutch: 'Clutch',
+  prodigy: 'Prodigy',
+  leader: 'Leader',
+  loyal: 'Loyal',
+  composed: 'Composed',
+};
+
+const POSITION_COLORS: Record<string, string> = {
+  'Fullback': 'bg-purple-600',
+  'Winger': 'bg-blue-600',
+  'Centre': 'bg-green-600',
+  'Five-Eighth': 'bg-yellow-600',
+  'Halfback': 'bg-yellow-500',
+  'Prop': 'bg-red-600',
+  'Hooker': 'bg-orange-600',
+  'Second Row': 'bg-pink-600',
+  'Lock': 'bg-red-700',
+};
+
+const PROGRESS_COLORS: Record<string, string> = {
+  'NONE': 'bg-gray-600',
+  'POOR': 'bg-red-600',
+  'FAIR': 'bg-orange-500',
+  'GOOD': 'bg-yellow-500',
+  'VERY GOOD': 'bg-lime-500',
+  'EXCELLENT': 'bg-green-500',
+};
+
+const PROGRESS_WIDTHS: Record<string, string> = {
+  'NONE': 'w-0',
+  'POOR': 'w-1/6',
+  'FAIR': 'w-2/6',
+  'GOOD': 'w-3/6',
+  'VERY GOOD': 'w-4/6',
+  'EXCELLENT': 'w-full',
+};
+
+const TRAINING_ICONS: Record<string, string> = {
+  'Rest': '😴',
+  'Speed': '⚡',
+  'Strength': '💪',
+  'Power': '💥',
+  'Passing': '🎯',
+  'Stamina': '🫁',
+  'Tackling': '🛡️',
+  'Kicking': '🦶',
+};
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+const getStatTier = (value: number, short = false): string => {
   const tiers = short ? STAT_TIERS_SHORT : STAT_TIERS;
-  // Clamp value to valid range and handle edge cases
   if (typeof value !== 'number' || isNaN(value)) return 'None';
   const clampedValue = Math.max(1, Math.min(8, Math.round(value)));
   return tiers[clampedValue] || 'None';
 };
 
-/**
- * Gets color class based on stat tier value
- */
 const getStatTierColor = (value: number): string => {
-  if (value >= 8) return 'text-yellow-400';    // Elite - gold
-  if (value >= 7) return 'text-purple-400';    // Excellent - purple
-  if (value >= 6) return 'text-green-400';     // Very Good - green
-  if (value >= 5) return 'text-blue-400';      // Good - blue
-  if (value >= 4) return 'text-gray-300';      // OK - white/gray
-  if (value >= 3) return 'text-orange-400';    // Fair - orange
-  if (value >= 2) return 'text-red-400';       // Poor - red
-  return 'text-red-600';                       // None - dark red
+  if (value >= 8) return 'text-yellow-400';
+  if (value >= 7) return 'text-purple-400';
+  if (value >= 6) return 'text-green-400';
+  if (value >= 5) return 'text-blue-400';
+  if (value >= 4) return 'text-gray-300';
+  if (value >= 3) return 'text-orange-400';
+  if (value >= 2) return 'text-red-400';
+  return 'text-red-600';
 };
 
-// ===========================================
-// FITNESS SYSTEM - Inverted from fatigue
-// Database stores fatigue (0=fresh, 100=tired)
-// UI shows fitness (100%=fresh, 0%=tired)
-// ===========================================
-
-/**
- * Converts database fatigue to display fitness
- * fatigue 0 → fitness 100%
- * fatigue 100 → fitness 0%
- */
 const getFitness = (fatigue: number): number => {
   return Math.max(0, Math.min(100, 100 - fatigue));
 };
 
-/**
- * Gets color class based on fitness percentage
- * High fitness = green, Low fitness = red
- */
 const getFitnessColor = (fatigue: number): string => {
   const fitness = getFitness(fatigue);
-  if (fitness >= 90) return 'text-green-400';   // Peak / Match Fit
-  if (fitness >= 80) return 'text-green-500';   // Good
-  if (fitness >= 70) return 'text-yellow-400';  // Tired
-  if (fitness >= 60) return 'text-yellow-500';  // Fatigued
-  if (fitness >= 50) return 'text-orange-400';  // Struggling
-  return 'text-red-500';                        // Exhausted
+  if (fitness >= 90) return 'text-green-400';
+  if (fitness >= 80) return 'text-green-500';
+  if (fitness >= 70) return 'text-yellow-400';
+  if (fitness >= 60) return 'text-yellow-500';
+  if (fitness >= 50) return 'text-orange-400';
+  return 'text-red-500';
 };
 
-/**
- * Gets fitness tier label
- */
-const getFitnessTier = (fatigue: number): string => {
-  const fitness = getFitness(fatigue);
-  if (fitness >= 100) return 'Peak';
-  if (fitness >= 90) return 'Match Fit';
-  if (fitness >= 80) return 'Good';
-  if (fitness >= 70) return 'Tired';
-  if (fitness >= 60) return 'Fatigued';
-  if (fitness >= 50) return 'Struggling';
-  return 'Exhausted';
-};
-
-// ===========================================
-// CONSTANTS
-// ===========================================
-const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'];
-const POSITIONS = ['Fullback', 'Winger', 'Centre', 'Five-Eighth', 'Halfback', 'Prop', 'Hooker', 'Second Row', 'Lock'];
-const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'];
-
-// Valid stat keys for type-safe access
-const VALID_STAT_KEYS = ['speed', 'strength', 'power', 'passing', 'stamina', 'tackling', 'kicking'] as const;
-type StatKey = typeof VALID_STAT_KEYS[number];
-
-/**
- * Safely get a stat value from player object
- */
 const getPlayerStat = (player: Player, statName: string): number => {
   const key = statName.toLowerCase() as StatKey;
   if (VALID_STAT_KEYS.includes(key)) {
     return player[key];
   }
-  return 1; // Default to lowest tier if invalid
-};
-
-// ===========================================
-// STYLING UTILITIES
-// ===========================================
-const getPositionColor = (position: string): string => {
-  const colors: Record<string, string> = {
-    'Fullback': 'bg-purple-600',
-    'Winger': 'bg-blue-600',
-    'Centre': 'bg-green-600',
-    'Five-Eighth': 'bg-yellow-600',
-    'Halfback': 'bg-yellow-500',
-    'Prop': 'bg-red-600',
-    'Hooker': 'bg-orange-600',
-    'Second Row': 'bg-pink-600',
-    'Lock': 'bg-red-700',
-  };
-  return colors[position] || 'bg-gray-600';
-};
-
-const getProgressColor = (progress: string | null): string => {
-  const colors: Record<string, string> = {
-    'NONE': 'bg-gray-600',
-    'POOR': 'bg-red-600',
-    'FAIR': 'bg-orange-500',
-    'GOOD': 'bg-yellow-500',
-    'VERY GOOD': 'bg-lime-500',
-    'EXCELLENT': 'bg-green-500',
-  };
-  return colors[progress || 'NONE'] || 'bg-gray-600';
-};
-
-const getProgressWidth = (progress: string | null): string => {
-  const widths: Record<string, string> = {
-    'NONE': 'w-0',
-    'POOR': 'w-1/6',
-    'FAIR': 'w-2/6',
-    'GOOD': 'w-3/6',
-    'VERY GOOD': 'w-4/6',
-    'EXCELLENT': 'w-full',
-  };
-  return widths[progress || 'NONE'] || 'w-0';
+  return 1;
 };
 
 const getTrainingIcon = (training: string | null): string => {
-  const icons: Record<string, string> = {
-    'Rest': '😴',
-    'Speed': '⚡',
-    'Strength': '💪',
-    'Power': '💥',
-    'Passing': '🎯',
-    'Stamina': '🫁',
-    'Tackling': '🛡️',
-    'Kicking': '🦶',
-  };
-  return training ? (icons[training] || '📍') : '➖';
+  return training ? (TRAINING_ICONS[training] || '📍') : '➖';
 };
 
 const getTrainingDescription = (training: string | null, player: Player): string => {
   if (!training) return 'No training assigned';
   if (training === 'Rest') return 'Recovering fitness';
-  if (STAT_TRAINING.includes(training)) return `Training ${training.toLowerCase()}`;
-  
+  if (STAT_TRAINING.includes(training as typeof STAT_TRAINING[number])) {
+    return `Training ${training.toLowerCase()}`;
+  }
   if (training === player.position) {
     return `Mastering ${training} skills`;
   } else if (training === player.secondary_position) {
     return `Improving ${training} (secondary)`;
-  } else {
-    return `Learning ${training} position`;
   }
+  return `Learning ${training} position`;
 };
 
-// ===========================================
+const formatNationality = (nationality: string, state: string | null): string => {
+  if (state) return `${nationality}, ${state}`;
+  return nationality;
+};
+
+const getTraitDisplay = (trait: string | null): string | null => {
+  if (!trait) return null;
+  return TRAIT_DISPLAY_NAMES[trait] || trait.charAt(0).toUpperCase() + trait.slice(1);
+};
+
+// ============================================
 // MAIN COMPONENT
-// ===========================================
+// ============================================
+
 export default function TrainingPage() {
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [saveQueue, setSaveQueue] = useState<{playerId: string, training: string | null, resetProgress: boolean}[]>([]);
+  const [saveQueue, setSaveQueue] = useState<Map<string, { training: string | null; resetProgress: boolean }>>(new Map());
+  const [teamId, setTeamId] = useState<string | null>(null);
   const router = useRouter();
 
-  // Process save queue with proper error handling
+  // Memoized player map for O(1) lookups
+  const playerMap = useMemo(() => new Map(players.map(p => [p.id, p])), [players]);
+
+  // Batch save with proper error handling
   const processSaveQueue = useCallback(async () => {
-    if (saveQueue.length === 0 || !team?.id) return;
+    if (saveQueue.size === 0 || !teamId) return;
     
     setSaveStatus('saving');
     
     try {
-      for (const item of saveQueue) {
-        const updateData: Record<string, unknown> = {
-          current_training: item.training
-        };
-        
-        if (item.resetProgress) {
-          updateData.training_progress = 'NONE';
-        }
-        
-        const { error } = await supabase
-          .from('players')
-          .update(updateData)
-          .eq('id', item.playerId)
-          .eq('team_id', team.id); // Security: ensures user can only update their own team's players
-        
-        if (error) throw error;
-      }
-      
-      setSaveQueue([]);
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch (err) {
-      console.error('Error saving:', err);
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
-    }
-  }, [saveQueue, team?.id]);
-
-  // Debounced save
-  useEffect(() => {
-    if (saveQueue.length === 0) return;
-    
-    const timeout = setTimeout(() => {
-      processSaveQueue();
-    }, 500);
-    
-    return () => clearTimeout(timeout);
-  }, [saveQueue, processSaveQueue]);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
+      // Re-verify team ownership (security)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/auth');
@@ -302,66 +229,140 @@ export default function TrainingPage() {
         .eq('user_id', user.id)
         .single();
 
-      if (!coach?.team_id) {
-        router.push('/choose-team');
+      if (!coach?.team_id || coach.team_id !== teamId) {
+        console.error('Team ID mismatch - potential security issue');
+        setSaveStatus('error');
         return;
       }
 
-      const { data: teamData } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', coach.team_id)
-        .single();
-
-      setTeam(teamData);
-
-      const { data: playersData } = await supabase
-        .from('players')
-        .select('*')
-        .eq('team_id', coach.team_id)
-        .order('overall', { ascending: false });
-
-      setPlayers(playersData || []);
-
-    } catch (err) {
-      console.error('Error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTrainingChange = (playerId: string, training: string | null) => {
-    const player = players.find(p => p.id === playerId);
-    const currentTraining = player?.current_training;
-    const trainingChanged = currentTraining !== training;
-    
-    // Update local state immediately for responsive UI
-    setPlayers(prev => prev.map(p => {
-      if (p.id === playerId) {
-        return {
-          ...p,
-          current_training: training,
-          training_progress: trainingChanged ? 'NONE' : p.training_progress
-        };
+      // Batch updates in parallel (chunked for safety)
+      const entries = Array.from(saveQueue.entries());
+      const CHUNK_SIZE = 10;
+      
+      for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
+        const chunk = entries.slice(i, i + CHUNK_SIZE);
+        await Promise.all(
+          chunk.map(([playerId, { training, resetProgress }]) => {
+            const updateData: Record<string, unknown> = { current_training: training };
+            if (resetProgress) updateData.training_progress = 'NONE';
+            
+            return supabase
+              .from('players')
+              .update(updateData)
+              .eq('id', playerId)
+              .eq('team_id', coach.team_id); // Security: double-check ownership
+          })
+        );
       }
-      return p;
-    }));
+      
+      setSaveQueue(new Map());
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Error saving:', err);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [saveQueue, teamId, router]);
+
+  // Debounced save
+  useEffect(() => {
+    if (saveQueue.size === 0) return;
     
-    // Add to save queue
+    const timeout = setTimeout(() => {
+      processSaveQueue();
+    }, 500);
+    
+    return () => clearTimeout(timeout);
+  }, [saveQueue, processSaveQueue]);
+
+  // Initial data load
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push('/auth');
+          return;
+        }
+
+        const { data: coach } = await supabase
+          .from('coaches')
+          .select('team_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!coach?.team_id) {
+          router.push('/choose-team');
+          return;
+        }
+
+        setTeamId(coach.team_id);
+
+        // Parallel fetch for performance
+        const [teamResult, playersResult] = await Promise.all([
+          supabase
+            .from('teams')
+            .select('id, name, city, primary_color, secondary_color')
+            .eq('id', coach.team_id)
+            .single(),
+          supabase
+            .from('players')
+            .select(`
+              id, team_id, first_name, last_name, position, secondary_position,
+              age, overall, speed, strength, power, passing, stamina, tackling, kicking,
+              fatigue, current_training, training_progress, nationality, state, visible_trait
+            `)
+            .eq('team_id', coach.team_id)
+            .order('overall', { ascending: false }),
+        ]);
+
+        setTeam(teamResult.data);
+        setPlayers(playersResult.data || []);
+      } catch (err) {
+        console.error('Error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [router]);
+
+  const handleTrainingChange = useCallback((playerId: string, training: string | null) => {
+    const player = playerMap.get(playerId);
+    if (!player) return;
+    
+    const trainingChanged = player.current_training !== training;
+    
+    // Update local state immediately
+    setPlayers(prev => prev.map(p => 
+      p.id === playerId 
+        ? { ...p, current_training: training, training_progress: trainingChanged ? 'NONE' : p.training_progress }
+        : p
+    ));
+    
+    // Add to save queue (Map automatically handles duplicates)
     setSaveQueue(prev => {
-      const filtered = prev.filter(item => item.playerId !== playerId);
-      return [...filtered, { playerId, training, resetProgress: trainingChanged }];
+      const next = new Map(prev);
+      next.set(playerId, { training, resetProgress: trainingChanged });
+      return next;
     });
     
-    setSelectedPlayer(null);
-  };
+    // Update selected player if it's the one being changed
+    setSelectedPlayer(prev => 
+      prev?.id === playerId 
+        ? { ...prev, current_training: training, training_progress: trainingChanged ? 'NONE' : prev.training_progress }
+        : prev
+    );
+  }, [playerMap]);
 
-  const setAllTraining = (training: string) => {
-    const updates: {playerId: string, training: string | null, resetProgress: boolean}[] = [];
+  const setAllTraining = useCallback((training: string) => {
+    const newQueue = new Map<string, { training: string | null; resetProgress: boolean }>();
     
     setPlayers(prev => prev.map(p => {
       const trainingChanged = p.current_training !== training;
-      updates.push({ playerId: p.id, training, resetProgress: trainingChanged });
+      newQueue.set(p.id, { training, resetProgress: trainingChanged });
       return {
         ...p,
         current_training: training,
@@ -369,8 +370,14 @@ export default function TrainingPage() {
       };
     }));
     
-    setSaveQueue(updates);
-  };
+    setSaveQueue(newQueue);
+  }, []);
+
+  const closeModal = useCallback(() => setSelectedPlayer(null), []);
+
+  // ============================================
+  // LOADING STATE
+  // ============================================
 
   if (loading) {
     return (
@@ -379,6 +386,10 @@ export default function TrainingPage() {
       </div>
     );
   }
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -399,7 +410,6 @@ export default function TrainingPage() {
               <p className="text-white/80 mt-1">Assign training to develop your players</p>
             </div>
             
-            {/* Auto-save indicator */}
             <div className="text-right">
               {saveStatus === 'saving' && (
                 <span className="text-yellow-400 text-sm animate-pulse">💾 Saving...</span>
@@ -448,7 +458,7 @@ export default function TrainingPage() {
           <div className="flex flex-wrap gap-4 text-sm">
             {PROGRESS_STAGES.map(stage => (
               <div key={stage} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded ${getProgressColor(stage)}`}></div>
+                <div className={`w-3 h-3 rounded ${PROGRESS_COLORS[stage]}`}></div>
                 <span className="text-gray-400">{stage}</span>
               </div>
             ))}
@@ -462,6 +472,7 @@ export default function TrainingPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {players.map(player => {
             const fitness = getFitness(player.fatigue);
+            const traitDisplay = getTraitDisplay(player.visible_trait);
             
             return (
               <div
@@ -470,13 +481,14 @@ export default function TrainingPage() {
                 className="bg-gray-800 rounded-lg p-4 cursor-pointer transition border-2 border-transparent hover:border-green-500"
               >
                 {/* Player Header */}
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="text-gray-400 text-xs">{player.first_name}</p>
                     <p className="text-white font-bold">{player.last_name}</p>
+                    <p className="text-gray-500 text-xs">{formatNationality(player.nationality, player.state)}</p>
                   </div>
                   <div className="text-right">
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold text-white ${getPositionColor(player.position)}`}>
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold text-white ${POSITION_COLORS[player.position] || 'bg-gray-600'}`}>
                       {player.position}
                     </span>
                     {player.secondary_position && (
@@ -485,13 +497,18 @@ export default function TrainingPage() {
                   </div>
                 </div>
 
-                {/* Stats Row - Now shows FITNESS instead of fatigue */}
+                {/* Trait - Only show if exists */}
+                {traitDisplay && (
+                  <p className="text-gray-400 text-xs mb-2">Trait: {traitDisplay}</p>
+                )}
+
+                {/* Stats Row */}
                 <div className="flex items-center gap-2 mb-3 text-xs">
                   <span className="text-white font-bold">{player.overall} OVR</span>
                   <span className="text-gray-500">•</span>
                   <span className="text-gray-400">Age {player.age}</span>
                   <span className="text-gray-500">•</span>
-                  <span className={getFitnessColor(player.fatigue)}>{fitness}% FIT</span>
+                  <span className={getFitnessColor(player.fatigue)}>{fitness}% Fit</span>
                 </div>
 
                 {/* Current Training */}
@@ -508,16 +525,16 @@ export default function TrainingPage() {
                   
                   {/* Progress Bar */}
                   {player.current_training && player.current_training !== 'Rest' && (
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(player.training_progress)} ${getProgressWidth(player.training_progress)}`}
-                      ></div>
-                    </div>
-                  )}
-                  {player.current_training && player.current_training !== 'Rest' && (
-                    <p className="text-gray-500 text-xs mt-1 text-right">
-                      {player.training_progress || 'NONE'}
-                    </p>
+                    <>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-300 ${PROGRESS_COLORS[player.training_progress || 'NONE']} ${PROGRESS_WIDTHS[player.training_progress || 'NONE']}`}
+                        />
+                      </div>
+                      <p className="text-gray-500 text-xs mt-1 text-right">
+                        {player.training_progress || 'NONE'}
+                      </p>
+                    </>
                   )}
                 </div>
               </div>
@@ -528,59 +545,63 @@ export default function TrainingPage() {
 
       {/* Training Selection Modal */}
       {selectedPlayer && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-1">
-              {selectedPlayer.first_name} {selectedPlayer.last_name}
-            </h3>
-            <p className="text-gray-400 mb-4">
+        <div 
+          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+          onClick={closeModal}
+        >
+          <div 
+            className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-1">
+              <div>
+                <h3 className="text-xl font-bold text-white">
+                  {selectedPlayer.first_name} {selectedPlayer.last_name}
+                </h3>
+                <p className="text-gray-500 text-xs">
+                  {formatNationality(selectedPlayer.nationality, selectedPlayer.state)}
+                </p>
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-white text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            
+            <p className="text-gray-400 text-sm">
               {selectedPlayer.position} • {selectedPlayer.overall} OVR
             </p>
+            
+            {/* Trait display */}
+            {selectedPlayer.visible_trait && (
+              <p className="text-gray-400 text-sm">
+                Trait: {getTraitDisplay(selectedPlayer.visible_trait)}
+              </p>
+            )}
 
-            {/* Player Stats - NOW SHOWS TIER WORDS */}
-            <div className="grid grid-cols-4 gap-2 mb-4 text-sm">
-              <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">SPD</p>
-                <p className={`font-bold ${getStatTierColor(selectedPlayer.speed)}`}>
-                  {getStatTier(selectedPlayer.speed, true)}
-                </p>
-              </div>
-              <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">STR</p>
-                <p className={`font-bold ${getStatTierColor(selectedPlayer.strength)}`}>
-                  {getStatTier(selectedPlayer.strength, true)}
-                </p>
-              </div>
-              <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">PWR</p>
-                <p className={`font-bold ${getStatTierColor(selectedPlayer.power)}`}>
-                  {getStatTier(selectedPlayer.power, true)}
-                </p>
-              </div>
-              <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">PAS</p>
-                <p className={`font-bold ${getStatTierColor(selectedPlayer.passing)}`}>
-                  {getStatTier(selectedPlayer.passing, true)}
-                </p>
-              </div>
-              <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">STA</p>
-                <p className={`font-bold ${getStatTierColor(selectedPlayer.stamina)}`}>
-                  {getStatTier(selectedPlayer.stamina, true)}
-                </p>
-              </div>
-              <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">TAK</p>
-                <p className={`font-bold ${getStatTierColor(selectedPlayer.tackling)}`}>
-                  {getStatTier(selectedPlayer.tackling, true)}
-                </p>
-              </div>
-              <div className="bg-gray-700 rounded p-2 text-center">
-                <p className="text-gray-400 text-xs">KCK</p>
-                <p className={`font-bold ${getStatTierColor(selectedPlayer.kicking)}`}>
-                  {getStatTier(selectedPlayer.kicking, true)}
-                </p>
-              </div>
+            {/* Player Stats */}
+            <div className="grid grid-cols-4 gap-2 my-4 text-sm">
+              {[
+                { key: 'speed', label: 'SPD' },
+                { key: 'strength', label: 'STR' },
+                { key: 'power', label: 'PWR' },
+                { key: 'passing', label: 'PAS' },
+                { key: 'stamina', label: 'STA' },
+                { key: 'tackling', label: 'TAK' },
+                { key: 'kicking', label: 'KCK' },
+              ].map(({ key, label }) => {
+                const value = selectedPlayer[key as StatKey];
+                return (
+                  <div key={key} className="bg-gray-700 rounded p-2 text-center">
+                    <p className="text-gray-400 text-xs">{label}</p>
+                    <p className={`font-bold ${getStatTierColor(value)}`}>
+                      {getStatTier(value, true)}
+                    </p>
+                  </div>
+                );
+              })}
               <div className="bg-gray-700 rounded p-2 text-center">
                 <p className="text-gray-400 text-xs">FIT</p>
                 <p className={`font-bold ${getFitnessColor(selectedPlayer.fatigue)}`}>
@@ -598,35 +619,36 @@ export default function TrainingPage() {
               className={`w-full mb-2 p-3 rounded-lg text-left transition flex items-center gap-3 ${
                 selectedPlayer.current_training === 'Rest'
                   ? 'bg-green-600/30 border-2 border-green-500'
-                  : 'bg-gray-700 hover:bg-gray-600'
+                  : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
               }`}
             >
               <span className="text-2xl">😴</span>
-              <div>
+              <div className="flex-1">
                 <p className="text-white font-medium">Rest</p>
                 <p className="text-gray-400 text-xs">Recover fitness, reduce fatigue</p>
               </div>
               {selectedPlayer.current_training === 'Rest' && (
-                <span className="ml-auto text-green-400">✓</span>
+                <span className="text-green-400">✓</span>
               )}
             </button>
 
-            {/* Stat Training - NOW SHOWS TIER WORDS */}
+            {/* Stat Training */}
             <p className="text-gray-500 text-xs mt-4 mb-2">STAT TRAINING</p>
             <div className="grid grid-cols-1 gap-2">
               {STAT_TRAINING.map(stat => {
                 const statValue = getPlayerStat(selectedPlayer, stat);
                 const tierWord = getStatTier(statValue);
                 const tierColor = getStatTierColor(statValue);
+                const isSelected = selectedPlayer.current_training === stat;
                 
                 return (
                   <button
                     key={stat}
                     onClick={() => handleTrainingChange(selectedPlayer.id, stat)}
                     className={`p-3 rounded-lg text-left transition flex items-center justify-between ${
-                      selectedPlayer.current_training === stat
+                      isSelected
                         ? 'bg-green-600/30 border-2 border-green-500'
-                        : 'bg-gray-700 hover:bg-gray-600'
+                        : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -638,9 +660,7 @@ export default function TrainingPage() {
                         </p>
                       </div>
                     </div>
-                    {selectedPlayer.current_training === stat && (
-                      <span className="text-green-400">✓</span>
-                    )}
+                    {isSelected && <span className="text-green-400">✓</span>}
                   </button>
                 );
               })}
@@ -665,11 +685,11 @@ export default function TrainingPage() {
                           ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600' 
                           : isSecondary
                             ? 'bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-600'
-                            : 'bg-gray-700 hover:bg-gray-600'
+                            : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${getPositionColor(pos)}`}>
+                      <span className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${POSITION_COLORS[pos] || 'bg-gray-600'}`}>
                         {pos.substring(0, 2).toUpperCase()}
                       </span>
                       <div>
@@ -701,7 +721,7 @@ export default function TrainingPage() {
 
             {/* Close */}
             <button
-              onClick={() => setSelectedPlayer(null)}
+              onClick={closeModal}
               className="w-full mt-2 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
             >
               Close
