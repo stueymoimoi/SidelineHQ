@@ -441,7 +441,8 @@ export default function FixturesPage() {
         <div className="bg-gray-800 rounded-lg p-4">
           <h2 className="text-white font-bold mb-3">Browse Rounds</h2>
           <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 18 }, (_, i) => i + 1).map(round => {
+            {Array.from({ length: 21 }, (_, i) => i + 1).map(round => {
+              const isOriginRound = [9, 12, 15].includes(round);
               const roundGames = getFixturesForRound(round);
               const allPlayed = roundGames.length > 0 && roundGames.every(f => f.played);
               const isCurrentRound = round === currentRound;
@@ -452,12 +453,14 @@ export default function FixturesPage() {
                   onClick={() => setSelectedRound(round)}
                   className={`w-10 h-10 rounded-lg font-bold transition ${
                     selectedRound === round
-                      ? 'bg-green-600 text-white'
-                      : allPlayed
-                        ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                        : isCurrentRound
-                          ? 'bg-gray-700 text-green-400 border border-green-500 hover:bg-gray-600'
-                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                      ? isOriginRound ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'
+                      : isOriginRound
+                        ? 'bg-blue-900/50 text-blue-400 border border-blue-500 hover:bg-blue-800/50'
+                        : allPlayed
+                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                          : isCurrentRound
+                            ? 'bg-gray-700 text-green-400 border border-green-500 hover:bg-gray-600'
+                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
                   }`}
                 >
                   {round}
@@ -485,7 +488,15 @@ export default function FixturesPage() {
             </h2>
             <div className="space-y-3">
               {roundFixtures.length === 0 ? (
-                <p className="text-gray-500 text-center py-4">No fixtures found for this round</p>
+                [9, 12, 15].includes(selectedRound) ? (
+                  <div className="text-center py-8">
+                    <p className="text-blue-400 text-xl font-bold mb-2">🏉 State of Origin</p>
+                    <p className="text-gray-400">No club games this round</p>
+                    <p className="text-gray-500 text-sm mt-2">Your players may be representing NSW or QLD!</p>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No fixtures found for this round</p>
+                )
               ) : (
                 roundFixtures.map(fixture => {
                   const isMyGame = fixture.home_team_id === team?.id || fixture.away_team_id === team?.id;
