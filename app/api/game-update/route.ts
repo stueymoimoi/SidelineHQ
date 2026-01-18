@@ -43,6 +43,7 @@ import { calculateTries, calculateKickingStats, calculateScore, distributeTries 
 import { processAllTraining } from '@/lib/training';
 import { processMatchInjuries, saveInjuries, processInjuryRecoveries } from '@/lib/game-engine/injury-processing';
 import { generateMatchEventsFromStats } from '@/lib/game-engine/match-events';
+import { processAllTeamFinances, processContractCountdown, ENABLE_FINANCES } from '@/lib/finances';
 
 // Origin imports
 import { 
@@ -868,6 +869,37 @@ allMatchResults.push({
     }
     
     logs.push(`Training: ${improvementCount} players improved`);
+    
+    // ===========================================
+    // PHASE 4.5: PROCESS FINANCES (Sundays only)
+    // ===========================================
+    
+    if (ENABLE_FINANCES) {
+      try {
+        // Check if today is Sunday (cron runs Sun/Tue/Thu)
+        const today = new Date();
+        const isSunday = today.getUTCDay() === 0;
+        
+        if (isSunday) {
+          logs.push(`💰 Processing weekly finances...`);
+          
+          // Process team finances
+          const financeResults = await processAllTeamFinances(supabase, SEASON, currentRound);
+          const successCount = financeResults.filter(r => r.success).length;
+          logs.push(`💰 Finances: ${successCount}/${financeResults.length} teams processed`);
+          
+          // Process contract countdown
+          const contractResult = await processContractCountdown(supabase);
+          logs.push(`📝 Contracts: ${contractResult.updated} updated, ${contractResult.expired} expired`);
+        } else {
+          logs.push(`💰 Finances: Skipped (not Sunday)`);
+        }
+      } catch (financeError) {
+        // Finance errors shouldn't break the cron
+        logs.push(`💰 Finance error (non-fatal): ${financeError}`);
+        console.error('Finance processing error:', financeError);
+      }
+    }
     
     // ===========================================
     // PHASE 5: PROCESS FREE AGENTS (Skip on Origin rounds)
