@@ -69,11 +69,11 @@ export default function MatchTimeline({ fixtureId, defaultExpanded = false }: Ma
 
       {/* Events List */}
 {expanded && (
-  <div className="border-t border-gray-700 max-h-72 overflow-y-auto flex flex-col items-center">
+  <div className="border-t border-gray-700 max-h-72 overflow-y-auto">
     {events.map((event) => (
       <div
         key={event.id}
-        className={`flex items-center gap-2 px-3 py-1 border-b border-gray-700/50 text-sm ${
+        className={`flex items-center justify-center gap-2 px-3 py-1 border-b border-gray-700/50 text-sm ${
           event.event_type === 'HALF_TIME' || event.event_type === 'FULL_TIME'
             ? 'bg-gray-700/30'
             : ''
