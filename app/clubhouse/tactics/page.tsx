@@ -738,7 +738,32 @@ export default function TacticsPage() {
       return;
     }
     
-    setTactics(prev => prev ? { ...prev, [posKey]: playerId || null } : null);
+    // Check if player is already in another position (swap scenario)
+    const currentPositionOfPlayer = POSITION_KEYS.find(
+      key => (tactics as any)[key] === playerId
+    );
+    
+    // Get who's currently in the target position
+    const currentPlayerInTargetPos = (tactics as any)[posKey] as string | null;
+    
+    setTactics(prev => {
+      if (!prev) return null;
+      const updated = { ...prev };
+      
+      // Put new player in target position
+      (updated as any)[posKey] = playerId || null;
+      
+      // If player was in another position, swap the old player there
+      if (currentPositionOfPlayer && currentPlayerInTargetPos) {
+        (updated as any)[currentPositionOfPlayer] = currentPlayerInTargetPos;
+      } else if (currentPositionOfPlayer) {
+        // Player was somewhere else, clear that spot
+        (updated as any)[currentPositionOfPlayer] = null;
+      }
+      
+      return updated;
+    });
+    
     setSelectedPosition(null);
     setSelectedReserve(null);
   }, [tactics, playerIdSet, injuredPlayerIds]);
