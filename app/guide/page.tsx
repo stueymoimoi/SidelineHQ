@@ -523,136 +523,129 @@ function GuideContent() {
                 </div>
               )}
 
-              {/* Training - MAJOR UPDATE */}
-              {activeSection === 'training' && (
-                <div className="prose prose-invert max-w-none">
-                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                    💪 Training
-                  </h2>
+              {/* Training */}
+{activeSection === 'training' && (
+  <div className="prose prose-invert max-w-none">
+    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+      💪 Training
+    </h2>
 
-                  <p className="text-gray-300">
-                    Training develops your players over time. Assign each player to train a specific stat, or Rest to recover fitness.
-                  </p>
+    <p className="text-gray-300">
+      Training is how you develop your players over time. Assign each player to focus on a specific stat, or let them rest to recover fitness.
+    </p>
 
-                  <h3 className="text-xl text-white mt-6">How Training Works</h3>
-                  <div className="bg-gray-700 rounded p-4 space-y-3">
-                    <p className="text-gray-300 m-0">
-                      Each round, players make <strong>training progress</strong> toward improving their assigned stat. Progress builds through stages:
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      <span className="bg-gray-600 px-2 py-1 rounded text-gray-400 text-sm">None</span>
-                      <span className="text-gray-500">→</span>
-                      <span className="bg-gray-600 px-2 py-1 rounded text-orange-400 text-sm">Poor</span>
-                      <span className="text-gray-500">→</span>
-                      <span className="bg-gray-600 px-2 py-1 rounded text-yellow-400 text-sm">Fair</span>
-                      <span className="text-gray-500">→</span>
-                      <span className="bg-gray-600 px-2 py-1 rounded text-lime-400 text-sm">Good</span>
-                      <span className="text-gray-500">→</span>
-                      <span className="bg-gray-600 px-2 py-1 rounded text-green-400 text-sm">Very Good</span>
-                      <span className="text-gray-500">→</span>
-                      <span className="bg-gray-600 px-2 py-1 rounded text-cyan-400 text-sm">Excellent</span>
-                    </div>
-                    <p className="text-gray-300 m-0">
-                      At each stage, there's a chance the stat improves. Higher progress = better odds!
-                    </p>
-                  </div>
+    <div className="bg-purple-500/20 border border-purple-500 rounded-lg p-4 my-4">
+      <p className="text-purple-400 m-0">
+        <strong>🔬 Discovery System:</strong> Training in SidelineHQ is designed around experimentation and observation. There are no shortcuts — you'll need to watch your players, try different approaches, and learn what works over time.
+      </p>
+    </div>
 
-                  <h3 className="text-xl text-white mt-6">Training Options</h3>
-                  <div className="space-y-2">
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">😴 Rest</span>
-                      <span className="text-green-400 text-sm">Recovers fitness significantly</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">⚡ Speed</span>
-                      <span className="text-gray-400 text-sm">Pace and acceleration</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">💪 Strength</span>
-                      <span className="text-gray-400 text-sm">Physical power</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">💥 Power</span>
-                      <span className="text-gray-400 text-sm">Explosive ability</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🎯 Passing</span>
-                      <span className="text-gray-400 text-sm">Ball skills</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🫁 Stamina</span>
-                      <span className="text-gray-400 text-sm">Endurance</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🛡️ Tackling</span>
-                      <span className="text-gray-400 text-sm">Defensive technique</span>
-                    </div>
-                    <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
-                      <span className="text-white">🦶 Kicking</span>
-                      <span className="text-gray-400 text-sm">Kicking accuracy</span>
-                    </div>
-                  </div>
+    <h3 className="text-xl text-white mt-6">The Basics</h3>
+    <ul className="text-gray-300 space-y-2">
+      <li>Assign each player to train one stat (or Rest)</li>
+      <li>Progress builds gradually over multiple rounds</li>
+      <li>When enough progress accumulates, the stat improves</li>
+      <li>Higher stats are harder to improve than lower ones</li>
+    </ul>
 
-                  <h3 className="text-xl text-white mt-6">Fitness & Fatigue</h3>
-                  <p className="text-gray-300">
-                    Players gain fatigue from matches and training, and recover it through rest. Fatigued players perform worse!
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <div className="bg-red-500/20 rounded p-3 text-center">
-                      <p className="text-red-400 font-bold m-0">Exhausted</p>
-                      <p className="text-gray-400 text-sm m-0">Needs rest urgently</p>
-                    </div>
-                    <div className="bg-orange-500/20 rounded p-3 text-center">
-                      <p className="text-orange-400 font-bold m-0">Tired</p>
-                      <p className="text-gray-400 text-sm m-0">Consider resting</p>
-                    </div>
-                    <div className="bg-yellow-500/20 rounded p-3 text-center">
-                      <p className="text-yellow-400 font-bold m-0">OK</p>
-                      <p className="text-gray-400 text-sm m-0">Can train or play</p>
-                    </div>
-                    <div className="bg-green-500/20 rounded p-3 text-center">
-                      <p className="text-green-400 font-bold m-0">Fresh / Peak</p>
-                      <p className="text-gray-400 text-sm m-0">Ready to go!</p>
-                    </div>
-                  </div>
+    <h3 className="text-xl text-white mt-6">Training Options</h3>
+    <div className="space-y-2">
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">😴 Rest</span>
+        <span className="text-green-400 text-sm">Recover fitness</span>
+      </div>
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">⚡ Speed</span>
+        <span className="text-gray-400 text-sm">Pace and acceleration</span>
+      </div>
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">💪 Strength</span>
+        <span className="text-gray-400 text-sm">Physical power</span>
+      </div>
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">💥 Power</span>
+        <span className="text-gray-400 text-sm">Explosive ability</span>
+      </div>
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">🎯 Passing</span>
+        <span className="text-gray-400 text-sm">Ball skills</span>
+      </div>
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">🫁 Stamina</span>
+        <span className="text-gray-400 text-sm">Endurance</span>
+      </div>
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">🛡️ Tackling</span>
+        <span className="text-gray-400 text-sm">Defensive technique</span>
+      </div>
+      <div className="bg-gray-700 rounded p-3 flex justify-between items-center">
+        <span className="text-white">🦶 Kicking</span>
+        <span className="text-gray-400 text-sm">Kicking accuracy</span>
+      </div>
+    </div>
 
-                  <h3 className="text-xl text-white mt-6">Development Factors</h3>
-                  <div className="bg-purple-500/20 border border-purple-500 rounded-lg p-4 my-4">
-                    <p className="text-purple-400 m-0">
-                      <strong>🔮 Hidden Potential:</strong> Every player has hidden traits that affect how quickly they develop certain stats. You won't know what these are — you'll have to <strong>discover</strong> them through trial and error!
-                    </p>
-                  </div>
+    <h3 className="text-xl text-white mt-6">What You'll See</h3>
+    <p className="text-gray-300">
+      The training screen shows vague progress indicators — you'll get a sense of how close a player is to improving, but not exact numbers. Trust the process!
+    </p>
+    <div className="flex gap-2 flex-wrap mt-3">
+      <span className="bg-gray-600 px-3 py-1 rounded text-gray-400 text-sm">Just Started</span>
+      <span className="text-gray-500">→</span>
+      <span className="bg-yellow-600/30 px-3 py-1 rounded text-yellow-400 text-sm">Building Foundation</span>
+      <span className="text-gray-500">→</span>
+      <span className="bg-orange-600/30 px-3 py-1 rounded text-orange-400 text-sm">Making Progress</span>
+      <span className="text-gray-500">→</span>
+      <span className="bg-green-600/30 px-3 py-1 rounded text-green-400 text-sm">Nearly There!</span>
+    </div>
 
-                  <p className="text-gray-300">
-                    Pay attention to which players improve quickly in certain areas. Some players might surprise you — a Prop who develops Passing quickly, or a Halfback who bulks up in Strength. These "hidden gems" can become unique assets!
-                  </p>
+    <h3 className="text-xl text-white mt-6">Things to Discover</h3>
+    <p className="text-gray-300">
+      Part of being a good coach is figuring out how your players respond to training. Some questions to explore:
+    </p>
+    <div className="bg-gray-700 rounded p-4 space-y-2 mt-3">
+      <p className="text-gray-300 m-0">🤔 Do some players develop certain stats faster than others?</p>
+      <p className="text-gray-300 m-0">🤔 Does age affect how quickly players improve?</p>
+      <p className="text-gray-300 m-0">🤔 What happens if you switch a player's training focus?</p>
+      <p className="text-gray-300 m-0">🤔 Is there a ceiling to how good a stat can get?</p>
+      <p className="text-gray-300 m-0">🤔 Do traits affect training in any way?</p>
+    </div>
 
-                  <div className="bg-gray-700 rounded p-4 space-y-2 mt-3">
-                    <div className="flex justify-between text-gray-300">
-                      <span>Young players (18-21)</span>
-                      <span className="text-green-400">Develop faster</span>
-                    </div>
-                    <div className="flex justify-between text-gray-300">
-                      <span>Prime players (22-27)</span>
-                      <span className="text-yellow-400">Steady development</span>
-                    </div>
-                    <div className="flex justify-between text-gray-300">
-                      <span>Veterans (28-31)</span>
-                      <span className="text-orange-400">Slower development</span>
-                    </div>
-                    <div className="flex justify-between text-gray-300">
-                      <span>Old players (32+)</span>
-                      <span className="text-red-400">Very slow / may decline</span>
-                    </div>
-                  </div>
+    <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
+      <p className="text-blue-400 m-0">
+        <strong>💡 Coaching Tip:</strong> If a player doesn't seem to be improving in one area after several rounds, try something different. You might discover hidden potential elsewhere!
+      </p>
+    </div>
 
-                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
-                    <p className="text-blue-400 m-0">
-                      <strong>💡 Coaching Tip:</strong> If a player isn't improving in a stat after several rounds, try something different! They might have hidden talent elsewhere.
-                    </p>
-                  </div>
-                </div>
-              )}
+    <h3 className="text-xl text-white mt-6">Fitness & Fatigue</h3>
+    <p className="text-gray-300">
+      Players accumulate fatigue from matches. Tired players perform worse on the field. Use Rest to recover fitness when needed.
+    </p>
+    <div className="grid grid-cols-2 gap-3 mt-3">
+      <div className="bg-red-500/20 rounded p-3 text-center">
+        <p className="text-red-400 font-bold m-0">Exhausted</p>
+        <p className="text-gray-400 text-sm m-0">Needs rest urgently</p>
+      </div>
+      <div className="bg-orange-500/20 rounded p-3 text-center">
+        <p className="text-orange-400 font-bold m-0">Tired</p>
+        <p className="text-gray-400 text-sm m-0">Consider resting</p>
+      </div>
+      <div className="bg-yellow-500/20 rounded p-3 text-center">
+        <p className="text-yellow-400 font-bold m-0">OK</p>
+        <p className="text-gray-400 text-sm m-0">Can train or play</p>
+      </div>
+      <div className="bg-green-500/20 rounded p-3 text-center">
+        <p className="text-green-400 font-bold m-0">Fresh</p>
+        <p className="text-gray-400 text-sm m-0">Ready to go!</p>
+      </div>
+    </div>
+
+    <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
+      <p className="text-yellow-400 m-0">
+        <strong>⚠️ Balance is Key:</strong> Training helps players improve, but exhausted players won't perform well on game day. Find the right balance between development and recovery.
+      </p>
+    </div>
+  </div>
+)}
 
               {/* Player Careers - NEW SECTION */}
               {activeSection === 'careers' && (
