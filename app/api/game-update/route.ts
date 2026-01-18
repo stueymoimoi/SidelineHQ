@@ -42,6 +42,7 @@ import { calculateTacticalBonus } from '@/lib/game-engine/tactics';
 import { calculateTries, calculateKickingStats, calculateScore, distributeTries } from '@/lib/game-engine/scoring';
 import { processAllTraining } from '@/lib/training';
 import { processMatchInjuries, saveInjuries, processInjuryRecoveries } from '@/lib/game-engine/injury-processing';
+import { generateMatchEventsFromStats } from '@/lib/game-engine/match-events';
 
 // Origin imports
 import { 
@@ -655,9 +656,22 @@ export async function GET(request: Request) {
         }
         
         const cleanStats = fixtureStats.map(({ _motm_influence, _is_captain, ...rest }) => rest);
-        allPlayerStats.push(...cleanStats);
-        
-        allMatchResults.push({
+allPlayerStats.push(...cleanStats);
+
+// Generate match events for timeline
+const matchResult = {
+  fixture_id: fixture.id,
+  home_team_id: fixture.home_team_id,
+  away_team_id: fixture.away_team_id,
+  home_score: homeScore,
+  away_score: awayScore
+};
+const matchEvents = generateMatchEventsFromStats(matchResult, cleanStats);
+if (matchEvents.length > 0) {
+  await supabase.from('match_events').insert(matchEvents);
+}
+
+allMatchResults.push({
           fixture_id: fixture.id,
           season: SEASON,
           round: currentRound,
