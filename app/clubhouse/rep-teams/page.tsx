@@ -68,12 +68,12 @@ const REP_TEAMS = {
   ],
   international: [
     { code: 'AUS', name: 'Australia', flag: '🇦🇺', color: '#006400', textColor: '#FFD700', gradient: 'from-green-700 to-yellow-500' },
-    { code: 'NZ', name: 'New Zealand', flag: '🇳🇿', color: '#000000', textColor: '#fff', gradient: 'from-gray-900 to-gray-700' },
-    { code: 'Tonga', name: 'Tonga', flag: '🇹🇴', color: '#C10000', textColor: '#fff', gradient: 'from-red-700 to-red-900' },
-    { code: 'Samoa', name: 'Samoa', flag: '🇼🇸', color: '#00247D', textColor: '#fff', gradient: 'from-blue-800 to-blue-950' },
-    { code: 'Fiji', name: 'Fiji', flag: '🇫🇯', color: '#68BFE5', textColor: '#000', gradient: 'from-sky-400 to-sky-600' },
+    { code: 'NZL', name: 'New Zealand', flag: '🇳🇿', color: '#000000', textColor: '#fff', gradient: 'from-gray-900 to-gray-700' },
+    { code: 'TON', name: 'Tonga', flag: '🇹🇴', color: '#C10000', textColor: '#fff', gradient: 'from-red-700 to-red-900' },
+    { code: 'SAM', name: 'Samoa', flag: '🇼🇸', color: '#00247D', textColor: '#fff', gradient: 'from-blue-800 to-blue-950' },
+    { code: 'FIJ', name: 'Fiji', flag: '🇫🇯', color: '#68BFE5', textColor: '#000', gradient: 'from-sky-400 to-sky-600' },
     { code: 'PNG', name: 'Papua New Guinea', flag: '🇵🇬', color: '#CE1126', textColor: '#FFD100', gradient: 'from-red-600 to-yellow-500' },
-    { code: 'England', name: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', color: '#FFFFFF', textColor: '#CE1124', gradient: 'from-white to-gray-200' },
+    { code: 'ENG', name: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', color: '#FFFFFF', textColor: '#CE1124', gradient: 'from-white to-gray-200' },
   ]
 };
 

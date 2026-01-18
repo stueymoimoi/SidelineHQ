@@ -431,8 +431,8 @@ export async function GET(request: Request) {
         const homeKicker = playersMap[homeTactics.goal_kicker];
         const awayKicker = playersMap[awayTactics.goal_kicker];
         
-        const homeKicking = calculateKickingStats(homeTries, homeKicker?.kicking || 60);
-        const awayKicking = calculateKickingStats(awayTries, awayKicker?.kicking || 60);
+        const homeKicking = calculateKickingStats(homeTries, homeKicker?.kicking || 4);
+        const awayKicking = calculateKickingStats(awayTries, awayKicker?.kicking || 4);
         
         const homeScore = calculateScore(homeTries, homeKicking.conversions, homeKicking.penalties);
         const awayScore = calculateScore(awayTries, awayKicking.conversions, awayKicking.penalties);

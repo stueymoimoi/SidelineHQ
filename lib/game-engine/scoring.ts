@@ -63,9 +63,13 @@ export function calculateKickingStats(
   tries: number,
   kickerAccuracy: number
 ): { conversions: number; penalties: number } {
+  // Convert 1-8 scale to realistic conversion % (50 + stat * 4.5)
+  // 1 = 54.5%, 4 = 68%, 8 = 86%
+  const conversionChance = 50 + (kickerAccuracy * 4.5);
+  
   let conversions = 0;
   for (let i = 0; i < tries; i++) {
-    if (rollChance(kickerAccuracy)) conversions++;
+    if (rollChance(conversionChance)) conversions++;
   }
 
   // Penalty goals (30% chance to attempt, then 30% chance for 2 instead of 1)
