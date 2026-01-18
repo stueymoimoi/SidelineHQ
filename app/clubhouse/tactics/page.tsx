@@ -112,6 +112,16 @@ const TRAIT_DISPLAY_NAMES: Record<string, string> = {
   loyal: 'Loyal',
 };
 
+const POSITION_FILTERS = [
+  { label: 'All', positions: null },
+  { label: 'Backs', positions: ['Fullback', 'Winger', 'Centre', 'Five-Eighth', 'Halfback'] },
+  { label: 'Forwards', positions: ['Prop', 'Hooker', 'Second Row', 'Lock'] },
+  { label: 'Halves', positions: ['Five-Eighth', 'Halfback'] },
+  { label: 'Outside', positions: ['Fullback', 'Winger', 'Centre'] },
+  { label: 'Middle', positions: ['Prop', 'Hooker', 'Lock'] },
+  { label: 'Edge', positions: ['Second Row', 'Winger', 'Centre'] },
+];
+
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
@@ -189,6 +199,176 @@ const InjuryBadge = ({ injury }: { injury: PlayerInjury }) => {
     </span>
   );
 };
+
+// ============================================
+// PLAYER SELECTION MODAL COMPONENT
+// ============================================
+
+interface PlayerSelectionModalProps {
+  players: Player[];
+  selectedPosition: string;
+  selectedPlayerIds: Set<string>;
+  injuredPlayerIds: Set<string>;
+  tactics: Tactics | null;
+  onSelectPlayer: (posKey: string, playerId: string) => void;
+  onClose: () => void;
+}
+
+function PlayerSelectionModal({
+  players,
+  selectedPosition,
+  selectedPlayerIds,
+  injuredPlayerIds,
+  tactics,
+  onSelectPlayer,
+  onClose,
+}: PlayerSelectionModalProps) {
+  const [positionFilter, setPositionFilter] = useState<string[] | null>(null);
+  
+  // Auto-detect best filter based on position being filled
+  useEffect(() => {
+    const posKey = selectedPosition.toLowerCase();
+    if (posKey.includes('fullback') || posKey.includes('winger') || posKey.includes('centre')) {
+      setPositionFilter(['Fullback', 'Winger', 'Centre']);
+    } else if (posKey.includes('halfback') || posKey.includes('five_eighth')) {
+      setPositionFilter(['Five-Eighth', 'Halfback']);
+    } else if (posKey.includes('prop') || posKey.includes('hooker') || posKey.includes('lock')) {
+      setPositionFilter(['Prop', 'Hooker', 'Lock']);
+    } else if (posKey.includes('second_row')) {
+      setPositionFilter(['Second Row', 'Lock']);
+    } else {
+      setPositionFilter(null);
+    }
+  }, [selectedPosition]);
+
+  const filteredPlayers = useMemo(() => {
+    if (!positionFilter) return players;
+    return players.filter(p => positionFilter.includes(p.position));
+  }, [players, positionFilter]);
+
+  const isFilterActive = (filterPositions: string[] | null) => {
+    if (positionFilter === null && filterPositions === null) return true;
+    if (positionFilter === null || filterPositions === null) return false;
+    return positionFilter.length === filterPositions.length &&
+      positionFilter.every(p => filterPositions.includes(p));
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-gray-800 rounded-t-xl sm:rounded-xl w-full sm:max-w-md max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex justify-between items-center p-3 border-b border-gray-700">
+          <h3 className="text-lg font-bold text-white">Select Player</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white text-2xl leading-none px-2"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Position Filter Tabs */}
+        <div className="flex gap-1 p-2 overflow-x-auto border-b border-gray-700 flex-shrink-0">
+          {POSITION_FILTERS.map((filter) => (
+            <button
+              key={filter.label}
+              onClick={() => setPositionFilter(filter.positions)}
+              className={`px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap transition ${
+                isFilterActive(filter.positions)
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Player List */}
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {/* Clear Position */}
+          <button
+            onClick={() => onSelectPlayer(selectedPosition, '')}
+            className="w-full bg-red-900/30 hover:bg-red-800/50 text-red-400 py-1.5 px-3 rounded text-sm text-left border border-red-800/50"
+          >
+            ✕ Clear Position
+          </button>
+          
+          {filteredPlayers.map((p) => {
+            const alreadySelected = selectedPlayerIds.has(p.id) && (tactics as any)?.[selectedPosition] !== p.id;
+            const isInjured = injuredPlayerIds.has(p.id);
+            const activeInjury = getActiveInjury(p);
+            const showSide = SIDED_POSITIONS.has(p.position);
+            const sideBadge = getSideBadge(p.dominant_side);
+            const isDisabled = alreadySelected || isInjured;
+            
+            return (
+              <button
+                key={p.id}
+                onClick={() => !isDisabled && onSelectPlayer(selectedPosition, p.id)}
+                disabled={isDisabled}
+                className={`w-full py-1.5 px-2 rounded text-left flex justify-between items-center ${
+                  isInjured
+                    ? 'bg-red-900/20 text-red-300 cursor-not-allowed'
+                    : alreadySelected 
+                      ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed' 
+                      : 'bg-gray-700/50 hover:bg-gray-600 text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`font-bold text-sm w-7 text-center ${isInjured ? 'text-red-400' : 'text-green-400'}`}>
+                    {isInjured ? '🏥' : p.overall}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                      <span className="truncate">{p.first_name.charAt(0)}. {p.last_name}</span>
+                      {showSide && (
+                        <span className={`${sideBadge.bg} text-white text-[10px] px-1 rounded font-bold flex-shrink-0`}>
+                          {sideBadge.text}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                      <span>{p.position}</span>
+                      {p.visible_trait && !isInjured && (
+                        <span className="text-purple-400">• {TRAIT_DISPLAY_NAMES[p.visible_trait] || p.visible_trait}</span>
+                      )}
+                      {isInjured && activeInjury && (
+                        <span className="text-red-400">• R{activeInjury.round_return}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          
+          {filteredPlayers.length === 0 && (
+            <div className="text-center text-gray-500 py-4 text-sm">
+              No players match this filter
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-2 border-t border-gray-700 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 rounded text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ============================================
 // MAIN COMPONENT
@@ -816,113 +996,38 @@ export default function TacticsPage() {
 
       {/* Player Selection Modal */}
       {selectedPosition && (
-        <div 
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-          onClick={() => setSelectedPosition(null)}
-        >
-          <div 
-            className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white">Select Player</h3>
-              <button
-                onClick={() => setSelectedPosition(null)}
-                className="text-gray-400 hover:text-white text-2xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="space-y-2">
-              <button
-                onClick={() => handleSelectPlayer(selectedPosition, '')}
-                className="w-full bg-red-900/30 hover:bg-red-800/50 text-red-400 p-3 rounded-lg text-left border border-red-800/50"
-              >
-                ✕ Clear Position
-              </button>
-              
-              {players.map((p) => {
-                const alreadySelected = selectedPlayerIds.has(p.id) && (tactics as any)?.[selectedPosition] !== p.id;
-                const isInjured = injuredPlayerIds.has(p.id);
-                const activeInjury = getActiveInjury(p);
-                const injuryType = activeInjury?.injury_types?.[0];
-                const showSide = SIDED_POSITIONS.has(p.position);
-                const sideBadge = getSideBadge(p.dominant_side);
-                const isDisabled = alreadySelected || isInjured;
-                
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => !isDisabled && handleSelectPlayer(selectedPosition, p.id)}
-                    disabled={isDisabled}
-                    className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
-                      isInjured
-                        ? 'bg-red-900/30 text-red-300 cursor-not-allowed border border-red-800/50'
-                        : alreadySelected 
-                          ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed' 
-                          : 'bg-gray-700 hover:bg-gray-600 text-white'
-                    }`}
-                  >
-                    <div>
-                      <div className="font-bold flex items-center gap-2 flex-wrap">
-                        {p.first_name} {p.last_name}
-                        {showSide && (
-                          <span className={`${sideBadge.bg} text-white text-xs px-1.5 py-0.5 rounded font-bold`}>
-                            {sideBadge.text}
-                          </span>
-                        )}
-                        {isInjured && activeInjury && (
-                          <InjuryBadge injury={activeInjury} />
-                        )}
-                        {!isInjured && p.visible_trait && <TraitBadge trait={p.visible_trait} />}
-                      </div>
-                      <div className="text-sm text-gray-400">
-                        {p.position} • Age {p.age}
-                        {isInjured && injuryType && (
-                          <span className="text-red-400 ml-2">• {injuryType.name}</span>
-                        )}
-                      </div>
-                    </div>
-                    <span className={`font-bold ${isInjured ? 'text-red-400' : 'text-green-500'}`}>
-                      {isInjured ? '🏥' : p.overall}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => setSelectedPosition(null)}
-              className="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <PlayerSelectionModal
+          players={players}
+          selectedPosition={selectedPosition}
+          selectedPlayerIds={selectedPlayerIds}
+          injuredPlayerIds={injuredPlayerIds}
+          tactics={tactics}
+          onSelectPlayer={handleSelectPlayer}
+          onClose={() => setSelectedPosition(null)}
+        />
       )}
 
       {/* Goal Kicker Modal */}
       {showKickerModal && (
         <div 
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50"
           onClick={() => setShowKickerModal(false)}
         >
           <div 
-            className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
+            className="bg-gray-800 rounded-t-xl sm:rounded-xl w-full sm:max-w-md max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white">Select Goal Kicker</h3>
+            <div className="flex justify-between items-center p-3 border-b border-gray-700">
+              <h3 className="text-lg font-bold text-white">Select Goal Kicker</h3>
               <button
                 onClick={() => setShowKickerModal(false)}
-                className="text-gray-400 hover:text-white text-2xl leading-none"
+                className="text-gray-400 hover:text-white text-2xl leading-none px-2"
               >
                 ×
               </button>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {playersSortedByKicking.map((p) => {
                 const stats = getConversionDisplay(p);
                 const isCurrentKicker = tactics?.goal_kicker === p.id;
@@ -938,23 +1043,27 @@ export default function TacticsPage() {
                       setShowKickerModal(false);
                     }}
                     disabled={isInjured}
-                    className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${
+                    className={`w-full py-1.5 px-2 rounded text-left flex justify-between items-center ${
                       isInjured
-                        ? 'bg-red-900/30 text-red-300 cursor-not-allowed border border-red-800/50'
+                        ? 'bg-red-900/20 text-red-300 cursor-not-allowed'
                         : isCurrentKicker
-                          ? 'bg-green-600/30 border-2 border-green-500'
-                          : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
+                          ? 'bg-green-600/30 border border-green-500'
+                          : 'bg-gray-700/50 hover:bg-gray-600'
                     }`}
                   >
-                    <div>
-                      <div className="text-white font-bold flex items-center gap-2">
-                        {p.first_name} {p.last_name}
-                        {isInjured && activeInjury && <InjuryBadge injury={activeInjury} />}
-                        {!isInjured && p.visible_trait && <TraitBadge trait={p.visible_trait} />}
+                    <div className="min-w-0">
+                      <div className="text-white font-medium text-sm flex items-center gap-1.5">
+                        <span>{p.first_name.charAt(0)}. {p.last_name}</span>
+                        {isInjured && activeInjury && (
+                          <span className="text-red-400 text-[10px]">🏥 R{activeInjury.round_return}</span>
+                        )}
+                        {!isInjured && p.visible_trait && (
+                          <span className="text-purple-400 text-[10px]">{TRAIT_DISPLAY_NAMES[p.visible_trait] || p.visible_trait}</span>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-400">{p.position} • Kicking: {p.kicking}</div>
+                      <div className="text-[11px] text-gray-400">{p.position} • Kick: {p.kicking}</div>
                     </div>
-                    <span className={`font-bold ${isInjured ? 'text-red-400' : stats.color}`}>
+                    <span className={`font-bold text-sm ${isInjured ? 'text-red-400' : stats.color}`}>
                       {isInjured ? '🏥' : stats.rate}
                     </span>
                   </button>
@@ -962,12 +1071,14 @@ export default function TacticsPage() {
               })}
             </div>
 
-            <button
-              onClick={() => setShowKickerModal(false)}
-              className="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-lg"
-            >
-              Cancel
-            </button>
+            <div className="p-2 border-t border-gray-700">
+              <button
+                onClick={() => setShowKickerModal(false)}
+                className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 rounded text-sm"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
