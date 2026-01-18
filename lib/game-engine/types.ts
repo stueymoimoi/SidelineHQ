@@ -59,6 +59,10 @@ export interface Player {
   training_affinity?: Record<string, 'high' | 'medium'>;
   durability?: 'fragile' | 'normal' | 'durable' | 'ironman';
   
+  // Training system v3.0 (Training Points)
+  training_points?: Record<string, number>;
+  last_training_stat?: string | null;
+  
   // Trait system
   visible_trait?: string | null;
   visible_trait_positive?: boolean | null;

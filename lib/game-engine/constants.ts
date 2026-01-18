@@ -463,3 +463,103 @@ export const getMinutesForPlayer = (jerseyNumber: number, position: string): num
   
   return 0;
 };
+// =============================================
+// TRAINING POINTS SYSTEM (v3.0)
+// =============================================
+
+/** 
+ * Points needed to gain +1 stat, based on current stat level
+ * Higher stats = more points needed (natural diminishing returns)
+ */
+export const TRAINING_POINT_THRESHOLDS: Record<number, number> = {
+  1: 8,   // 1→2: ~2-3 rounds
+  2: 8,   // 2→3: ~2-3 rounds
+  3: 12,  // 3→4: ~4 rounds
+  4: 12,  // 4→5: ~4 rounds
+  5: 20,  // 5→6: ~6 rounds
+  6: 20,  // 6→7: ~6 rounds
+  7: 35,  // 7→8: ~11 rounds (elite ceiling)
+  8: 999, // 8 is max - can't go higher
+};
+
+/**
+ * Session quality determines points earned per training round
+ * Rolled randomly each round
+ */
+export const TRAINING_SESSION_QUALITY = {
+  POOR: { chance: 15, points: 2, label: 'Poor Session' },
+  FAIR: { chance: 40, points: 3, label: 'Fair Session' },
+  GOOD: { chance: 30, points: 4, label: 'Good Session' },
+  EXCELLENT: { chance: 15, points: 5, label: 'Excellent Session' },
+} as const;
+
+/**
+ * Age modifiers for training points earned
+ */
+export const TRAINING_AGE_MODIFIERS: Record<string, number> = {
+  young: 1,      // 18-21: +1 bonus point per session
+  prime: 0,      // 22-27: no modifier
+  veteran: -1,   // 28-31: -1 point per session (min 1)
+  old: -1,       // 32+: -1 point per session (min 1)
+};
+
+/**
+ * Affinity bonus points per session
+ */
+export const TRAINING_AFFINITY_BONUS: Record<string, number> = {
+  high: 1,    // +1 point per session
+  medium: 0,  // no bonus (but faster in old system)
+};
+
+/**
+ * Progress labels shown to user (vague feedback)
+ * Based on percentage of threshold reached
+ */
+export const TRAINING_PROGRESS_LABELS = [
+  { maxPercent: 25, label: 'Just Started', color: 'text-gray-400', barColor: 'bg-gray-500' },
+  { maxPercent: 50, label: 'Building Foundation', color: 'text-yellow-400', barColor: 'bg-yellow-500' },
+  { maxPercent: 75, label: 'Making Progress', color: 'text-orange-400', barColor: 'bg-orange-500' },
+  { maxPercent: 99, label: 'Nearly There!', color: 'text-green-400', barColor: 'bg-green-500' },
+  { maxPercent: 100, label: 'Ready!', color: 'text-green-300', barColor: 'bg-green-400' },
+] as const;
+
+/**
+ * Get progress label based on current points and threshold
+ */
+export function getTrainingProgressLabel(currentPoints: number, threshold: number): {
+  label: string;
+  color: string;
+  barColor: string;
+  percent: number;
+} {
+  const percent = Math.min(100, Math.round((currentPoints / threshold) * 100));
+  
+  for (const tier of TRAINING_PROGRESS_LABELS) {
+    if (percent <= tier.maxPercent) {
+      return { 
+        label: tier.label, 
+        color: tier.color, 
+        barColor: tier.barColor,
+        percent 
+      };
+    }
+  }
+  
+  // Fallback
+  return { 
+    label: 'Just Started', 
+    color: 'text-gray-400', 
+    barColor: 'bg-gray-500',
+    percent: 0 
+  };
+}
+
+/**
+ * Get age bracket for training modifiers
+ */
+export function getAgeBracket(age: number): 'young' | 'prime' | 'veteran' | 'old' {
+  if (age <= 21) return 'young';
+  if (age <= 27) return 'prime';
+  if (age <= 31) return 'veteran';
+  return 'old';
+}

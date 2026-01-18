@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  TRAINING_POINT_THRESHOLDS,
+  getTrainingProgressLabel,
+} from '@/lib/game-engine/constants';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,6 +45,7 @@ interface Player {
   fatigue: number;
   current_training: string | null;
   training_progress: string | null;
+  training_points: Record<string, number> | null;
   nationality: string;
   state: string | null;
   visible_trait: string | null;
@@ -52,7 +57,6 @@ interface Player {
 
 const STAT_TRAINING = ['Speed', 'Strength', 'Power', 'Passing', 'Stamina', 'Tackling', 'Kicking'] as const;
 const POSITIONS = ['Fullback', 'Winger', 'Centre', 'Five-Eighth', 'Halfback', 'Prop', 'Hooker', 'Second Row', 'Lock'] as const;
-const PROGRESS_STAGES = ['NONE', 'POOR', 'FAIR', 'GOOD', 'VERY GOOD', 'EXCELLENT'] as const;
 
 const VALID_STAT_KEYS = ['speed', 'strength', 'power', 'passing', 'stamina', 'tackling', 'kicking'] as const;
 type StatKey = typeof VALID_STAT_KEYS[number];
@@ -89,24 +93,6 @@ const POSITION_COLORS: Record<string, string> = {
   'Hooker': 'bg-orange-600',
   'Second Row': 'bg-pink-600',
   'Lock': 'bg-red-700',
-};
-
-const PROGRESS_COLORS: Record<string, string> = {
-  'NONE': 'bg-gray-600',
-  'POOR': 'bg-red-600',
-  'FAIR': 'bg-orange-500',
-  'GOOD': 'bg-yellow-500',
-  'VERY GOOD': 'bg-lime-500',
-  'EXCELLENT': 'bg-green-500',
-};
-
-const PROGRESS_WIDTHS: Record<string, string> = {
-  'NONE': 'w-0',
-  'POOR': 'w-1/6',
-  'FAIR': 'w-2/6',
-  'GOOD': 'w-3/6',
-  'VERY GOOD': 'w-4/6',
-  'EXCELLENT': 'w-full',
 };
 
 const TRAINING_ICONS: Record<string, string> = {
@@ -192,6 +178,24 @@ const getTraitDisplay = (trait: string | null): string | null => {
   return TRAIT_DISPLAY_NAMES[trait] || trait.charAt(0).toUpperCase() + trait.slice(1);
 };
 
+/**
+ * Get training progress for a player's current training stat
+ */
+const getPlayerTrainingProgress = (player: Player): { label: string; color: string; barColor: string; percent: number } | null => {
+  const training = player.current_training;
+  if (!training || training === 'Rest') return null;
+  
+  // Check if it's a stat training
+  const statKey = training.toLowerCase();
+  if (!VALID_STAT_KEYS.includes(statKey as StatKey)) return null;
+  
+  const currentStat = getPlayerStat(player, statKey);
+  const threshold = TRAINING_POINT_THRESHOLDS[currentStat] || 999;
+  const points = player.training_points?.[statKey] || 0;
+  
+  return getTrainingProgressLabel(points, threshold);
+};
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -202,7 +206,7 @@ export default function TrainingPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [saveQueue, setSaveQueue] = useState<Map<string, { training: string | null; resetProgress: boolean }>>(new Map());
+  const [saveQueue, setSaveQueue] = useState<Map<string, { training: string | null }>>(new Map());
   const [teamId, setTeamId] = useState<string | null>(null);
   const router = useRouter();
 
@@ -242,9 +246,9 @@ export default function TrainingPage() {
       for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
         const chunk = entries.slice(i, i + CHUNK_SIZE);
         await Promise.all(
-          chunk.map(([playerId, { training, resetProgress }]) => {
+          chunk.map(([playerId, { training }]) => {
+            // Only update current_training - points are managed by cron
             const updateData: Record<string, unknown> = { current_training: training };
-            if (resetProgress) updateData.training_progress = 'NONE';
             
             return supabase
               .from('players')
@@ -311,7 +315,8 @@ export default function TrainingPage() {
             .select(`
               id, team_id, first_name, last_name, position, secondary_position,
               age, overall, speed, strength, power, passing, stamina, tackling, kicking,
-              fatigue, current_training, training_progress, nationality, state, visible_trait
+              fatigue, current_training, training_progress, training_points,
+              nationality, state, visible_trait
             `)
             .eq('team_id', coach.team_id)
             .order('overall', { ascending: false }),
@@ -333,41 +338,34 @@ export default function TrainingPage() {
     const player = playerMap.get(playerId);
     if (!player) return;
     
-    const trainingChanged = player.current_training !== training;
-    
     // Update local state immediately
     setPlayers(prev => prev.map(p => 
       p.id === playerId 
-        ? { ...p, current_training: training, training_progress: trainingChanged ? 'NONE' : p.training_progress }
+        ? { ...p, current_training: training }
         : p
     ));
     
-    // Add to save queue (Map automatically handles duplicates)
+    // Add to save queue
     setSaveQueue(prev => {
       const next = new Map(prev);
-      next.set(playerId, { training, resetProgress: trainingChanged });
+      next.set(playerId, { training });
       return next;
     });
     
     // Update selected player if it's the one being changed
     setSelectedPlayer(prev => 
       prev?.id === playerId 
-        ? { ...prev, current_training: training, training_progress: trainingChanged ? 'NONE' : prev.training_progress }
+        ? { ...prev, current_training: training }
         : prev
     );
   }, [playerMap]);
 
   const setAllTraining = useCallback((training: string) => {
-    const newQueue = new Map<string, { training: string | null; resetProgress: boolean }>();
+    const newQueue = new Map<string, { training: string | null }>();
     
     setPlayers(prev => prev.map(p => {
-      const trainingChanged = p.current_training !== training;
-      newQueue.set(p.id, { training, resetProgress: trainingChanged });
-      return {
-        ...p,
-        current_training: training,
-        training_progress: trainingChanged ? 'NONE' : p.training_progress
-      };
+      newQueue.set(p.id, { training });
+      return { ...p, current_training: training };
     }));
     
     setSaveQueue(newQueue);
@@ -452,19 +450,29 @@ export default function TrainingPage() {
           </div>
         </div>
 
-        {/* Training Legend */}
+        {/* Training Info */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h2 className="text-white font-bold mb-3">Progress Guide</h2>
           <div className="flex flex-wrap gap-4 text-sm">
-            {PROGRESS_STAGES.map(stage => (
-              <div key={stage} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded ${PROGRESS_COLORS[stage]}`}></div>
-                <span className="text-gray-400">{stage}</span>
-              </div>
-            ))}
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-gray-500"></div>
+              <span className="text-gray-400">Just Started</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-yellow-500"></div>
+              <span className="text-gray-400">Building Foundation</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-orange-500"></div>
+              <span className="text-gray-400">Making Progress</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-green-500"></div>
+              <span className="text-gray-400">Nearly There!</span>
+            </div>
           </div>
           <p className="text-gray-500 text-xs mt-3">
-            Higher progress = better chance of stat improvement. Excellent keeps improving without reset.
+            Keep training the same stat to build progress. Switching stats freezes your progress (it won&apos;t be lost). Resting also preserves progress.
           </p>
         </div>
 
@@ -473,6 +481,7 @@ export default function TrainingPage() {
           {players.map(player => {
             const fitness = getFitness(player.fatigue);
             const traitDisplay = getTraitDisplay(player.visible_trait);
+            const progress = getPlayerTrainingProgress(player);
             
             return (
               <div
@@ -523,18 +532,29 @@ export default function TrainingPage() {
                     {getTrainingDescription(player.current_training, player)}
                   </p>
                   
-                  {/* Progress Bar */}
-                  {player.current_training && player.current_training !== 'Rest' && (
+                  {/* Progress Bar - New Training Points System */}
+                  {progress && (
                     <>
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div 
-                          className={`h-2 rounded-full transition-all duration-300 ${PROGRESS_COLORS[player.training_progress || 'NONE']} ${PROGRESS_WIDTHS[player.training_progress || 'NONE']}`}
+                          className={`h-2 rounded-full transition-all duration-300 ${progress.barColor}`}
+                          style={{ width: `${progress.percent}%` }}
                         />
                       </div>
-                      <p className="text-gray-500 text-xs mt-1 text-right">
-                        {player.training_progress || 'NONE'}
+                      <p className={`text-xs mt-1 text-right ${progress.color}`}>
+                        {progress.label}
                       </p>
                     </>
+                  )}
+                  
+                  {/* Rest indicator */}
+                  {player.current_training === 'Rest' && (
+                    <p className="text-blue-400 text-xs mt-1">Progress preserved while resting</p>
+                  )}
+                  
+                  {/* No training indicator */}
+                  {!player.current_training && (
+                    <p className="text-gray-500 text-xs mt-1">Assign training to develop</p>
                   )}
                 </div>
               </div>
@@ -593,12 +613,22 @@ export default function TrainingPage() {
                 { key: 'kicking', label: 'KCK' },
               ].map(({ key, label }) => {
                 const value = selectedPlayer[key as StatKey];
+                const points = selectedPlayer.training_points?.[key] || 0;
+                const threshold = TRAINING_POINT_THRESHOLDS[value] || 999;
+                const isCurrentTraining = selectedPlayer.current_training?.toLowerCase() === key;
+                
                 return (
-                  <div key={key} className="bg-gray-700 rounded p-2 text-center">
+                  <div 
+                    key={key} 
+                    className={`bg-gray-700 rounded p-2 text-center ${isCurrentTraining ? 'ring-2 ring-green-500' : ''}`}
+                  >
                     <p className="text-gray-400 text-xs">{label}</p>
                     <p className={`font-bold ${getStatTierColor(value)}`}>
                       {getStatTier(value, true)}
                     </p>
+                    {points > 0 && (
+                      <p className="text-gray-500 text-xs">{Math.round((points / threshold) * 100)}%</p>
+                    )}
                   </div>
                 );
               })}
@@ -625,7 +655,7 @@ export default function TrainingPage() {
               <span className="text-2xl">😴</span>
               <div className="flex-1">
                 <p className="text-white font-medium">Rest</p>
-                <p className="text-gray-400 text-xs">Recover fitness, reduce fatigue</p>
+                <p className="text-gray-400 text-xs">Recover fitness, progress preserved</p>
               </div>
               {selectedPlayer.current_training === 'Rest' && (
                 <span className="text-green-400">✓</span>
@@ -636,10 +666,14 @@ export default function TrainingPage() {
             <p className="text-gray-500 text-xs mt-4 mb-2">STAT TRAINING</p>
             <div className="grid grid-cols-1 gap-2">
               {STAT_TRAINING.map(stat => {
+                const statKey = stat.toLowerCase();
                 const statValue = getPlayerStat(selectedPlayer, stat);
                 const tierWord = getStatTier(statValue);
                 const tierColor = getStatTierColor(statValue);
                 const isSelected = selectedPlayer.current_training === stat;
+                const points = selectedPlayer.training_points?.[statKey] || 0;
+                const threshold = TRAINING_POINT_THRESHOLDS[statValue] || 999;
+                const progressPercent = Math.round((points / threshold) * 100);
                 
                 return (
                   <button
@@ -657,6 +691,9 @@ export default function TrainingPage() {
                         <p className="text-white font-medium">{stat}</p>
                         <p className="text-gray-400 text-xs">
                           Current: <span className={tierColor}>{tierWord}</span>
+                          {points > 0 && (
+                            <span className="text-gray-500 ml-2">({progressPercent}% to next)</span>
+                          )}
                         </p>
                       </div>
                     </div>
