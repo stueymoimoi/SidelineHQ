@@ -68,62 +68,62 @@ export default function MatchTimeline({ fixtureId, defaultExpanded = false }: Ma
       </button>
 
       {/* Events List */}
-      {expanded && (
-        <div className="border-t border-gray-700 max-h-96 overflow-y-auto">
-          {events.map((event) => (
-            <div
-  key={event.id}
-  className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-700/50 ${
-    event.event_type === 'HALF_TIME' || event.event_type === 'FULL_TIME'
-      ? 'bg-gray-700/30'
-      : ''
-  }`}
->
-  {/* Minute */}
-  <div className="w-8 text-right text-gray-400 text-xs font-mono">
-    {event.minute}'
-  </div>
-
-              {/* Icon */}
-              <div className="text-lg">
-                {getEventIcon(event.event_type)}
-              </div>
-
-              {/* Event Details */}
-              <div className="flex-1">
-                {event.event_type === 'HALF_TIME' ? (
-                  <span className="text-gray-300 font-semibold">HALF-TIME</span>
-                ) : event.event_type === 'FULL_TIME' ? (
-                  <span className="text-gray-300 font-semibold">FULL-TIME</span>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-semibold">{event.event_type === 'KICK' ? 'GOAL' : event.event_type}</span>
-                    {event.player_id && event.player_name && (
-                      <>
-                        <span className="text-gray-400">-</span>
-                        <PlayerLink 
-                          playerId={event.player_id} 
-                          playerName={event.player_name} 
-                        />
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Team Badge */}
-              {event.team_abbr && (
-                <div
-                  className="px-2 py-1 rounded text-xs font-bold text-white"
-                  style={{ backgroundColor: event.team_color || '#666' }}
-                >
-                  {event.team_abbr}
-                </div>
-              )}
-            </div>
-          ))}
+{expanded && (
+  <div className="border-t border-gray-700 max-h-72 overflow-y-auto">
+    {events.map((event) => (
+      <div
+        key={event.id}
+        className={`flex items-center gap-2 px-3 py-1 border-b border-gray-700/50 text-sm ${
+          event.event_type === 'HALF_TIME' || event.event_type === 'FULL_TIME'
+            ? 'bg-gray-700/30'
+            : ''
+        }`}
+      >
+        {/* Minute */}
+        <div className="w-7 text-right text-gray-400 text-xs font-mono shrink-0">
+          {event.minute}'
         </div>
-      )}
+
+        {/* Icon */}
+        <div className="text-base shrink-0">
+          {getEventIcon(event.event_type)}
+        </div>
+
+        {/* Team Badge - moved closer to action */}
+        {event.team_abbr && (
+          <div
+            className="px-1.5 py-0.5 rounded text-xs font-bold text-white shrink-0"
+            style={{ backgroundColor: event.team_color || '#666' }}
+          >
+            {event.team_abbr}
+          </div>
+        )}
+
+        {/* Event Details */}
+        <div className="truncate">
+          {event.event_type === 'HALF_TIME' ? (
+            <span className="text-gray-300 font-semibold">HALF-TIME</span>
+          ) : event.event_type === 'FULL_TIME' ? (
+            <span className="text-gray-300 font-semibold">FULL-TIME</span>
+          ) : (
+            <span className="text-gray-200">
+              <span className="font-semibold">{event.event_type === 'KICK' ? 'GOAL' : event.event_type}</span>
+              {event.player_id && event.player_name && (
+                <>
+                  <span className="text-gray-400"> - </span>
+                  <PlayerLink 
+                    playerId={event.player_id} 
+                    playerName={event.player_name} 
+                  />
+                </>
+              )}
+            </span>
+          )}
+        </div>
+      </div>
+    ))}
+  </div>
+)}
     </div>
   );
 }
