@@ -72,17 +72,17 @@ export default function MatchTimeline({ fixtureId, defaultExpanded = false }: Ma
         <div className="border-t border-gray-700 max-h-96 overflow-y-auto">
           {events.map((event) => (
             <div
-              key={event.id}
-              className={`flex items-center gap-3 px-4 py-2 border-b border-gray-700/50 ${
-                event.event_type === 'HALF_TIME' || event.event_type === 'FULL_TIME'
-                  ? 'bg-gray-700/30'
-                  : ''
-              }`}
-            >
-              {/* Minute */}
-              <div className="w-10 text-right text-gray-400 text-sm font-mono">
-                {event.minute}'
-              </div>
+  key={event.id}
+  className={`flex items-center gap-2 px-3 py-1.5 border-b border-gray-700/50 ${
+    event.event_type === 'HALF_TIME' || event.event_type === 'FULL_TIME'
+      ? 'bg-gray-700/30'
+      : ''
+  }`}
+>
+  {/* Minute */}
+  <div className="w-8 text-right text-gray-400 text-xs font-mono">
+    {event.minute}'
+  </div>
 
               {/* Icon */}
               <div className="text-lg">
