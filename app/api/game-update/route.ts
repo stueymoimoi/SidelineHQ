@@ -871,31 +871,28 @@ allMatchResults.push({
     logs.push(`Training: ${improvementCount} players improved`);
     
     // ===========================================
-    // PHASE 4.5: PROCESS FINANCES (Sundays only)
+    // PHASE 4.5: PROCESS FINANCES
     // ===========================================
+    // Every cron: Match revenue, bonuses, contract countdown
+    // Sundays only: Wages, grants, facility upkeep
     
     if (ENABLE_FINANCES) {
       try {
-        // Check if today is Sunday (cron runs Sun/Tue/Thu)
         const today = new Date();
         const isSunday = today.getUTCDay() === 0;
         
-        if (isSunday) {
-          logs.push(`💰 Processing weekly finances...`);
-          
-          // Process team finances
-          const financeResults = await processAllTeamFinances(supabase, SEASON, currentRound);
-          const successCount = financeResults.filter(r => r.success).length;
-          logs.push(`💰 Finances: ${successCount}/${financeResults.length} teams processed`);
-          
-          // Process contract countdown
-          const contractResult = await processContractCountdown(supabase);
-          logs.push(`📝 Contracts: ${contractResult.updated} updated, ${contractResult.expired} expired`);
-        } else {
-          logs.push(`💰 Finances: Skipped (not Sunday)`);
-        }
+        logs.push(`💰 Processing finances (Sunday: ${isSunday})...`);
+        
+        // Process team finances (handles Sunday vs non-Sunday internally)
+        const financeResults = await processAllTeamFinances(supabase, SEASON, currentRound, isSunday);
+        const successCount = financeResults.filter(r => r.success).length;
+        logs.push(`💰 Finances: ${successCount}/${financeResults.length} teams processed`);
+        
+        // Contract countdown - every cron run
+        const contractResult = await processContractCountdown(supabase);
+        logs.push(`📝 Contracts: ${contractResult.updated} updated, ${contractResult.expired} expired`);
+        
       } catch (financeError) {
-        // Finance errors shouldn't break the cron
         logs.push(`💰 Finance error (non-fatal): ${financeError}`);
         console.error('Finance processing error:', financeError);
       }

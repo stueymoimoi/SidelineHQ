@@ -193,7 +193,8 @@ export async function processTeamWeeklyFinances(
   supabase: any,
   context: TeamContext,
   season: number,
-  round: number
+  round: number,
+  isSunday: boolean = true
 ): Promise<ProcessingResult> {
   const result: ProcessingResult = {
     team_id: context.team_id,
@@ -206,9 +207,9 @@ export async function processTeamWeeklyFinances(
   try {
     let currentBalance = context.finances.balance;
 
-    // 1. DEDUCT WAGES
+    // 1. DEDUCT WAGES (Sundays only)
     const totalWages = context.contracts.reduce((sum, c) => sum + c.weekly_wage, 0);
-    if (totalWages > 0) {
+    if (isSunday && totalWages > 0) {
       const recorded = await recordTransaction(
         supabase,
         context.team_id,
@@ -229,45 +230,49 @@ export async function processTeamWeeklyFinances(
       }
     }
 
-    // 2. DEDUCT FACILITY UPKEEP
-    const recorded2 = await recordTransaction(
-      supabase,
-      context.team_id,
-      season,
-      round,
-      'FACILITY_UPKEEP',
-      -EXPENSES.FACILITY_UPKEEP,
-      currentBalance - EXPENSES.FACILITY_UPKEEP,
-      'Weekly facility upkeep'
-    );
-    if (recorded2) {
-      currentBalance -= EXPENSES.FACILITY_UPKEEP;
-      result.transactions.push({
-        type: 'FACILITY_UPKEEP',
-        amount: -EXPENSES.FACILITY_UPKEEP,
-        description: 'Weekly facility upkeep',
-      });
+    // 2. DEDUCT FACILITY UPKEEP (Sundays only)
+    if (isSunday) {
+      const recorded2 = await recordTransaction(
+        supabase,
+        context.team_id,
+        season,
+        round,
+        'FACILITY_UPKEEP',
+        -EXPENSES.FACILITY_UPKEEP,
+        currentBalance - EXPENSES.FACILITY_UPKEEP,
+        'Weekly facility upkeep'
+      );
+      if (recorded2) {
+        currentBalance -= EXPENSES.FACILITY_UPKEEP;
+        result.transactions.push({
+          type: 'FACILITY_UPKEEP',
+          amount: -EXPENSES.FACILITY_UPKEEP,
+          description: 'Weekly facility upkeep',
+        });
+      }
     }
 
-    // 3. ADD DIVISION GRANT
-    const grant = DIVISION_GRANTS[context.division] || DIVISION_GRANTS[10];
-    const recorded3 = await recordTransaction(
-      supabase,
-      context.team_id,
-      season,
-      round,
-      'DIVISION_GRANT',
-      grant,
-      currentBalance + grant,
-      `Division ${context.division} weekly grant`
-    );
-    if (recorded3) {
-      currentBalance += grant;
-      result.transactions.push({
-        type: 'DIVISION_GRANT',
-        amount: grant,
-        description: `Division ${context.division} weekly grant`,
-      });
+    // 3. ADD DIVISION GRANT (Sundays only)
+    if (isSunday) {
+      const grant = DIVISION_GRANTS[context.division] || DIVISION_GRANTS[10];
+      const recorded3 = await recordTransaction(
+        supabase,
+        context.team_id,
+        season,
+        round,
+        'DIVISION_GRANT',
+        grant,
+        currentBalance + grant,
+        `Division ${context.division} weekly grant`
+      );
+      if (recorded3) {
+        currentBalance += grant;
+        result.transactions.push({
+          type: 'DIVISION_GRANT',
+          amount: grant,
+          description: `Division ${context.division} weekly grant`,
+        });
+      }
     }
 
     // 4. PROCESS MATCH REVENUE (if home game this round)
@@ -438,7 +443,8 @@ export async function processTeamWeeklyFinances(
 export async function processAllTeamFinances(
   supabase: any,
   season: number,
-  round: number
+  round: number,
+  isSunday: boolean = true
 ): Promise<ProcessingResult[]> {
   console.log(`\n💰 Processing finances for Season ${season}, Round ${round}...`);
 
@@ -536,7 +542,7 @@ export async function processAllTeamFinances(
       } : undefined,
     };
 
-    const result = await processTeamWeeklyFinances(supabase, context, season, round);
+    const result = await processTeamWeeklyFinances(supabase, context, season, round, isSunday);
     results.push(result);
 
     if (result.success) {
