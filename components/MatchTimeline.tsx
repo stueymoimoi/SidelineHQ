@@ -69,7 +69,7 @@ export default function MatchTimeline({ fixtureId, defaultExpanded = false }: Ma
 
       {/* Events List */}
 {expanded && (
-  <div className="border-t border-gray-700 max-h-72 overflow-y-auto">
+  <div className="border-t border-gray-700 max-h-72 overflow-y-auto flex flex-col items-center">
     {events.map((event) => (
       <div
         key={event.id}
