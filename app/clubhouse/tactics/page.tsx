@@ -39,6 +39,7 @@ interface Player {
   state: string | null;
   dominant_side: string | null;
   visible_trait: string | null;
+  fatigue?: number;
   player_injuries?: PlayerInjury[];
 }
 
@@ -84,6 +85,26 @@ const POSITION_KEYS = [
   'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_prop_r', 'pos_hooker',
   'pos_second_row_l', 'pos_second_row_r', 'pos_lock', 'bench_1', 'bench_2', 'bench_3', 'bench_4'
 ] as const;
+
+const POSITION_LABELS: Record<string, { label: string; number: number }> = {
+  pos_fullback: { label: 'Fullback', number: 1 },
+  pos_winger_l: { label: 'Left Wing', number: 2 },
+  pos_centre_l: { label: 'Left Centre', number: 3 },
+  pos_centre_r: { label: 'Right Centre', number: 4 },
+  pos_winger_r: { label: 'Right Wing', number: 5 },
+  pos_five_eighth: { label: 'Five-Eighth', number: 6 },
+  pos_halfback: { label: 'Halfback', number: 7 },
+  pos_prop_l: { label: 'Prop', number: 8 },
+  pos_hooker: { label: 'Hooker', number: 9 },
+  pos_prop_r: { label: 'Prop', number: 10 },
+  pos_second_row_l: { label: '2nd Row', number: 11 },
+  pos_second_row_r: { label: '2nd Row', number: 12 },
+  pos_lock: { label: 'Lock', number: 13 },
+  bench_1: { label: 'Bench', number: 14 },
+  bench_2: { label: 'Bench', number: 15 },
+  bench_3: { label: 'Bench', number: 16 },
+  bench_4: { label: 'Bench', number: 17 },
+};
 
 const ATTACK_OPTIONS = [
   { value: 'power', label: 'Power', emoji: '💪', desc: 'Middle dominance, post-contact metres, slow grind' },
@@ -158,6 +179,18 @@ const getConversionDisplay = (player: Player) => {
   const label = attempts >= 15 ? 'Reliable sample' : attempts >= 5 ? 'Small sample' : 'Very small sample';
   
   return { rate: `${successes}/${attempts} (${percentage}%)${sampleIndicator}`, color, label };
+};
+
+const getFitnessColor = (fatigue: number | undefined): string => {
+  const fitness = 100 - (fatigue || 0);
+  if (fitness >= 80) return 'text-green-400';
+  if (fitness >= 60) return 'text-yellow-400';
+  if (fitness >= 40) return 'text-orange-400';
+  return 'text-red-400';
+};
+
+const getFitness = (fatigue: number | undefined): number => {
+  return 100 - (fatigue || 0);
 };
 
 // ============================================
@@ -307,6 +340,7 @@ function PlayerSelectionModal({
             const showSide = SIDED_POSITIONS.has(p.position);
             const sideBadge = getSideBadge(p.dominant_side);
             const isDisabled = alreadySelected || isInjured;
+            const fitness = getFitness(p.fatigue);
             
             return (
               <button
@@ -336,6 +370,7 @@ function PlayerSelectionModal({
                     </div>
                     <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
                       <span>{p.position}</span>
+                      <span className={getFitnessColor(p.fatigue)}>{fitness}%</span>
                       {p.visible_trait && !isInjured && (
                         <span className="text-purple-400">• {TRAIT_DISPLAY_NAMES[p.visible_trait] || p.visible_trait}</span>
                       )}
@@ -371,6 +406,122 @@ function PlayerSelectionModal({
 }
 
 // ============================================
+// POSITION SELECTION MODAL (for reserves)
+// ============================================
+
+interface PositionSelectionModalProps {
+  player: Player;
+  tactics: Tactics | null;
+  playerMap: Map<string, Player>;
+  onSelectPosition: (posKey: string, playerId: string) => void;
+  onClose: () => void;
+}
+
+function PositionSelectionModal({
+  player,
+  tactics,
+  playerMap,
+  onSelectPosition,
+  onClose,
+}: PositionSelectionModalProps) {
+  
+  const positionGroups = [
+    { 
+      label: 'Backs', 
+      positions: ['pos_fullback', 'pos_winger_l', 'pos_winger_r', 'pos_centre_l', 'pos_centre_r', 'pos_five_eighth', 'pos_halfback'] 
+    },
+    { 
+      label: 'Forwards', 
+      positions: ['pos_prop_l', 'pos_hooker', 'pos_prop_r', 'pos_second_row_l', 'pos_second_row_r', 'pos_lock'] 
+    },
+    { 
+      label: 'Bench', 
+      positions: ['bench_1', 'bench_2', 'bench_3', 'bench_4'] 
+    },
+  ];
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-gray-800 rounded-t-xl sm:rounded-xl w-full sm:max-w-md max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-3 border-b border-gray-700">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-bold text-white">Place in Position</h3>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white text-2xl leading-none px-2"
+            >
+              ×
+            </button>
+          </div>
+          <div className="mt-2 bg-gray-700 rounded-lg p-2 flex items-center gap-3">
+            <span className="text-green-400 font-bold">{player.overall}</span>
+            <div>
+              <p className="text-white font-medium">{player.first_name} {player.last_name}</p>
+              <p className="text-gray-400 text-xs">{player.position}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Position List */}
+        <div className="flex-1 overflow-y-auto p-2">
+          {positionGroups.map((group) => (
+            <div key={group.label} className="mb-3">
+              <p className="text-gray-500 text-xs font-bold uppercase mb-1 px-1">{group.label}</p>
+              <div className="space-y-1">
+                {group.positions.map((posKey) => {
+                  const info = POSITION_LABELS[posKey];
+                  const currentPlayerId = (tactics as any)?.[posKey] as string | null;
+                  const currentPlayer = currentPlayerId ? playerMap.get(currentPlayerId) : null;
+                  
+                  return (
+                    <button
+                      key={posKey}
+                      onClick={() => onSelectPosition(posKey, player.id)}
+                      className="w-full py-2 px-3 rounded bg-gray-700/50 hover:bg-gray-600 text-left flex justify-between items-center"
+                    >
+                      <div>
+                        <span className="text-white font-medium">#{info.number} {info.label}</span>
+                      </div>
+                      <div className="text-right">
+                        {currentPlayer ? (
+                          <span className="text-gray-400 text-sm">
+                            {currentPlayer.first_name.charAt(0)}. {currentPlayer.last_name}
+                            <span className="text-orange-400 ml-1">↔</span>
+                          </span>
+                        ) : (
+                          <span className="text-green-400 text-sm">Empty</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="p-2 border-t border-gray-700 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 rounded text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // MAIN COMPONENT
 // ============================================
 
@@ -381,6 +532,7 @@ export default function TacticsPage() {
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  const [selectedReserve, setSelectedReserve] = useState<Player | null>(null);
   const [showKickerModal, setShowKickerModal] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -408,6 +560,13 @@ export default function TacticsPage() {
     }
     return ids;
   }, [tactics]);
+
+  // Players NOT in the 17
+  const reservePlayers = useMemo(() => {
+    return players
+      .filter(p => !selectedPlayerIds.has(p.id))
+      .sort((a, b) => (b.overall || 0) - (a.overall || 0));
+  }, [players, selectedPlayerIds]);
 
   const playersSortedByKicking = useMemo(() => {
     return [...players].sort((a, b) => b.kicking - a.kicking);
@@ -531,7 +690,7 @@ export default function TacticsPage() {
             .single(),
           supabase
             .from('players')
-            .select('id, first_name, last_name, position, age, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state, dominant_side, visible_trait, player_injuries(id, injury_type_id, round_return, is_active, injury_types(name, severity))')
+            .select('id, first_name, last_name, position, age, overall, kicking, goal_kick_attempts, goal_kick_successes, nationality, state, dominant_side, visible_trait, fatigue, player_injuries(id, injury_type_id, round_return, is_active, injury_types(name, severity))')
             .eq('team_id', coach.team_id)
             .order('overall', { ascending: false }),
           supabase
@@ -581,6 +740,7 @@ export default function TacticsPage() {
     
     setTactics(prev => prev ? { ...prev, [posKey]: playerId || null } : null);
     setSelectedPosition(null);
+    setSelectedReserve(null);
   }, [tactics, playerIdSet, injuredPlayerIds]);
 
   const handleClearPosition = useCallback((posKey: string, e: React.MouseEvent) => {
@@ -901,6 +1061,55 @@ export default function TacticsPage() {
           </div>
         </div>
 
+        {/* Reserves Section */}
+        <div className="bg-gray-800 rounded-xl p-4 mb-6">
+          <h3 className="text-white font-bold mb-3">📋 Reserves ({reservePlayers.length})</h3>
+          {reservePlayers.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">All players are in the 17</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {reservePlayers.map((p) => {
+                const isInjured = injuredPlayerIds.has(p.id);
+                const activeInjury = getActiveInjury(p);
+                const fitness = getFitness(p.fatigue);
+                
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => !isInjured && setSelectedReserve(p)}
+                    disabled={isInjured}
+                    className={`p-2 rounded-lg text-left transition ${
+                      isInjured 
+                        ? 'bg-red-900/20 cursor-not-allowed border border-red-800/50' 
+                        : 'bg-gray-700/50 hover:bg-gray-600 border border-transparent hover:border-green-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold text-sm ${isInjured ? 'text-red-400' : 'text-green-400'}`}>
+                        {isInjured ? '🏥' : p.overall}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-white text-sm font-medium truncate">
+                          {p.first_name.charAt(0)}. {p.last_name}
+                        </p>
+                        <div className="flex items-center gap-1 text-[10px]">
+                          <span className="text-gray-400">{p.position}</span>
+                          {!isInjured && (
+                            <span className={getFitnessColor(p.fatigue)}>{fitness}%</span>
+                          )}
+                          {isInjured && activeInjury && (
+                            <span className="text-red-400">R{activeInjury.round_return}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Goal Kicker Section */}
         <div className="bg-gray-800 rounded-xl p-4 mb-6">
           <h3 className="text-white font-bold mb-3">🎯 Goal Kicker</h3>
@@ -1004,6 +1213,17 @@ export default function TacticsPage() {
           tactics={tactics}
           onSelectPlayer={handleSelectPlayer}
           onClose={() => setSelectedPosition(null)}
+        />
+      )}
+
+      {/* Reserve Position Selection Modal */}
+      {selectedReserve && (
+        <PositionSelectionModal
+          player={selectedReserve}
+          tactics={tactics}
+          playerMap={playerMap}
+          onSelectPosition={handleSelectPlayer}
+          onClose={() => setSelectedReserve(null)}
         />
       )}
 
