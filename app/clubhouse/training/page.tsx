@@ -703,49 +703,18 @@ export default function TrainingPage() {
               })}
             </div>
 
-            {/* Position Training */}
+            {/* Position Training - Coming Soon */}
             <p className="text-gray-500 text-xs mt-4 mb-2">POSITION TRAINING</p>
-            <div className="grid grid-cols-1 gap-2">
-              {POSITIONS.map(pos => {
-                const isPrimary = pos === selectedPlayer.position;
-                const isSecondary = pos === selectedPlayer.secondary_position;
-                const isCurrentTraining = selectedPlayer.current_training === pos;
-                
-                return (
-                  <button
-                    key={pos}
-                    onClick={() => handleTrainingChange(selectedPlayer.id, pos)}
-                    className={`p-3 rounded-lg text-left transition flex items-center justify-between ${
-                      isCurrentTraining
-                        ? 'bg-green-600/30 border-2 border-green-500'
-                        : isPrimary 
-                          ? 'bg-green-900/30 hover:bg-green-900/50 border border-green-600' 
-                          : isSecondary
-                            ? 'bg-yellow-900/30 hover:bg-yellow-900/50 border border-yellow-600'
-                            : 'bg-gray-700 hover:bg-gray-600 border-2 border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold ${POSITION_COLORS[pos] || 'bg-gray-600'}`}>
-                        {pos.substring(0, 2).toUpperCase()}
-                      </span>
-                      <div>
-                        <p className="text-white font-medium">{pos}</p>
-                        <p className="text-gray-400 text-xs">
-                          {isPrimary ? 'Primary position — master skills' : 
-                           isSecondary ? 'Secondary position — improve proficiency' :
-                           'Learn as new secondary position'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isPrimary && <span className="text-green-400 text-xs">PRIMARY</span>}
-                      {isSecondary && <span className="text-yellow-400 text-xs">SECONDARY</span>}
-                      {isCurrentTraining && <span className="text-green-400">✓</span>}
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600 border-dashed">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🚧</span>
+                <div>
+                  <p className="text-gray-400 font-medium">Coming Soon</p>
+                  <p className="text-gray-500 text-xs">
+                    Position training will let players learn new positions and improve proficiency. For now, focus on stat training!
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Clear Training */}
