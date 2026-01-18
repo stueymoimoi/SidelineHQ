@@ -334,7 +334,7 @@ function PlayerSelectionModal({
           </button>
           
           {filteredPlayers.map((p) => {
-            const alreadySelected = selectedPlayerIds.has(p.id) && (tactics as any)?.[selectedPosition] !== p.id;
+            const alreadySelected = false; // Allow swapping - anyone can be selected
             const isInjured = injuredPlayerIds.has(p.id);
             const activeInjury = getActiveInjury(p);
             const showSide = SIDED_POSITIONS.has(p.position);
