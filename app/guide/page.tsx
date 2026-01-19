@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'schedule' | 'filmroom' | 'matchstats' | 'careers' | 'traits' | 'tips';
+type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'schedule' | 'filmroom' | 'matchstats' | 'careers' | 'traits' | 'finances' | 'tips';
 
 function GuideContent() {
   const searchParams = useSearchParams();
@@ -12,7 +12,7 @@ function GuideContent() {
 
   useEffect(() => {
     const section = searchParams.get('section');
-    if (section && ['overview', 'stats', 'tactics', 'training', 'youth', 'freeagents', 'rep', 'schedule', 'filmroom', 'matchstats', 'careers', 'traits', 'tips'].includes(section)) {
+    if (section && ['overview', 'stats', 'tactics', 'training', 'youth', 'freeagents', 'rep', 'schedule', 'filmroom', 'matchstats', 'careers', 'traits', 'finances', 'tips'].includes(section)) {
       setActiveSection(section as Section);
     }
   }, [searchParams]);
@@ -27,6 +27,7 @@ function GuideContent() {
     { id: 'training', title: 'Training', icon: '💪' },
     { id: 'careers', title: 'Player Careers', icon: '📈' },
     { id: 'traits', title: 'Player Traits', icon: '🧬' },
+    { id: 'finances', title: 'Finances', icon: '💰' },
     { id: 'youth', title: 'Youth Academy', icon: '🎓' },
     { id: 'freeagents', title: 'Free Agents', icon: '🏪' },
     { id: 'rep', title: 'Rep Honours', icon: '🏅' },
@@ -824,6 +825,183 @@ function GuideContent() {
                   <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
                     <p className="text-blue-400 m-0">
                       <strong>💡 Coaching Tip:</strong> Keep notes on your players' performances. Over time, patterns will emerge that help you understand what each trait really means for your squad.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* Finances */}
+              {activeSection === 'finances' && (
+                <div className="prose prose-invert max-w-none">
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    💰 Finances
+                  </h2>
+
+                  <p className="text-gray-300">
+                    Managing your club's finances is crucial for long-term success. Balance your wage bill, set ticket prices, and keep an eye on player contracts.
+                  </p>
+
+                  <h3 className="text-xl text-white mt-6">Accessing Finances</h3>
+                  <p className="text-gray-300">
+                    Go to <strong>Clubhouse → Finances</strong> to view your full financial dashboard. You'll also see your balance in the Quick Stats row on the main Clubhouse page.
+                  </p>
+
+                  <h3 className="text-xl text-white mt-6">Understanding Your Balance</h3>
+                  <div className="space-y-3">
+                    <div className="bg-green-500/20 border border-green-500 rounded p-3">
+                      <p className="text-green-400 font-bold m-0">💚 Green Balance (Above $5M)</p>
+                      <p className="text-gray-400 text-sm m-0">Healthy finances. Room to invest in players or upgrades.</p>
+                    </div>
+                    <div className="bg-yellow-500/20 border border-yellow-500 rounded p-3">
+                      <p className="text-yellow-400 font-bold m-0">💛 Yellow Balance ($2M - $5M)</p>
+                      <p className="text-gray-400 text-sm m-0">Caution zone. Watch your spending carefully.</p>
+                    </div>
+                    <div className="bg-red-500/20 border border-red-500 rounded p-3">
+                      <p className="text-red-400 font-bold m-0">❤️ Red Balance (Below $2M)</p>
+                      <p className="text-gray-400 text-sm m-0">Danger! Cut costs or risk bankruptcy.</p>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Weekly Income</h3>
+                  <div className="bg-gray-700 rounded p-4 space-y-2">
+                    <div className="flex justify-between text-gray-300">
+                      <span>🏛️ Division Grant</span>
+                      <span className="text-green-400">$280K - $500K/week</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>🎟️ Ticket Sales</span>
+                      <span className="text-green-400">Home games only</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>👕 Merchandise</span>
+                      <span className="text-green-400">15% of ticket revenue</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>📺 TV Revenue</span>
+                      <span className="text-green-400">Based on ladder position</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>🏆 Win Bonus</span>
+                      <span className="text-green-400">$50K per win</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>🤝 Draw Bonus</span>
+                      <span className="text-green-400">$25K per draw</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Weekly Expenses</h3>
+                  <div className="bg-gray-700 rounded p-4 space-y-2">
+                    <div className="flex justify-between text-gray-300">
+                      <span>💸 Player Wages</span>
+                      <span className="text-red-400">Based on OVR</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>🔧 Facility Upkeep</span>
+                      <span className="text-red-400">$25K/week</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Division Grants</h3>
+                  <p className="text-gray-300">
+                    Higher divisions receive larger weekly grants:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-bold m-0">Div 1-2</p>
+                      <p className="text-green-400 text-sm m-0">$450K - $500K</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-bold m-0">Div 3-4</p>
+                      <p className="text-green-400 text-sm m-0">$380K - $420K</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-bold m-0">Div 5-6</p>
+                      <p className="text-green-400 text-sm m-0">$350K - $360K</p>
+                    </div>
+                    <div className="bg-gray-700 rounded p-2 text-center">
+                      <p className="text-white font-bold m-0">Div 7-10</p>
+                      <p className="text-green-400 text-sm m-0">$280K - $320K</p>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Ticket Pricing</h3>
+                  <p className="text-gray-300">
+                    Set your ticket price between $5 and $100. Finding the sweet spot maximizes revenue:
+                  </p>
+                  <div className="bg-gray-700 rounded p-4 space-y-2 mt-3">
+                    <div className="flex justify-between text-gray-300">
+                      <span>💵 Lower prices ($5-$19)</span>
+                      <span className="text-cyan-400">Higher attendance, lower per-ticket revenue</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>💵 Default price ($20)</span>
+                      <span className="text-yellow-400">Balanced approach</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>💵 Higher prices ($21-$100)</span>
+                      <span className="text-orange-400">Lower attendance, higher per-ticket revenue</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
+                    <p className="text-blue-400 m-0">
+                      <strong>💡 Sweet Spot:</strong> Prices around $50-$60 often maximize total revenue — but experiment with your stadium size!
+                    </p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Player Wages</h3>
+                  <p className="text-gray-300">
+                    Players are paid based on their OVR (Overall Rating):
+                  </p>
+                  <div className="bg-gray-700 rounded p-4 mt-3">
+                    <p className="text-white font-mono m-0">Weekly Wage = OVR × $500</p>
+                    <p className="text-gray-400 text-sm m-0 mt-2">Example: A 40 OVR player earns ~$20,000/week</p>
+                  </div>
+
+                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
+                    <p className="text-yellow-400 m-0">
+                      <strong>⚠️ Hidden Gems:</strong> Some players have training affinities that slightly increase their wages — but they may develop faster too!
+                    </p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Player Contracts</h3>
+                  <p className="text-gray-300">
+                    Every player has a contract with a set number of weeks remaining. When it expires:
+                  </p>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>⚠️ <strong>6 weeks warning</strong> — Contract appearing in "Expiring Contracts"</li>
+                    <li>⏰ <strong>0 weeks</strong> — Player becomes a free agent</li>
+                  </ul>
+
+                  <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 my-4">
+                    <p className="text-red-400 m-0">
+                      <strong>🚨 Don't Lose Stars!</strong> Keep an eye on the Expiring Contracts section. Letting key players leave for free hurts your squad!
+                    </p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Staying Profitable</h3>
+                  <p className="text-gray-300">
+                    To keep your club financially healthy:
+                  </p>
+                  <div className="bg-gray-700 rounded p-4 space-y-2 mt-3">
+                    <p className="text-gray-300 m-0">✅ Keep wages below your division grant</p>
+                    <p className="text-gray-300 m-0">✅ Win matches for bonuses</p>
+                    <p className="text-gray-300 m-0">✅ Optimize ticket prices for your stadium</p>
+                    <p className="text-gray-300 m-0">✅ Release high-wage underperformers</p>
+                    <p className="text-gray-300 m-0">✅ Promote cheap youth players</p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Bankruptcy</h3>
+                  <p className="text-gray-300">
+                    If your balance goes negative for too long, you risk losing your job:
+                  </p>
+                  <div className="bg-red-500/20 border border-red-500 rounded p-4 mt-3">
+                    <p className="text-red-400 m-0">⚠️ <strong>8 weeks in debt</strong> OR <strong>below -$3M</strong> = Fired!</p>
+                  </div>
+
+                  <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 my-4">
+                    <p className="text-green-400 m-0">
+                      <strong>💡 Recovery Tips:</strong> If you're in trouble, release expensive players, lower ticket prices to fill seats, and focus on winning for bonuses.
                     </p>
                   </div>
                 </div>
