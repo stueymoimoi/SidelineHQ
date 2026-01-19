@@ -885,6 +885,149 @@ allMatchResults.push({
         if (isSunday) {
           await supabase.from('teams').update({ weekly_transfers_used: 0 }).gte('weekly_transfers_used', 0);
           logs.push(`🔄 Weekly transfer counts reset`);
+          
+          // ===========================================
+          // SUNDAY: INTERNATIONAL FREE AGENT INJECTION
+          // ===========================================
+          try {
+            const numNewPlayers = Math.random() < 0.5 ? 1 : 2; // 1-2 players
+            const internationalNotifications: Notification[] = [];
+            
+            for (let i = 0; i < numNewPlayers; i++) {
+              // Generate international player
+              const NATIONALITIES = ['ENG', 'NZL', 'FIJ', 'TON', 'SAM', 'PNG'];
+              const POSITIONS = ['Prop', 'Hooker', 'Second Row', 'Lock', 'Halfback', 'Five-Eighth', 'Centre', 'Winger', 'Fullback'];
+              const NAMES: Record<string, { first: string[], last: string[] }> = {
+                ENG: { first: ['Jack', 'Tom', 'Harry', 'George', 'Charlie', 'Sam', 'Joe', 'Ben'], last: ['Smith', 'Jones', 'Williams', 'Taylor', 'Brown', 'Davies', 'Wilson', 'Evans'] },
+                NZL: { first: ['Tane', 'Nikau', 'Manu', 'Josh', 'Shaun', 'Joseph', 'Dylan', 'Brandon'], last: ['Manu', 'Williams', 'Harris', 'Hughes', 'Smith', 'Johnson', 'Hurrell', 'Hiku'] },
+                TON: { first: ['Jason', 'Tevita', 'Sione', 'Manu', 'Daniel', 'David', 'Junior', 'Ata'], last: ['Taumalolo', 'Fifita', 'Kaufusi', 'Pangai', 'Fonua', 'Tupou', 'Haas', 'Vea'] },
+                SAM: { first: ['Jarome', 'Brian', 'Junior', 'Anthony', 'Josh', 'Spencer', 'Joseph', 'Manu'], last: ['Luai', "To'o", 'Papalii', 'Aloiai', 'Leilua', 'Tago', 'Paulo', 'Leota'] },
+                FIJ: { first: ['Maika', 'Suliasi', 'Viliame', 'Semi', 'Kevin', 'Mikaele', 'Henry', 'Pio'], last: ['Sivo', 'Vunivalu', 'Naiqama', 'Koroibete', 'Radradra', 'Koroisau', 'Tuisova', 'Yato'] },
+                PNG: { first: ['David', 'James', 'Michael', 'John', 'Justin', 'Alex', 'Marcus', 'Xavier'], last: ['Lam', 'Segeyaro', 'Mead', 'Boas', 'Ottio', 'Kila', 'Olam', 'Albert'] }
+              };
+              
+              const nationality = NATIONALITIES[Math.floor(Math.random() * NATIONALITIES.length)];
+              const position = POSITIONS[Math.floor(Math.random() * POSITIONS.length)];
+              const firstName = NAMES[nationality].first[Math.floor(Math.random() * NAMES[nationality].first.length)];
+              const lastName = NAMES[nationality].last[Math.floor(Math.random() * NAMES[nationality].last.length)];
+              const age = 19 + Math.floor(Math.random() * 5); // 19-23
+              
+              // Generate stats (OVR 18-28)
+              const baseStats = () => 1 + Math.floor(Math.random() * 4); // 1-4
+              const stats = {
+                speed: baseStats(),
+                strength: baseStats(),
+                power: baseStats(),
+                passing: baseStats(),
+                stamina: baseStats(),
+                tackling: baseStats(),
+                kicking: baseStats(),
+              };
+              const overall = Object.values(stats).reduce((a, b) => a + b, 0);
+              
+              // 5% hidden gem chance
+              const isHiddenGem = Math.random() < 0.05;
+              const trainingAffinity: Record<string, string> = {};
+              ['speed', 'strength', 'power', 'passing', 'stamina', 'tackling', 'kicking'].forEach(stat => {
+                if (isHiddenGem) {
+                  const roll = Math.random();
+                  trainingAffinity[stat] = roll < 0.4 ? 'high' : roll < 0.8 ? 'medium' : 'low';
+                } else {
+                  const roll = Math.random();
+                  trainingAffinity[stat] = roll < 0.05 ? 'high' : roll < 0.2 ? 'medium' : roll < 0.5 ? 'low' : 'none';
+                }
+              });
+              
+              // Calculate match power
+              const POSITION_STATS: Record<string, { primary: string[], secondary: string[] }> = {
+                'Prop': { primary: ['strength', 'tackling'], secondary: ['stamina', 'passing'] },
+                'Hooker': { primary: ['passing', 'stamina'], secondary: ['tackling', 'speed'] },
+                'Second Row': { primary: ['strength', 'tackling'], secondary: ['stamina', 'passing'] },
+                'Lock': { primary: ['tackling', 'stamina'], secondary: ['strength', 'passing'] },
+                'Halfback': { primary: ['passing', 'kicking'], secondary: ['speed', 'stamina'] },
+                'Five-Eighth': { primary: ['passing', 'kicking'], secondary: ['speed', 'tackling'] },
+                'Centre': { primary: ['tackling', 'passing'], secondary: ['speed', 'strength'] },
+                'Winger': { primary: ['speed', 'passing'], secondary: ['stamina', 'tackling'] },
+                'Fullback': { primary: ['speed', 'passing'], secondary: ['kicking', 'tackling'] }
+              };
+              const posStats = POSITION_STATS[position];
+              let matchPower = 0;
+              Object.entries(stats).forEach(([stat, value]) => {
+                if (posStats.primary.includes(stat)) matchPower += value * 4;
+                else if (posStats.secondary.includes(stat)) matchPower += value * 2;
+                else matchPower += value;
+              });
+              
+              // Dominant side for sided positions
+              let dominantSide = null;
+              if (['Winger', 'Centre', 'Second Row'].includes(position)) {
+                const sideRoll = Math.random();
+                dominantSide = sideRoll < 0.4 ? 'left' : sideRoll < 0.8 ? 'right' : 'both';
+              }
+              
+              // Insert player (no team)
+              const { data: newPlayer, error: playerError } = await supabase
+                .from('players')
+                .insert({
+                  team_id: null,
+                  first_name: firstName,
+                  last_name: lastName,
+                  position,
+                  age,
+                  nationality,
+                  state: null,
+                  ...stats,
+                  overall,
+                  match_power: matchPower,
+                  goal_kicking: 10 + Math.floor(Math.random() * 40),
+                  goal_kick_attempts: 0,
+                  goal_kick_successes: 0,
+                  fatigue: 0,
+                  training_progress: 'NONE',
+                  training_affinity: trainingAffinity,
+                  dominant_side: dominantSide,
+                  retiring_end_of_season: false,
+                })
+                .select('id, first_name, last_name, position, overall, nationality')
+                .single();
+              
+              if (playerError || !newPlayer) {
+                logs.push(`🌏 Error creating international: ${playerError?.message}`);
+                continue;
+              }
+              
+              // Add to free agents pool
+              await supabase.from('free_agents').insert({
+                player_id: newPlayer.id,
+                released_by_team_id: null,
+                available_round: currentRound,
+                claimed: false
+              });
+              
+              // Notify all teams
+              const countryNames: Record<string, string> = {
+                ENG: 'England', NZL: 'New Zealand', FIJ: 'Fiji', TON: 'Tonga', SAM: 'Samoa', PNG: 'Papua New Guinea'
+              };
+              
+              for (const team of teams) {
+                internationalNotifications.push({
+                  team_id: team.id,
+                  type: 'international_arrival' as any,
+                  title: '🌏 International Arrival',
+                  message: `${newPlayer.first_name} ${newPlayer.last_name} (${newPlayer.position}, ${newPlayer.overall} OVR) from ${countryNames[newPlayer.nationality]} has entered the free agent pool!`,
+                  player_id: newPlayer.id
+                });
+              }
+              
+              logs.push(`🌏 International: ${newPlayer.first_name} ${newPlayer.last_name} (${nationality}, ${position}, ${overall} OVR)${isHiddenGem ? ' ⭐ HIDDEN GEM!' : ''}`);
+            }
+            
+            if (internationalNotifications.length > 0) {
+              await supabase.from('notifications').insert(internationalNotifications);
+            }
+          } catch (intlError) {
+            logs.push(`🌏 International injection error (non-fatal): ${intlError}`);
+          }
         }
         
         logs.push(`💰 Processing finances (Sunday: ${isSunday})...`);
@@ -962,6 +1105,13 @@ allMatchResults.push({
             score += (claimingTeam.wins * 2) + claimingTeam.draws;
             score += (25 - squadSize) * 2;
             score += Math.random() * 10;
+            
+            // AI teams get priority boost when squad is low
+            const isAITeam = !coachedTeams.has(claim.team_id);
+            if (isAITeam) {
+              if (squadSize <= 20) score += 100; // Desperate AI
+              else if (squadSize <= 22) score += 50; // Low squad AI
+            }
             
             teamScores.push({ teamId: claim.team_id, score, releasePlayerId: claim.release_player_id });
           }
