@@ -79,6 +79,7 @@ export default function ClubhousePage() {
   const [ladderPosition, setLadderPosition] = useState(1);
   const [nextMatch, setNextMatch] = useState<{ opponent: Team; isHome: boolean; round: number } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [balance, setBalance] = useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const router = useRouter();
 
@@ -181,7 +182,16 @@ export default function ClubhousePage() {
           .eq('read', false);
         
         setUnreadCount(count || 0);
-      }
+      // Get team balance
+        const { data: financeData } = await supabase
+          .from('team_finances')
+          .select('balance')
+          .eq('team_id', coachData.team_id)
+          .single();
+                
+        if (financeData) {
+          setBalance(financeData.balance);
+        }}
 
     } catch (err) {
       console.error('Error:', err);
@@ -277,7 +287,7 @@ export default function ClubhousePage() {
         )}
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-5 gap-4 mb-6">
           <div className="bg-gray-800 rounded-lg p-4">
             <p className="text-gray-400 text-xs">Ladder</p>
             <p className="text-white text-2xl font-bold">{getOrdinal(ladderPosition)}</p>
@@ -293,6 +303,16 @@ export default function ClubhousePage() {
           <div className="bg-gray-800 rounded-lg p-4">
             <p className="text-gray-400 text-xs">Level</p>
             <p className="text-green-400 text-2xl font-bold">{coach?.level || 1}</p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs">Balance</p>
+            <p className={`text-2xl font-bold ${
+              balance === null ? 'text-gray-500' :
+              balance > 5000000 ? 'text-green-400' :
+              balance > 2000000 ? 'text-yellow-400' : 'text-red-400'
+            }`}>
+              {balance === null ? '—' : `$${(balance / 100).toLocaleString('en-AU', { maximumFractionDigits: 0 })}`}
+            </p>
           </div>
         </div>
 
@@ -324,7 +344,11 @@ export default function ClubhousePage() {
             <p className="text-white font-bold">Medical</p>
             <p className="text-gray-500 text-sm">Injury report</p>
           </Link>
-        </div>
+        <Link href="/clubhouse/finances" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
+            <div className="text-4xl mb-2">💰</div>
+            <p className="text-white font-bold">Finances</p>
+            <p className="text-gray-500 text-sm">Budget & wages</p>
+          </Link></div>
 
         {/* Secondary Navigation */}
         <h2 className="text-white font-bold mb-3">League</h2>
