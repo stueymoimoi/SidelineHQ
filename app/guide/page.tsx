@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'rep' | 'schedule' | 'filmroom' | 'matchstats' | 'careers' | 'traits' | 'finances' | 'tips';
+type Section = 'overview' | 'stats' | 'tactics' | 'training' | 'youth' | 'freeagents' | 'transfers' | 'rep' | 'schedule' | 'filmroom' | 'matchstats' | 'careers' | 'traits' | 'finances' | 'tips';
 
 function GuideContent() {
   const searchParams = useSearchParams();
@@ -12,7 +12,7 @@ function GuideContent() {
 
   useEffect(() => {
     const section = searchParams.get('section');
-    if (section && ['overview', 'stats', 'tactics', 'training', 'youth', 'freeagents', 'rep', 'schedule', 'filmroom', 'matchstats', 'careers', 'traits', 'finances', 'tips'].includes(section)) {
+    if (section && ['overview', 'stats', 'tactics', 'training', 'youth', 'freeagents', 'transfers', 'rep', 'schedule', 'filmroom', 'matchstats', 'careers', 'traits', 'finances', 'tips'].includes(section)) {
       setActiveSection(section as Section);
     }
   }, [searchParams]);
@@ -30,6 +30,7 @@ function GuideContent() {
     { id: 'finances', title: 'Finances', icon: '💰' },
     { id: 'youth', title: 'Youth Academy', icon: '🎓' },
     { id: 'freeagents', title: 'Free Agents', icon: '🏪' },
+    { id: 'transfers', title: 'Transfer Market', icon: '🔄' },
     { id: 'rep', title: 'Rep Honours', icon: '🏅' },
     { id: 'tips', title: 'Pro Tips', icon: '💡' },
   ];
@@ -1121,6 +1122,114 @@ function GuideContent() {
                   <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
                     <p className="text-blue-400 m-0">
                       <strong>💡 Tip:</strong> Lower division teams can still attract young prospects who want game time! A Division 8 team with a small squad might beat a Division 2 team for a 20-year-old talent.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* Transfer Market */}
+              {activeSection === 'transfers' && (
+                <div className="prose prose-invert max-w-none">
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    🔄 Transfer Market
+                  </h2>
+
+                  <p className="text-gray-300">
+                    The Transfer Market lets you buy and sell players with other human-managed teams. Build your squad by finding bargains or cash in on players you don't need.
+                  </p>
+
+                  <h3 className="text-xl text-white mt-6">Accessing the Transfer Market</h3>
+                  <p className="text-gray-300">
+                    Go to <strong>Clubhouse → Transfers</strong> to browse listings, or <strong>Squad → Click Player → "List for Sale"</strong> to sell.
+                  </p>
+
+                  <h3 className="text-xl text-white mt-6">Weekly Limits</h3>
+                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
+                    <p className="text-yellow-400 m-0">
+                      <strong>⚠️ 3 Transfers Per Week:</strong> You can complete a maximum of 3 transfers (buys + sells combined) per week. Limits reset every Sunday at 6pm AEST.
+                    </p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Listing a Player</h3>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>Go to <strong>Squad</strong> → Click a player → <strong>"🏷️ List for Sale"</strong></li>
+                    <li>Choose <strong>"Taking Offers"</strong> to receive bids from other coaches</li>
+                    <li>Or set a <strong>"Buy Now"</strong> price for instant sales</li>
+                    <li>You cannot list if your squad would drop below <strong>17 players</strong></li>
+                  </ul>
+
+                  <h3 className="text-xl text-white mt-6">Buying a Player</h3>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>Browse the <strong>Transfer Market</strong> page</li>
+                    <li>Filter by position or maximum price</li>
+                    <li>Click <strong>"Buy"</strong> for instant purchase (Buy Now listings)</li>
+                    <li>Click <strong>"Make Offer"</strong> to bid on "Taking Offers" listings</li>
+                    <li>You cannot buy if your squad is at <strong>30 players</strong></li>
+                    <li>You must have enough <strong>balance</strong> to complete the purchase</li>
+                  </ul>
+
+                  <h3 className="text-xl text-white mt-6">Managing Your Listings</h3>
+                  <p className="text-gray-300">
+                    Go to <strong>Transfers → My Listings & Offers</strong> to:
+                  </p>
+                  <ul className="text-gray-300 space-y-2">
+                    <li>View your active listings</li>
+                    <li>See incoming offers on your players</li>
+                    <li>Accept or reject offers</li>
+                    <li>Withdraw listings you've changed your mind about</li>
+                    <li>Withdraw offers you've made on other players</li>
+                  </ul>
+
+                  <h3 className="text-xl text-white mt-6">How Transfers Complete</h3>
+                  <div className="bg-gray-700 rounded p-4 space-y-2">
+                    <div className="flex justify-between text-gray-300">
+                      <span>💰 Money transfers instantly</span>
+                      <span className="text-green-400">Seller receives payment</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>👤 Player moves immediately</span>
+                      <span className="text-green-400">Joins buyer's squad</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>📊 Both teams +1 transfer used</span>
+                      <span className="text-yellow-400">Counts toward weekly limit</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>📰 Logged to News Feed</span>
+                      <span className="text-blue-400">Everyone sees the move</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Pricing Strategy</h3>
+                  <p className="text-gray-300">
+                    There are no suggested prices — the market finds its own value! Consider:
+                  </p>
+                  <div className="bg-gray-700 rounded p-4 space-y-2 mt-3">
+                    <p className="text-gray-300 m-0">📈 <strong>Higher value:</strong> High OVR, young age, good traits, key positions</p>
+                    <p className="text-gray-300 m-0">📉 <strong>Lower value:</strong> Older players, low OVR, expiring contracts, surplus positions</p>
+                    <p className="text-gray-300 m-0">💡 <strong>Tip:</strong> Check what others are listing similar players for!</p>
+                  </div>
+
+                  <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 my-4">
+                    <p className="text-blue-400 m-0">
+                      <strong>💡 Negotiation Tip:</strong> "Taking Offers" lets you see what the market will pay. If you're not in a rush, let offers come in before deciding!
+                    </p>
+                  </div>
+
+                  <h3 className="text-xl text-white mt-6">Squad Size Rules</h3>
+                  <div className="bg-gray-700 rounded p-4 space-y-2">
+                    <div className="flex justify-between text-gray-300">
+                      <span>Minimum squad size</span>
+                      <span className="text-white font-bold">17 players</span>
+                    </div>
+                    <div className="flex justify-between text-gray-300">
+                      <span>Maximum squad size</span>
+                      <span className="text-white font-bold">30 players</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 my-4">
+                    <p className="text-green-400 m-0">
+                      <strong>🔄 vs 🏪 What's the difference?</strong> The Transfer Market is for trading with other human coaches. Free Agents are unclaimed players released by any team (human or AI). Use both to build your squad!
                     </p>
                   </div>
                 </div>
