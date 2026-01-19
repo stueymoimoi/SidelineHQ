@@ -188,7 +188,9 @@ export default function FinancesPage() {
   const totalWages = contracts.reduce((sum, c) => sum + c.weekly_wage, 0);
   const weeklyGrant = team ? DIVISION_GRANTS[team.division] || 0 : 0;
   const weeklyNet = weeklyGrant - totalWages - 2500000; // Grant - Wages - Upkeep
-  const expiringContracts = contracts.filter(c => c.weeks_remaining <= 6);
+  const expiringContracts = contracts
+    .filter(c => c.weeks_remaining <= 6)
+    .sort((a, b) => a.weeks_remaining - b.weeks_remaining);
 
   // Attendance estimate
   const estimateAttendance = (price: number) => {
