@@ -38,8 +38,8 @@ export function calculatePlayerWage(player: PlayerForWage): WageCalculation {
 
   if (player.training_affinity) {
     const affinities = Object.values(player.training_affinity);
-    const highCount = affinities.filter(a => a === 'HIGH').length;
-    const mediumCount = affinities.filter(a => a === 'MEDIUM').length;
+    const highCount = affinities.filter(a => a.toUpperCase() === 'HIGH').length;
+    const mediumCount = affinities.filter(a => a.toUpperCase() === 'MEDIUM').length;
 
     hidden_gem_modifier += highCount * HIDDEN_GEM_MODIFIERS.HIGH_AFFINITY;
     hidden_gem_modifier += mediumCount * HIDDEN_GEM_MODIFIERS.MEDIUM_AFFINITY;
@@ -50,7 +50,7 @@ export function calculatePlayerWage(player: PlayerForWage): WageCalculation {
 
   // Final wage (rounded to nearest $1,000 = 100000 cents)
   const raw_wage = base_wage * hidden_gem_modifier * random_noise;
-  const final_wage = Math.round(raw_wage / 100000) * 100000;
+  const final_wage = Math.round(raw_wage / 5000) * 5000;  // Round to nearest $50
 
   return {
     base_wage,

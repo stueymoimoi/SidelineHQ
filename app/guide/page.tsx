@@ -951,16 +951,12 @@ function GuideContent() {
 
                   <h3 className="text-xl text-white mt-6">Player Wages</h3>
                   <p className="text-gray-300">
-                    Players are paid based on their OVR (Overall Rating):
+                    Wages are primarily based on OVR — higher-rated players cost more. But you might notice some players with similar OVR have different wages...
                   </p>
-                  <div className="bg-gray-700 rounded p-4 mt-3">
-                    <p className="text-white font-mono m-0">Weekly Wage = OVR × $500</p>
-                    <p className="text-gray-400 text-sm m-0 mt-2">Example: A 40 OVR player earns ~$20,000/week</p>
-                  </div>
 
-                  <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 my-4">
-                    <p className="text-yellow-400 m-0">
-                      <strong>⚠️ Hidden Gems:</strong> Some players have training affinities that slightly increase their wages — but they may develop faster too!
+                  <div className="bg-purple-500/20 border border-purple-500 rounded-lg p-4 my-4">
+                    <p className="text-purple-400 m-0">
+                      <strong>🔍 Something to Discover:</strong> Why do some players cost more than others with the same OVR? Pay attention to how they develop in training — there might be a connection worth investigating.
                     </p>
                   </div>
 
