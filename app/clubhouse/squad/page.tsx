@@ -357,6 +357,12 @@ export default function SquadPage() {
   const [loading, setLoading] = useState(true);
   const [showReleaseConfirm, setShowReleaseConfirm] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  // Transfer listing state
+  const [showListForSale, setShowListForSale] = useState(false);
+  const [listingPrice, setListingPrice] = useState<string>('');
+  const [listingType, setListingType] = useState<'buyNow' | 'offers'>('offers');
+  const [listing, setListing] = useState(false);
+  const [isAlreadyListed, setIsAlreadyListed] = useState(false);
   const router = useRouter();
 
   const loadData = useCallback(async () => {
@@ -412,6 +418,27 @@ export default function SquadPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Check if selected player is already listed
+  useEffect(() => {
+    const checkIfListed = async () => {
+      if (!selectedPlayer) {
+        setIsAlreadyListed(false);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('transfer_listings')
+        .select('id')
+        .eq('player_id', selectedPlayer.id)
+        .eq('status', 'active')
+        .single();
+      
+      setIsAlreadyListed(!!data);
+    };
+    
+    checkIfListed();
+  }, [selectedPlayer]);
 
   const handleReleasePlayer = useCallback(async () => {
     if (!selectedPlayer || !teamId || players.length <= MIN_SQUAD_SIZE) return;
@@ -540,7 +567,50 @@ export default function SquadPage() {
   const closeModal = useCallback(() => {
     setSelectedPlayer(null);
     setShowReleaseConfirm(false);
+    setShowListForSale(false);
+    setListingPrice('');
+    setListingType('offers');
   }, []);
+
+  const handleListForSale = useCallback(async () => {
+    if (!selectedPlayer || !teamId) return;
+    
+    setListing(true);
+    
+    try {
+      const askingPrice = listingType === 'buyNow' && listingPrice 
+        ? parseInt(listingPrice) * 100 
+        : null;
+
+      const { error } = await supabase.from('transfer_listings').insert({
+        player_id: selectedPlayer.id,
+        team_id: teamId,
+        asking_price: askingPrice,
+        status: 'active',
+      });
+
+      if (error) {
+        console.error('List error:', error);
+        return;
+      }
+
+      // Notify the coach
+      await supabase.from('notifications').insert({
+        team_id: teamId,
+        type: 'player_listed',
+        title: '🏷️ Player Listed',
+        message: `${selectedPlayer.first_name} ${selectedPlayer.last_name} has been listed for transfer${askingPrice ? ` at $${(askingPrice / 100).toLocaleString()}` : ' (taking offers)'}.`,
+        player_id: selectedPlayer.id,
+      });
+
+      closeModal();
+      
+    } catch (err) {
+      console.error('Error listing player:', err);
+    } finally {
+      setListing(false);
+    }
+  }, [selectedPlayer, teamId, listingType, listingPrice, closeModal]);
 
   const renderStatRow = useCallback((label: string, value: number) => {
     const tierLabel = getTierLabel(value);
@@ -795,8 +865,88 @@ export default function SquadPage() {
               </div>
             )}
 
+            {/* List for Sale Button */}
+            {!showListForSale && !showReleaseConfirm && (
+              <button
+                onClick={() => setShowListForSale(true)}
+                disabled={isAlreadyListed}
+                className={`w-full mb-2 font-bold py-3 rounded-lg transition ${
+                  isAlreadyListed
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-600'
+                }`}
+              >
+                {isAlreadyListed ? '🏷️ Already Listed for Sale' : '🏷️ List for Sale'}
+              </button>
+            )}
+
+            {showListForSale && (
+              <div className="bg-blue-900/30 border border-blue-600 rounded-lg p-4 mb-2">
+                <p className="text-blue-400 font-bold mb-3">🏷️ List for Transfer</p>
+                
+                <div className="mb-3">
+                  <label className="text-gray-400 text-sm block mb-2">Listing Type</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setListingType('offers')}
+                      className={`flex-1 py-2 rounded font-bold transition ${
+                        listingType === 'offers' 
+                          ? 'bg-yellow-600 text-white' 
+                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                      }`}
+                    >
+                      Taking Offers
+                    </button>
+                    <button
+                      onClick={() => setListingType('buyNow')}
+                      className={`flex-1 py-2 rounded font-bold transition ${
+                        listingType === 'buyNow' 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                      }`}
+                    >
+                      Buy Now Price
+                    </button>
+                  </div>
+                </div>
+
+                {listingType === 'buyNow' && (
+                  <div className="mb-3">
+                    <label className="text-gray-400 text-sm block mb-1">Price ($)</label>
+                    <input
+                      type="number"
+                      value={listingPrice}
+                      onChange={(e) => setListingPrice(e.target.value)}
+                      placeholder="Enter price"
+                      className="w-full bg-gray-700 text-white px-3 py-2 rounded"
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowListForSale(false);
+                      setListingPrice('');
+                      setListingType('offers');
+                    }}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleListForSale}
+                    disabled={listing || (listingType === 'buyNow' && !listingPrice)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-bold py-2 rounded-lg transition"
+                  >
+                    {listing ? 'Listing...' : 'List Player'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Release Player Button */}
-            {!showReleaseConfirm ? (
+            {!showReleaseConfirm && !showListForSale ? (
               <button
                 onClick={() => setShowReleaseConfirm(true)}
                 disabled={players.length <= MIN_SQUAD_SIZE}
@@ -808,7 +958,7 @@ export default function SquadPage() {
               >
                 {players.length <= MIN_SQUAD_SIZE ? `🔒 Cannot Release (Min ${MIN_SQUAD_SIZE} Players)` : '🚪 Release Player'}
               </button>
-            ) : (
+            ) : showReleaseConfirm ? (
               <div className="bg-red-900/30 border border-red-600 rounded-lg p-4 mb-2">
                 <p className="text-red-400 font-bold mb-2">⚠️ Are you sure?</p>
                 <p className="text-gray-300 text-sm mb-4">
@@ -831,7 +981,7 @@ export default function SquadPage() {
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Close Button */}
             <button
