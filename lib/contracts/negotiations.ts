@@ -62,11 +62,11 @@ export function calculatePlayerDemands(
     wage = wage * (1 - (yearsOver * 0.05));
   }
   
-  // Morale modifier
-  if (player.morale >= 80) {
-    wage = wage * 1.05; // Happy players ask for a bit more
-  } else if (player.morale < 50) {
-    wage = wage * 0.85; // Unhappy players more desperate
+  // Morale modifier (1-5 scale: 1=Angry, 3=Content, 5=Ecstatic)
+  if (player.morale >= 4) {
+    wage = wage * 1.05; // Happy/Ecstatic players ask for a bit more
+  } else if (player.morale <= 2) {
+    wage = wage * 0.85; // Unhappy/Angry players more desperate
   }
   
   // Round to nearest $50 (5000 cents)

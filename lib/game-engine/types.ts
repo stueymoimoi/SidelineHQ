@@ -54,6 +54,7 @@ export interface Player {
   current_training: string | null;
   training_progress: string | null;
   fatigue: number;
+  morale: number;
   
   // Training system v2.0
   training_affinity?: Record<string, 'high' | 'medium'>;

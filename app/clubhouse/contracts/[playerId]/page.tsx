@@ -215,7 +215,11 @@ export default function NegotiationPage() {
           .eq('player_id', player.id);
 
         if (contractError) throw contractError;
-
+// Set morale to Ecstatic
+        await supabase
+          .from('players')
+          .update({ morale: 5 })
+          .eq('id', player.id);
         // Get current round for event
         const { data: roundData } = await supabase
           .from('fixtures')
@@ -396,7 +400,11 @@ export default function NegotiationPage() {
                         ovr_at_signing: player!.overall,
                       })
                       .eq('player_id', player!.id);
-                    
+                    // Set morale to Ecstatic
+                    await supabase
+                      .from('players')
+                      .update({ morale: 5 })
+                      .eq('id', player!.id);
                     // Get current round for event
                     const { data: roundData } = await supabase
                       .from('fixtures')

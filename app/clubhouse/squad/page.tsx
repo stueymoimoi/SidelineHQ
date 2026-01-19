@@ -39,6 +39,7 @@ interface Player {
   ovr_change: number | null;
   ovr_changed_at: string | null;
   visible_trait: string | null;
+  morale: number;
 }
 
 interface Team {
@@ -118,6 +119,14 @@ const TEAM_ABBRS: Record<string, string> = {
   'Coopers': 'ADL',
   'Cassowaries': 'TWN',
   'Ironmen': 'WOL',
+};
+
+const MORALE_DISPLAY: Record<number, { label: string; emoji: string; color: string }> = {
+  1: { label: 'Angry', emoji: '🔴', color: 'text-red-500' },
+  2: { label: 'Unhappy', emoji: '🟠', color: 'text-orange-400' },
+  3: { label: 'Content', emoji: '⚪', color: 'text-gray-400' },
+  4: { label: 'Happy', emoji: '💙', color: 'text-blue-400' },
+  5: { label: 'Ecstatic', emoji: '💚', color: 'text-green-400' },
 };
 
 // ============================================
@@ -399,7 +408,7 @@ export default function SquadPage() {
             id, first_name, last_name, position, age, overall,
             speed, strength, power, passing, stamina, tackling, kicking,
             fatigue, potential, nationality, state, current_training, training_progress,
-            dominant_side, ovr_change, ovr_changed_at, visible_trait
+            dominant_side, ovr_change, ovr_changed_at, visible_trait, morale
           `)
           .eq('team_id', coach.team_id)
           .order('overall', { ascending: false }),
@@ -730,6 +739,9 @@ export default function SquadPage() {
                       {traitDisplay && (
                         <p>Trait: {traitDisplay}</p>
                       )}
+                      <p className={MORALE_DISPLAY[player.morale]?.color || 'text-gray-400'}>
+                        {MORALE_DISPLAY[player.morale]?.emoji} {MORALE_DISPLAY[player.morale]?.label || 'Content'}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -817,7 +829,13 @@ export default function SquadPage() {
                 </p>
               </div>
             </div>
-
+{/* Morale */}
+            <div className="bg-gray-700 rounded p-3 mb-4">
+              <p className="text-gray-400 text-xs">Morale</p>
+              <p className={`text-lg font-semibold ${MORALE_DISPLAY[selectedPlayer.morale]?.color || 'text-gray-400'}`}>
+                {MORALE_DISPLAY[selectedPlayer.morale]?.emoji} {MORALE_DISPLAY[selectedPlayer.morale]?.label || 'Content'}
+              </p>
+            </div>
             {/* Trait */}
             {selectedPlayer.visible_trait && (
               <button 
