@@ -4,7 +4,6 @@ import {
   CONTRACT_LENGTHS,
   NEGOTIATION,
   OFFER_THRESHOLDS,
-  WAGE_MODIFIERS,
   LENGTH_BY_AGE,
 } from './constants';
 
@@ -30,45 +29,64 @@ export interface OfferResult {
 
 /**
  * Calculate what a player demands for a new contract
+ * 
+ * Logic:
+ * - Base = current_wage × 1.10 (natural 10% increase for loyalty/experience)
+ * - +5% per OVR point gained since last contract
+ * - +5% if age ≤24 (potential premium)
+ * - -5% per year over 29 (age penalty)
+ * - Morale: +5% if high, -15% if low
+ * - Round to nearest $50 (5000 cents)
  */
-export function calculatePlayerDemands(player: PlayerForNegotiation): PlayerDemands {
-  // Base wage = current wage
-  let wageMultiplier: number = WAGE_MODIFIERS.NORMAL_MORALE;
+export function calculatePlayerDemands(
+  player: PlayerForNegotiation,
+  ovrAtSigning?: number
+): PlayerDemands {
+  // Base wage = current wage × 1.10 (natural 10% increase for loyalty/experience)
+  let wage = player.current_wage * 1.10;
+  
+  // OVR improvement bonus: +5% per OVR point gained
+  if (ovrAtSigning !== undefined && player.overall > ovrAtSigning) {
+    const ovrGained = player.overall - ovrAtSigning;
+    wage = wage * (1 + (ovrGained * 0.05));
+  }
+  
+  // Young player premium: +5% if age ≤24 (still developing)
+  if (player.age <= 24) {
+    wage = wage * 1.05;
+  }
+  
+  // Age penalty: -5% per year over 29
+  if (player.age > 29) {
+    const yearsOver = player.age - 29;
+    wage = wage * (1 - (yearsOver * 0.05));
+  }
   
   // Morale modifier
   if (player.morale >= 80) {
-    wageMultiplier = WAGE_MODIFIERS.HIGH_MORALE as number;
+    wage = wage * 1.05; // Happy players ask for a bit more
   } else if (player.morale < 50) {
-    wageMultiplier = WAGE_MODIFIERS.LOW_MORALE as number;
+    wage = wage * 0.85; // Unhappy players more desperate
   }
   
-  // Age penalty (reduce demands for older players)
-  if (player.age > WAGE_MODIFIERS.AGE_PENALTY_START) {
-    const yearsOver = player.age - WAGE_MODIFIERS.AGE_PENALTY_START;
-    const agePenalty = yearsOver * WAGE_MODIFIERS.AGE_PENALTY_PER_YEAR;
-    wageMultiplier = wageMultiplier * (1 - agePenalty);
-  }
-  
-  // Calculate demanded wage (round to nearest $10k)
-  const demandedWage = Math.round((player.current_wage * wageMultiplier) / 5000) * 5000;
+  // Round to nearest $50 (5000 cents)
+  const demandedWage = Math.round(wage / 5000) * 5000;
   
   // Calculate demanded length based on age
   let demandedLength: number;
   if (player.age <= LENGTH_BY_AGE.YOUNG_MAX_AGE) {
-    // Young players want longer contracts
     demandedLength = CONTRACT_LENGTHS.TWO_SEASONS;
   } else if (player.age <= LENGTH_BY_AGE.VETERAN_MAX_AGE) {
-    // Veterans are flexible - base on OVR
     demandedLength = player.overall >= 35 
       ? CONTRACT_LENGTHS.TWO_SEASONS 
       : CONTRACT_LENGTHS.ONE_SEASON;
   } else {
-    // Old players just want security
     demandedLength = CONTRACT_LENGTHS.ONE_SEASON;
   }
   
+  // Minimum wage floor ($5k/week = 500000 cents)
   return {
-    wage: Math.max(demandedWage, 500000), // Minimum $5k/week in cents
+    wage: Math.max(demandedWage, 500000),
     length: demandedLength,
   };
 }
@@ -107,8 +125,8 @@ export function evaluateOffer(
     };
   }
   
-  // Counter offer - meet halfway between offer and demand
-  const counterWage = Math.round(((offeredWage + demands.wage) / 2) / 100000) * 100000;
+  // Counter offer - meet halfway between offer and demand (round to nearest $50)
+  const counterWage = Math.round(((offeredWage + demands.wage) / 2) / 5000) * 5000;
   const counterLength = Math.round((offeredLength + demands.length) / 2);
   
   return {

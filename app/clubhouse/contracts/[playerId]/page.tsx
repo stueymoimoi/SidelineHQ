@@ -105,13 +105,9 @@ export default function NegotiationPage() {
       // Get current contract
       const { data: contractData } = await supabase
         .from('player_contracts')
-        .select('id, weekly_wage, weeks_remaining')
+        .select('id, weekly_wage, weeks_remaining, ovr_at_signing')
         .eq('player_id', playerId)
         .single();
-
-      if (contractData) {
-        setContract(contractData);
-      }
 
       // Check for existing negotiation
       const { data: negData } = await supabase
@@ -140,7 +136,7 @@ export default function NegotiationPage() {
           overall: playerData.overall,
           morale: playerData.morale ?? 50,
           current_wage: contractData?.weekly_wage || 1000000,
-        });
+        }, contractData?.ovr_at_signing);
         setDemands(calculatedDemands);
         setOfferedWage(calculatedDemands.wage);
         setOfferedLength(calculatedDemands.length);
@@ -214,6 +210,7 @@ export default function NegotiationPage() {
           .update({
             weekly_wage: offeredWage,
             weeks_remaining: offeredLength,
+            ovr_at_signing: player.overall,
           })
           .eq('player_id', player.id);
 
@@ -396,6 +393,7 @@ export default function NegotiationPage() {
                       .update({
                         weekly_wage: demands.wage,
                         weeks_remaining: demands.length,
+                        ovr_at_signing: player!.overall,
                       })
                       .eq('player_id', player!.id);
                     
