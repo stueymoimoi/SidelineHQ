@@ -881,7 +881,14 @@ allMatchResults.push({
         const today = new Date();
         const isSunday = today.getUTCDay() === 0;
         
+        // Reset weekly transfer counts on Sunday
+        if (isSunday) {
+          await supabase.from('teams').update({ weekly_transfers_used: 0 }).gte('weekly_transfers_used', 0);
+          logs.push(`🔄 Weekly transfer counts reset`);
+        }
+        
         logs.push(`💰 Processing finances (Sunday: ${isSunday})...`);
+        
         
         // Process team finances (handles Sunday vs non-Sunday internally)
         const financeResults = await processAllTeamFinances(supabase, SEASON, currentRound, isSunday);
