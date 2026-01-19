@@ -50,7 +50,7 @@ export function calculatePlayerDemands(player: PlayerForNegotiation): PlayerDema
   }
   
   // Calculate demanded wage (round to nearest $10k)
-  const demandedWage = Math.round((player.current_wage * wageMultiplier) / 1000000) * 1000000;
+  const demandedWage = Math.round((player.current_wage * wageMultiplier) / 5000) * 5000;
   
   // Calculate demanded length based on age
   let demandedLength: number;
