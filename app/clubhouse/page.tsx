@@ -348,7 +348,13 @@ export default function ClubhousePage() {
             <div className="text-4xl mb-2">💰</div>
             <p className="text-white font-bold">Finances</p>
             <p className="text-gray-500 text-sm">Budget & wages</p>
-          </Link></div>
+          </Link>
+          <Link href="/clubhouse/contracts" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-yellow-500">
+            <div className="text-4xl mb-2">📝</div>
+            <p className="text-white font-bold">Contracts</p>
+            <p className="text-gray-500 text-sm">Renewals</p>
+          </Link>
+        </div>
 
         {/* Secondary Navigation */}
         <h2 className="text-white font-bold mb-3">League</h2>
@@ -372,6 +378,11 @@ export default function ClubhousePage() {
             <div className="text-4xl mb-2">🏅</div>
             <p className="text-white font-bold">Rep Teams</p>
             <p className="text-gray-500 text-sm">Origin & National</p>
+          </Link>
+          <Link href="/clubhouse/news" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-yellow-500">
+            <div className="text-4xl mb-2">📰</div>
+            <p className="text-white font-bold">News</p>
+            <p className="text-gray-500 text-sm">League updates</p>
           </Link>
         </div>
 

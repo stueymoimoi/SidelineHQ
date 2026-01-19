@@ -43,7 +43,7 @@ import { calculateTries, calculateKickingStats, calculateScore, distributeTries 
 import { processAllTraining } from '@/lib/training';
 import { processMatchInjuries, saveInjuries, processInjuryRecoveries } from '@/lib/game-engine/injury-processing';
 import { generateMatchEventsFromStats } from '@/lib/game-engine/match-events';
-import { processAllTeamFinances, processContractCountdown, ENABLE_FINANCES } from '@/lib/finances';
+import { processAllTeamFinances, processContractCountdown, processAIContractRenewals, ENABLE_FINANCES } from '@/lib/finances';
 
 // Origin imports
 import { 
@@ -887,6 +887,10 @@ allMatchResults.push({
         const financeResults = await processAllTeamFinances(supabase, SEASON, currentRound, isSunday);
         const successCount = financeResults.filter(r => r.success).length;
         logs.push(`💰 Finances: ${successCount}/${financeResults.length} teams processed`);
+        
+        // AI Contract Renewals - process before countdown so AI teams renew expiring contracts
+        const aiRenewalResult = await processAIContractRenewals(supabase, currentRound);
+        logs.push(`🤖 AI Renewals: ${aiRenewalResult.renewed} renewed, ${aiRenewalResult.released} releasing`);
         
         // Contract countdown - every cron run
         const contractResult = await processContractCountdown(supabase);

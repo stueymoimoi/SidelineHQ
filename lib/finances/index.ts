@@ -42,4 +42,5 @@ export {
   processTeamWeeklyFinances,
   processAllTeamFinances,
   processContractCountdown,
+  processAIContractRenewals,
 } from './processing';

@@ -561,7 +561,149 @@ export async function processAllTeamFinances(
 // ============================================
 // CONTRACT COUNTDOWN
 // ============================================
+// ============================================
+// AI AUTO-RENEWAL FOR UNCOACHED TEAMS
+// ============================================
 
+export async function processAIContractRenewals(
+  supabase: any,
+  round: number
+): Promise<{ renewed: number; released: number }> {
+  console.log('\n🤖 Processing AI contract renewals...');
+
+  // Get all teams that don't have a human coach
+  const { data: coachedTeamIds } = await supabase
+    .from('coaches')
+    .select('team_id');
+
+  const humanTeamIds = new Set((coachedTeamIds || []).map((c: any) => c.team_id));
+
+  // Get expiring contracts (≤2 weeks) for AI teams
+  const { data: expiringContracts } = await supabase
+    .from('player_contracts')
+    .select(`
+      id,
+      player_id,
+      team_id,
+      weekly_wage,
+      weeks_remaining,
+      players!inner (
+        id,
+        first_name,
+        last_name,
+        age,
+        overall
+      )
+    `)
+    .lte('weeks_remaining', 2)
+    .gt('weeks_remaining', 0);
+
+  if (!expiringContracts || expiringContracts.length === 0) {
+    console.log('   ⏭️ No expiring contracts to process');
+    return { renewed: 0, released: 0 };
+  }
+
+  // Filter to AI teams only
+  const aiContracts = expiringContracts.filter(
+    (c: any) => !humanTeamIds.has(c.team_id)
+  );
+
+  if (aiContracts.length === 0) {
+    console.log('   ⏭️ No AI team contracts expiring');
+    return { renewed: 0, released: 0 };
+  }
+
+  let renewed = 0;
+  let released = 0;
+
+  for (const contract of aiContracts) {
+    const player = contract.players;
+    const age = player.age;
+    const ovr = player.overall;
+
+    // Decision logic:
+    // - Age ≤29 AND OVR ≥25 → Auto-renew (1-2 seasons)
+    // - Age 30-32 AND OVR ≥30 → Auto-renew (1 season only)
+    // - Age 33+ OR OVR <20 → Let expire (player leaves)
+    // - OVR 20-24 AND Age 30-32 → 50% chance renew
+
+    let shouldRenew = false;
+    let newLength = 10; // Default 1 season
+
+    if (age <= 29 && ovr >= 25) {
+      shouldRenew = true;
+      newLength = age <= 26 ? 20 : 10; // Young players get 2 seasons
+    } else if (age >= 30 && age <= 32 && ovr >= 30) {
+      shouldRenew = true;
+      newLength = 10; // Veterans get 1 season
+    } else if (age >= 33 || ovr < 20) {
+      shouldRenew = false; // Too old or too weak
+    } else if (ovr >= 20 && ovr < 25 && age >= 30 && age <= 32) {
+      shouldRenew = Math.random() < 0.5; // 50% chance
+      newLength = 10;
+    }
+
+    if (shouldRenew) {
+      // Renew the contract
+      const newWage = ovr * 50000; // Same formula as initial contracts
+
+      await supabase
+        .from('player_contracts')
+        .update({
+          weeks_remaining: newLength,
+          weekly_wage: newWage,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contract.id);
+
+      // Get team name for event
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select('name, division')
+        .eq('id', contract.team_id)
+        .single();
+
+      // Log event
+      await supabase.from('league_events').insert({
+        event_type: 'contract_signed',
+        headline: `${player.first_name} ${player.last_name} re-signed with ${teamData?.name || 'their club'} for ${newLength <= 10 ? '1 season' : '2 seasons'}`,
+        player_id: player.id,
+        team_id: contract.team_id,
+        round: round,
+        division: teamData?.division,
+        metadata: { wage: newWage, length: newLength, ai_renewal: true },
+      });
+
+      renewed++;
+      console.log(`   ✅ Renewed: ${player.first_name} ${player.last_name} (${age}yo, OVR ${ovr})`);
+    } else {
+      // Let contract expire - will be handled by processContractCountdown
+      // But log an event now for the upcoming departure
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select('name, division')
+        .eq('id', contract.team_id)
+        .single();
+
+      await supabase.from('league_events').insert({
+        event_type: 'contract_expired',
+        headline: `${player.first_name} ${player.last_name} will leave ${teamData?.name || 'their club'} when contract expires`,
+        player_id: player.id,
+        team_id: contract.team_id,
+        round: round,
+        division: teamData?.division,
+        metadata: { age, overall: ovr },
+      });
+
+      released++;
+      console.log(`   📤 Releasing: ${player.first_name} ${player.last_name} (${age}yo, OVR ${ovr})`);
+    }
+  }
+
+  console.log(`   🤖 AI Renewals: ${renewed} renewed, ${released} releasing\n`);
+
+  return { renewed, released };
+}
 export async function processContractCountdown(
   supabase: any
 ): Promise<{ updated: number; expired: number }> {
