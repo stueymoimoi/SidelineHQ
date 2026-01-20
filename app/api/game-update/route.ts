@@ -83,7 +83,20 @@ function getPlayerTraitData(player: Player): PlayerTraitData {
     hiddenTrait: (player.hidden_trait as PlayerTraitData['hiddenTrait']) || null,
   };
 }
+// ===========================================
+// MORALE PERFORMANCE MODIFIER
+// ===========================================
 
+function getMoraleMultiplier(morale: number): number {
+  switch (morale) {
+    case 5: return 1.05;  // Ecstatic: +5%
+    case 4: return 1.02;  // Happy: +2%
+    case 3: return 1.00;  // Content: +0%
+    case 2: return 0.97;  // Unhappy: -3%
+    case 1: return 0.92;  // Angry: -8%
+    default: return 1.00;
+  }
+}
 // ===========================================
 // AUTO-GENERATE TACTICS FOR UNMANAGED TEAMS
 // ===========================================
@@ -498,13 +511,15 @@ export async function GET(request: Request) {
             
             const baseStats = generatePlayerStats(player, jerseyNumber, minutes);
             
+            const moraleMultiplier = getMoraleMultiplier(player.morale ?? 3);
+            
             const stats = {
-              metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier),
-              tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier),
+              metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier * moraleMultiplier),
+              tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier * moraleMultiplier),
               missedTackles: baseStats.missedTackles,
               errors: baseStats.errors,
-              lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier),
-              tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier),
+              lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier * moraleMultiplier),
+              tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier * moraleMultiplier),
             };
             
             const tries = homeTryDist.tryScorers[homePlayerId] || 0;
@@ -575,13 +590,15 @@ export async function GET(request: Request) {
             
             const baseStats = generatePlayerStats(player, jerseyNumber, minutes);
             
+            const moraleMultiplier = getMoraleMultiplier(player.morale ?? 3);
+            
             const stats = {
-              metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier),
-              tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier),
+              metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier * moraleMultiplier),
+              tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier * moraleMultiplier),
               missedTackles: baseStats.missedTackles,
               errors: baseStats.errors,
-              lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier),
-              tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier),
+              lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier * moraleMultiplier),
+              tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier * moraleMultiplier),
             };
             
             const tries = awayTryDist.tryScorers[awayPlayerId] || 0;
@@ -869,6 +886,163 @@ allMatchResults.push({
     }
     
     logs.push(`Training: ${improvementCount} players improved`);
+    // ===========================================
+    // PHASE 4.3: PROCESS MORALE
+    // ===========================================
+    
+    try {
+      const moraleUpdates: { id: string; morale: number }[] = [];
+      const moraleNotifications: Notification[] = [];
+      
+      // Get transfer listed players
+      const { data: transferListedPlayers } = await supabase
+        .from('player_contracts')
+        .select('player_id')
+        .eq('is_transfer_listed', true);
+      const transferListedIds = new Set((transferListedPlayers || []).map(p => p.player_id));
+      
+      // Calculate team results for this round
+      const teamResults: Record<string, { result: 'win' | 'draw' | 'loss'; streak: number }> = {};
+      for (const result of allMatchResults) {
+        const homeWon = result.home_score > result.away_score;
+        const awayWon = result.away_score > result.home_score;
+        
+        teamResults[result.home_team_id] = {
+          result: homeWon ? 'win' : awayWon ? 'loss' : 'draw',
+          streak: 0
+        };
+        teamResults[result.away_team_id] = {
+          result: awayWon ? 'win' : homeWon ? 'loss' : 'draw',
+          streak: 0
+        };
+      }
+      
+      // Calculate streaks from recent results
+      for (const teamId of Object.keys(teamResults)) {
+        const { data: recentResults } = await supabase
+          .from('match_results')
+          .select('home_team_id, away_team_id, home_score, away_score')
+          .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+          .order('round', { ascending: false })
+          .limit(3);
+        
+        if (recentResults && recentResults.length >= 3) {
+          let winStreak = 0;
+          let lossStreak = 0;
+          
+          for (const r of recentResults) {
+            const isHome = r.home_team_id === teamId;
+            const won = isHome ? r.home_score > r.away_score : r.away_score > r.home_score;
+            if (won) winStreak++;
+            else break;
+          }
+          
+          for (const r of recentResults) {
+            const isHome = r.home_team_id === teamId;
+            const lost = isHome ? r.home_score < r.away_score : r.away_score < r.home_score;
+            if (lost) lossStreak++;
+            else break;
+          }
+          
+          teamResults[teamId].streak = winStreak >= 3 ? winStreak : (lossStreak >= 3 ? -lossStreak : 0);
+        }
+      }
+      
+      // Build sets for playing time checks
+      const playersWhoStarted = new Set(allPlayerStats.filter(s => s.jersey_number <= 13).map(s => s.player_id));
+      const playersOnBench = new Set(allPlayerStats.filter(s => s.jersey_number > 13).map(s => s.player_id));
+      const motmPlayers = new Set(allMatchResults.filter(r => r.motm_player_id).map(r => r.motm_player_id));
+      
+      // Get injured players
+      const { data: injuredPlayers } = await supabase
+        .from('injuries')
+        .select('player_id')
+        .eq('recovered', false);
+      const injuredIds = new Set((injuredPlayers || []).map(p => p.player_id));
+      
+      // Process each player
+      for (const player of allPlayers) {
+        if (!player.team_id) continue;
+        
+        let change = 0;
+        const currentMorale = player.morale || 3;
+        
+        // Team result
+        const teamResult = teamResults[player.team_id];
+        if (teamResult) {
+          if (teamResult.result === 'win') change += 1;
+          else if (teamResult.result === 'loss') change -= 1;
+          
+          if (teamResult.streak >= 3) change += 1;
+          else if (teamResult.streak <= -3) change -= 1;
+        }
+        
+        // Playing time
+        if (playersWhoStarted.has(player.id)) {
+          change += 1;
+        } else if (playersOnBench.has(player.id)) {
+          // Bench = no change
+        } else if (!injuredIds.has(player.id)) {
+          change -= 1; // Healthy but not selected
+        }
+        
+        // MOTM bonus
+        if (motmPlayers.has(player.id)) {
+          change += 2;
+        }
+        
+        // Transfer listed penalty
+        if (transferListedIds.has(player.id)) {
+          change -= 1;
+        }
+        
+        // Apply with clamping (1-5)
+        const newMorale = Math.max(1, Math.min(5, currentMorale + change));
+        
+        if (newMorale !== currentMorale) {
+          moraleUpdates.push({ id: player.id, morale: newMorale });
+          
+          if (newMorale === 1 && currentMorale > 1) {
+            moraleNotifications.push({
+              team_id: player.team_id,
+              type: 'morale_angry' as any,
+              title: '😠 Player Unhappy',
+              message: `${player.first_name} ${player.last_name} is angry and considering their future.`,
+              player_id: player.id
+            });
+          } else if (newMorale === 5 && currentMorale < 5) {
+            moraleNotifications.push({
+              team_id: player.team_id,
+              type: 'morale_ecstatic' as any,
+              title: '🎉 Player Thriving',
+              message: `${player.first_name} ${player.last_name} is loving life at the club!`,
+              player_id: player.id
+            });
+          }
+        }
+      }
+      
+      // Batch update
+      if (moraleUpdates.length > 0) {
+        const chunkSize = 100;
+        for (let i = 0; i < moraleUpdates.length; i += chunkSize) {
+          const chunk = moraleUpdates.slice(i, i + chunkSize);
+          await Promise.all(
+            chunk.map(u => supabase.from('players').update({ morale: u.morale }).eq('id', u.id))
+          );
+        }
+      }
+      
+      if (moraleNotifications.length > 0) {
+        await supabase.from('notifications').insert(moraleNotifications);
+      }
+      
+      const improved = moraleUpdates.filter(u => u.morale > (playersMap[u.id]?.morale || 3)).length;
+      logs.push(`😊 Morale: ${improved} up, ${moraleUpdates.length - improved} down`);
+      
+    } catch (moraleError) {
+      logs.push(`😊 Morale error (non-fatal): ${moraleError}`);
+    }
     
     // ===========================================
     // PHASE 4.5: PROCESS FINANCES
