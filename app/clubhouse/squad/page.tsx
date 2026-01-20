@@ -739,9 +739,7 @@ export default function SquadPage() {
                       {traitDisplay && (
                         <p>Trait: {traitDisplay}</p>
                       )}
-                      <p className={MORALE_DISPLAY[player.morale]?.color || 'text-gray-400'}>
-                        {MORALE_DISPLAY[player.morale]?.emoji} {MORALE_DISPLAY[player.morale]?.label || 'Content'}
-                      </p>
+                      <p>Morale: {MORALE_DISPLAY[player.morale]?.label || 'Content'}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -832,8 +830,8 @@ export default function SquadPage() {
 {/* Morale */}
             <div className="bg-gray-700 rounded p-3 mb-4">
               <p className="text-gray-400 text-xs">Morale</p>
-              <p className={`text-lg font-semibold ${MORALE_DISPLAY[selectedPlayer.morale]?.color || 'text-gray-400'}`}>
-                {MORALE_DISPLAY[selectedPlayer.morale]?.emoji} {MORALE_DISPLAY[selectedPlayer.morale]?.label || 'Content'}
+              <p className="text-lg font-semibold text-white">
+                {MORALE_DISPLAY[selectedPlayer.morale]?.label || 'Content'}
               </p>
             </div>
             {/* Trait */}

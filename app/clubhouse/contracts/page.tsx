@@ -324,7 +324,7 @@ export default function ContractsPage() {
                         <span className="ml-2">{getStatusBadge(player.id)}</span>
                       </div>
                       <div className="text-sm text-gray-400">
-                        {player.position} • Age {player.age} • {MORALE_DISPLAY[player.morale]?.emoji} {MORALE_DISPLAY[player.morale]?.label}
+                        {player.position} • Age {player.age} • Morale: {MORALE_DISPLAY[player.morale]?.label}
                       </div>
                     </div>
                   </div>
@@ -419,8 +419,8 @@ export default function ContractsPage() {
               {/* Morale */}
               <div className="bg-gray-700 rounded p-3 mb-4">
                 <p className="text-gray-400 text-xs">Morale</p>
-                <p className={`text-lg font-semibold ${MORALE_DISPLAY[selectedPlayer.morale]?.color || 'text-gray-400'}`}>
-                  {MORALE_DISPLAY[selectedPlayer.morale]?.emoji} {MORALE_DISPLAY[selectedPlayer.morale]?.label || 'Content'}
+                <p className="text-lg font-semibold text-white">
+                  {MORALE_DISPLAY[selectedPlayer.morale]?.label || 'Content'}
                 </p>
               </div>
 
