@@ -201,6 +201,15 @@ export default function ContractsPage() {
         const negMap = new Map<string, ActiveNegotiation>();
         negs.forEach((n: ActiveNegotiation) => negMap.set(n.player_id, n));
         setNegotiations(negMap);
+        
+        // Filter out players with accepted contracts
+        const filtered = flattened.filter(p => {
+          const neg = negMap.get(p.id);
+          return !neg || neg.status !== 'accepted';
+        });
+        setExpiringPlayers(filtered);
+      } else {
+        setExpiringPlayers(flattened);
       }
 
     } catch (err: any) {
