@@ -27,7 +27,6 @@ interface Player {
   overall: number;
   fatigue: number;
   injury_status?: string;
-  injury_rounds_remaining?: number;
 }
 
 interface TacticsUpdate {
@@ -59,7 +58,7 @@ interface TacticsUpdate {
 export function generateLineup(players: Player[]): TacticsUpdate {
   // Filter out injured players and sort by overall (best first), then by fitness
   const available = players
-    .filter(p => !p.injury_rounds_remaining || p.injury_rounds_remaining <= 0)
+  
     .sort((a, b) => {
       // Primary: higher overall first
       if (b.overall !== a.overall) return b.overall - a.overall;
@@ -168,7 +167,7 @@ export async function autoFillAllTeamTactics(): Promise<{ updated: number; error
       // Get team's players
       const { data: players, error: playersError } = await supabase
         .from('players')
-        .select('id, position, overall, fatigue, injury_rounds_remaining')
+        .select('id, position, overall, fatigue')
         .eq('team_id', team.id);
 
       if (playersError || !players || players.length < 17) {
