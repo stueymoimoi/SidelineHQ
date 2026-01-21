@@ -44,6 +44,7 @@ import { processAllTraining } from '@/lib/training';
 import { processMatchInjuries, saveInjuries, processInjuryRecoveries } from '@/lib/game-engine/injury-processing';
 import { generateMatchEventsFromStats } from '@/lib/game-engine/match-events';
 import { processAllTeamFinances, processContractCountdown, processAIContractRenewals, ENABLE_FINANCES } from '@/lib/finances';
+import { autoFillAllTeamTactics } from '@/lib/tactics/auto-lineup';
 
 // Origin imports
 import { 
@@ -201,6 +202,24 @@ export async function GET(request: Request) {
     
     const coachedTeams = new Set((coachesRes.data || []).map((c: any) => c.team_id));
     
+    // ===========================================
+    // PHASE 1.5: AUTO-FILL INCOMPLETE TEAM TACTICS
+    // ===========================================
+    
+    const autoLineupResult = await autoFillAllTeamTactics();
+    if (autoLineupResult.updated > 0) {
+      logs.push(`Auto-filled tactics for ${autoLineupResult.updated} teams`);
+    }
+    if (autoLineupResult.errors.length > 0) {
+      logs.push(`Auto-lineup errors: ${autoLineupResult.errors.slice(0, 3).join(', ')}`);
+    }
+
+    // Refresh tactics data after auto-fill
+    const refreshedTacticsRes = await supabase.from('team_tactics').select('*');
+    (refreshedTacticsRes.data || []).forEach((t: TeamTactics) => { 
+      tacticsMap[t.team_id] = t; 
+    });
+
     // ===========================================
     // PHASE 2: SIMULATE MATCHES
     // ===========================================
