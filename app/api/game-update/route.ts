@@ -201,9 +201,38 @@ export async function GET(request: Request) {
     });
     
     const coachedTeams = new Set((coachesRes.data || []).map((c: any) => c.team_id));
-    
+
     // ===========================================
-    // PHASE 1.5: AUTO-FILL INCOMPLETE TEAM TACTICS
+    // PHASE 1.5A: PROCESS INJURY RECOVERIES (BEFORE MATCHES)
+    // ===========================================
+    // This MUST run before match simulation so recovered players are available
+    // and injured players can be auto-replaced in lineups
+    
+    const { recoveredCount, notifications: recoveryNotifications } = await processInjuryRecoveries(
+      supabase,
+      currentRound,
+      SEASON
+    );
+    
+    if (recoveredCount > 0) {
+      await supabase.from('notifications').insert(recoveryNotifications);
+      logs.push(`💪 Injury recoveries: ${recoveredCount} player${recoveredCount > 1 ? 's' : ''} now available`);
+    }
+
+    // ===========================================
+    // PHASE 1.5B: REPLACE INJURED PLAYERS IN LINEUPS
+    // ===========================================
+    // Auto-replace any injured players that coaches left in their lineups
+    
+    const { replaceInjuredPlayersInLineups } = await import('@/lib/tactics/auto-lineup');
+    const injuryReplacementResult = await replaceInjuredPlayersInLineups();
+    
+    if (injuryReplacementResult.playersReplaced > 0) {
+      logs.push(`🔄 Injury replacements: ${injuryReplacementResult.playersReplaced} players auto-replaced in ${injuryReplacementResult.teamsFixed} teams`);
+    }
+
+    // ===========================================
+    // PHASE 1.5C: AUTO-FILL INCOMPLETE TEAM TACTICS
     // ===========================================
     
     const autoLineupResult = await autoFillAllTeamTactics();
@@ -794,7 +823,16 @@ allMatchResults.push({
         if (matchInjuries.length > 0) {
           await saveInjuries(supabase, matchInjuries, SEASON, currentRound, 'match');
           allNotifications.push(...injuryNotifications);
-          logs.push(`  ↳ Injuries: ${matchInjuries.map(i => `${i.playerName} (${i.injuryName})`).join(', ')}`);
+          
+          // Reduce minutes for injured players (they left the field early)
+          for (const injury of matchInjuries) {
+            const statIndex = fixtureStats.findIndex(s => s.player_id === injury.playerId);
+            if (statIndex !== -1) {
+              fixtureStats[statIndex].minutes_played = injury.minuteInjured;
+            }
+          }
+          
+          logs.push(`  ↳ Injuries: ${matchInjuries.map(i => `${i.playerName} (${i.injuryName}, ${i.minuteInjured}')`).join(', ')}`);
         }
         logs.push(`${homeTeam.name} ${homeScore} - ${awayScore} ${awayTeam.name}`);
       }
@@ -868,20 +906,7 @@ allMatchResults.push({
     }
     
     logs.push(`Match data saved in ${Date.now() - startTime}ms`);
-    // ===========================================
-    // PHASE 3.5: PROCESS INJURY RECOVERIES
-    // ===========================================
     
-    const { recoveredCount, notifications: recoveryNotifications } = await processInjuryRecoveries(
-      supabase,
-      currentRound,
-      SEASON
-    );
-    
-    if (recoveredCount > 0) {
-      await supabase.from('notifications').insert(recoveryNotifications);
-      logs.push(`Injuries: ${recoveredCount} player${recoveredCount > 1 ? 's' : ''} recovered`);
-    }
     // ===========================================
     // PHASE 4: PROCESS TRAINING
     // ===========================================

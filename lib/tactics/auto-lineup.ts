@@ -55,10 +55,10 @@ interface TacticsUpdate {
 /**
  * Generate optimal lineup for a team based on available players
  */
-export function generateLineup(players: Player[]): TacticsUpdate {
+export function generateLineup(players: Player[], injuredPlayerIds: Set<string> = new Set()): TacticsUpdate {
   // Filter out injured players and sort by overall (best first), then by fitness
   const available = players
-  
+    .filter(p => !injuredPlayerIds.has(p.id))
     .sort((a, b) => {
       // Primary: higher overall first
       if (b.overall !== a.overall) return b.overall - a.overall;
@@ -144,6 +144,16 @@ export async function autoFillAllTeamTactics(): Promise<{ updated: number; error
     return { updated: 0, errors: ['Failed to fetch teams: ' + teamsError?.message] };
   }
 
+  // Get all currently injured players (active injuries)
+  const { data: activeInjuries } = await supabase
+    .from('player_injuries')
+    .select('player_id')
+    .eq('is_active', true);
+  
+  const injuredPlayerIds = new Set<string>(
+    (activeInjuries || []).map(i => i.player_id)
+  );
+
   for (const team of teams) {
     try {
       // Get current tactics
@@ -175,8 +185,8 @@ export async function autoFillAllTeamTactics(): Promise<{ updated: number; error
         continue;
       }
 
-      // Generate lineup
-      const newTactics = generateLineup(players);
+      // Generate lineup (excluding injured players)
+      const newTactics = generateLineup(players, injuredPlayerIds);
 
       // Update or insert tactics
       if (tactics) {
@@ -225,14 +235,24 @@ export async function autoFillTeamTactics(teamId: string): Promise<{ success: bo
   try {
     const { data: players, error: playersError } = await supabase
       .from('players')
-      .select('id, position, overall, fatigue, injury_rounds_remaining')
+      .select('id, position, overall, fatigue')
       .eq('team_id', teamId);
 
     if (playersError || !players || players.length < 17) {
       return { success: false, error: `Not enough players (${players?.length || 0})` };
     }
 
-    const newTactics = generateLineup(players);
+    // Get injured players for this team
+    const { data: activeInjuries } = await supabase
+      .from('player_injuries')
+      .select('player_id')
+      .eq('is_active', true);
+    
+    const injuredPlayerIds = new Set<string>(
+      (activeInjuries || []).map(i => i.player_id)
+    );
+
+    const newTactics = generateLineup(players, injuredPlayerIds);
 
     const { error: upsertError } = await supabase
       .from('team_tactics')
@@ -246,4 +266,124 @@ export async function autoFillTeamTactics(teamId: string): Promise<{ success: bo
   } catch (err) {
     return { success: false, error: String(err) };
   }
+}
+
+/**
+ * Scan all team lineups and replace any injured players with best available
+ * This ensures coaches who left injured players in their lineup get auto-fixed
+ */
+export async function replaceInjuredPlayersInLineups(): Promise<{ 
+  teamsFixed: number; 
+  playersReplaced: number;
+  replacements: { teamId: string; injuredPlayerId: string; replacementPlayerId: string; position: string }[];
+  errors: string[] 
+}> {
+  const errors: string[] = [];
+  let teamsFixed = 0;
+  let playersReplaced = 0;
+  const replacements: { teamId: string; injuredPlayerId: string; replacementPlayerId: string; position: string }[] = [];
+
+  // Get all active injuries
+  const { data: activeInjuries } = await supabase
+    .from('player_injuries')
+    .select('player_id')
+    .eq('is_active', true);
+  
+  const injuredPlayerIds = new Set<string>(
+    (activeInjuries || []).map(i => i.player_id)
+  );
+
+  if (injuredPlayerIds.size === 0) {
+    return { teamsFixed: 0, playersReplaced: 0, replacements: [], errors: [] };
+  }
+
+  // Get all team tactics
+  const { data: allTactics, error: tacticsError } = await supabase
+    .from('team_tactics')
+    .select('*');
+
+  if (tacticsError || !allTactics) {
+    return { teamsFixed: 0, playersReplaced: 0, replacements: [], errors: ['Failed to fetch tactics'] };
+  }
+
+  const positionFields = [
+    'pos_fullback', 'pos_winger_l', 'pos_winger_r', 'pos_centre_l', 'pos_centre_r',
+    'pos_five_eighth', 'pos_halfback', 'pos_prop_l', 'pos_prop_r', 'pos_hooker',
+    'pos_second_row_l', 'pos_second_row_r', 'pos_lock',
+    'bench_1', 'bench_2', 'bench_3', 'bench_4'
+  ];
+
+  for (const tactics of allTactics) {
+    // Find injured players in this lineup
+    const injuredInLineup: { field: string; playerId: string }[] = [];
+    const currentLineupIds = new Set<string>();
+
+    for (const field of positionFields) {
+      const playerId = tactics[field];
+      if (playerId) {
+        currentLineupIds.add(playerId);
+        if (injuredPlayerIds.has(playerId)) {
+          injuredInLineup.push({ field, playerId });
+        }
+      }
+    }
+
+    if (injuredInLineup.length === 0) continue;
+
+    // Get all players for this team
+    const { data: teamPlayers } = await supabase
+      .from('players')
+      .select('id, position, overall, fatigue')
+      .eq('team_id', tactics.team_id);
+
+    if (!teamPlayers) continue;
+
+    // Find available replacements (not in lineup, not injured)
+    const availableReplacements = teamPlayers
+      .filter(p => !currentLineupIds.has(p.id) && !injuredPlayerIds.has(p.id))
+      .sort((a, b) => b.overall - a.overall);
+
+    const tacticsUpdate: Record<string, string> = {};
+    let teamHadReplacements = false;
+
+    for (const { field, playerId } of injuredInLineup) {
+      // Find best available replacement
+      const replacement = availableReplacements.shift();
+      
+      if (replacement) {
+        tacticsUpdate[field] = replacement.id;
+        currentLineupIds.add(replacement.id);
+        teamHadReplacements = true;
+        playersReplaced++;
+        
+        replacements.push({
+          teamId: tactics.team_id,
+          injuredPlayerId: playerId,
+          replacementPlayerId: replacement.id,
+          position: field
+        });
+      } else {
+        // No replacement available - clear the position
+        tacticsUpdate[field] = null as any;
+        errors.push(`Team ${tactics.team_id}: No replacement for injured player in ${field}`);
+      }
+    }
+
+    if (Object.keys(tacticsUpdate).length > 0) {
+      tacticsUpdate['updated_at'] = new Date().toISOString();
+      
+      const { error: updateError } = await supabase
+        .from('team_tactics')
+        .update(tacticsUpdate)
+        .eq('team_id', tactics.team_id);
+
+      if (updateError) {
+        errors.push(`Team ${tactics.team_id}: Update failed - ${updateError.message}`);
+      } else if (teamHadReplacements) {
+        teamsFixed++;
+      }
+    }
+  }
+
+  return { teamsFixed, playersReplaced, replacements, errors };
 }

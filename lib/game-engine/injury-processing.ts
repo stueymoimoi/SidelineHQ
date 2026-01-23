@@ -26,6 +26,7 @@ export interface InjuryResult {
   severity: 'minor' | 'moderate' | 'major';
   roundsOut: number;
   roundReturn: number;
+  minuteInjured: number; // When in the match the injury occurred (for reduced minutes)
 }
 
 /**
@@ -77,6 +78,9 @@ export async function processMatchInjuries(
       const roundsOut = calculateRecoveryRounds(injuryType);
       const roundReturn = currentRound + roundsOut;
 
+      // Random minute when injury occurred (20-75 mins)
+      const minuteInjured = 20 + Math.floor(Math.random() * 56);
+
       injuries.push({
         playerId: player.id,
         playerName: `${player.first_name} ${player.last_name}`,
@@ -86,6 +90,7 @@ export async function processMatchInjuries(
         severity: result.severity,
         roundsOut,
         roundReturn,
+        minuteInjured,
       });
 
       // Create notification
