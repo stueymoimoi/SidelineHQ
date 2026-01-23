@@ -361,7 +361,7 @@ function PlayerSelectionModal({
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm truncate flex items-center gap-1.5">
-                      <span className="truncate">{p.first_name.charAt(0)}. {p.last_name}</span>
+                      <span className="truncate">{p.first_name} {p.last_name}</span>
                       {showSide && (
                         <span className={`${sideBadge.bg} text-white text-[10px] px-1 rounded font-bold flex-shrink-0`}>
                           {sideBadge.text}
@@ -492,7 +492,7 @@ function PositionSelectionModal({
                       <div className="text-right">
                         {currentPlayer ? (
                           <span className="text-gray-400 text-sm">
-                            {currentPlayer.first_name.charAt(0)}. {currentPlayer.last_name}
+                            {currentPlayer.first_name} {currentPlayer.last_name}
                             <span className="text-orange-400 ml-1">↔</span>
                           </span>
                         ) : (
@@ -1115,7 +1115,7 @@ export default function TacticsPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-white text-sm font-medium truncate">
-                          {p.first_name.charAt(0)}. {p.last_name}
+                          {p.first_name} {p.last_name}
                         </p>
                         <div className="flex items-center gap-1 text-[10px]">
                           <span className="text-gray-400">{p.position}</span>
@@ -1298,7 +1298,7 @@ export default function TacticsPage() {
                   >
                     <div className="min-w-0">
                       <div className="text-white font-medium text-sm flex items-center gap-1.5">
-                        <span>{p.first_name.charAt(0)}. {p.last_name}</span>
+                        <span>{p.first_name} {p.last_name}</span>
                         {isInjured && activeInjury && (
                           <span className="text-red-400 text-[10px]">🏥 R{activeInjury.round_return}</span>
                         )}

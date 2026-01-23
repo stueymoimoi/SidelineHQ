@@ -92,7 +92,7 @@ export async function getMatchEvents(
         team_abbr: team ? getTeamAbbr(team.name, team.city) : null,
         team_color: team?.primary_color || null,
         player_id: e.player_id,
-        player_name: player ? `${player.first_name.charAt(0)}. ${player.last_name}` : null
+        player_name: player ? `${player.first_name} ${player.last_name}` : null
       };
     });
   } catch (error) {
