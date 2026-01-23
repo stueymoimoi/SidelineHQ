@@ -119,9 +119,10 @@ export default function FinancesPage() {
         .single();
 
       if (financeData) {
-        setFinances(financeData);
-        setTicketPrice(financeData.ticket_price);
-      }
+  console.log('financeData:', financeData);
+  setFinances(financeData);
+  setTicketPrice(financeData.ticket_price);
+}
 
       // Get contracts with player info
       const { data: contractData } = await supabase
@@ -167,12 +168,15 @@ export default function FinancesPage() {
   const saveTicketPrice = async () => {
     if (!team) return;
     setSaving(true);
+    console.log('Saving ticket price:', ticketPrice, 'for team:', team.id);
 
     try {
       const { error } = await supabase
         .from('team_finances')
         .update({ ticket_price: ticketPrice })
         .eq('team_id', team.id);
+
+      console.log('Save result - error:', error);
 
       if (error) throw error;
 
