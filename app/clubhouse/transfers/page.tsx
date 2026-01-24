@@ -276,10 +276,61 @@ await supabase.from('notifications').insert({
 setMessage({ type: 'success', text: 'Offer submitted!' });
       setShowOfferModal(null);
       setOfferAmount('');
-
     } catch (error) {
       console.error('Offer error:', error);
       setMessage({ type: 'error', text: 'Failed to submit offer' });
+    }
+  }
+
+  async function handleMessageCoach(listing: Listing) {
+    if (!myTeamId) return;
+
+    try {
+      // Check if conversation already exists (in either direction)
+      const { data: existingConvo } = await supabase
+        .from('coach_conversations')
+        .select('id')
+        .or(`and(team_a_id.eq.${myTeamId},team_b_id.eq.${listing.team_id}),and(team_a_id.eq.${listing.team_id},team_b_id.eq.${myTeamId})`)
+        .single();
+
+      let conversationId: string;
+
+      if (existingConvo) {
+        conversationId = existingConvo.id;
+      } else {
+        // Create new conversation
+        const { data: newConvo, error } = await supabase
+          .from('coach_conversations')
+          .insert({
+            team_a_id: myTeamId,
+            team_b_id: listing.team_id,
+          })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        conversationId = newConvo.id;
+      }
+
+      // Send initial message about the player
+      await supabase.from('coach_messages').insert({
+        conversation_id: conversationId,
+        sender_team_id: myTeamId,
+        content: `Hi, I'm interested in ${listing.player.first_name} ${listing.player.last_name}. Is he available?`,
+        player_id: listing.player_id,
+      });
+
+      // Update conversation timestamp
+      await supabase
+        .from('coach_conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', conversationId);
+
+      // Navigate to messages
+      window.location.href = '/clubhouse/messages';
+    } catch (error) {
+      console.error('Message error:', error);
+      setMessage({ type: 'error', text: 'Failed to start conversation' });
     }
   }
 
@@ -441,6 +492,12 @@ setMessage({ type: 'success', text: 'Offer submitted!' });
     Make Offer
   </button>
 )}
+<button
+  onClick={() => handleMessageCoach(listing)}
+  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold"
+>
+  💬 Message
+</button>
                     </>
                   )}
                 </div>

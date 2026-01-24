@@ -40,6 +40,7 @@ interface Player {
   ovr_changed_at: string | null;
   visible_trait: string | null;
   morale: number;
+  availability: string | null;
 }
 
 interface Team {
@@ -408,7 +409,7 @@ export default function SquadPage() {
             id, first_name, last_name, position, age, overall,
             speed, strength, power, passing, stamina, tackling, kicking,
             fatigue, potential, nationality, state, current_training, training_progress,
-            dominant_side, ovr_change, ovr_changed_at, visible_trait, morale
+            dominant_side, ovr_change, ovr_changed_at, visible_trait, morale, availability
           `)
           .eq('team_id', coach.team_id)
           .order('overall', { ascending: false }),
@@ -621,6 +622,29 @@ export default function SquadPage() {
     }
   }, [selectedPlayer, teamId, listingType, listingPrice, closeModal]);
 
+  const handleSetAvailability = useCallback(async (newAvailability: string | null) => {
+    if (!selectedPlayer || !teamId) return;
+
+    try {
+      const { error } = await supabase
+        .from('players')
+        .update({ availability: newAvailability })
+        .eq('id', selectedPlayer.id)
+        .eq('team_id', teamId);
+
+      if (error) throw error;
+
+      // Update local state
+      setPlayers(prev => prev.map(p => 
+        p.id === selectedPlayer.id ? { ...p, availability: newAvailability } : p
+      ));
+      setSelectedPlayer(prev => prev ? { ...prev, availability: newAvailability } : null);
+
+    } catch (err) {
+      console.error('Error updating availability:', err);
+    }
+  }, [selectedPlayer, teamId]);
+
   const renderStatRow = useCallback((label: string, value: number) => {
     const tierLabel = getTierLabel(value);
     const tierColorClass = getTierColorClass(value);
@@ -832,6 +856,37 @@ export default function SquadPage() {
               <p className="text-gray-400 text-xs">Morale</p>
               <p className="text-lg font-semibold text-white">
                 {getMoraleDisplay(selectedPlayer.morale).label}
+              </p>
+            </div>
+            {/* Availability */}
+            <div className="bg-gray-700 rounded p-3 mb-4">
+              <p className="text-gray-400 text-xs mb-2">Availability</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleSetAvailability(selectedPlayer.availability === 'available' ? null : 'available')}
+                  className={`flex-1 px-3 py-2 rounded text-sm font-medium transition ${
+                    selectedPlayer.availability === 'available'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  Available
+                </button>
+                <button
+                  onClick={() => handleSetAvailability(selectedPlayer.availability === 'untouchable' ? null : 'untouchable')}
+                  className={`flex-1 px-3 py-2 rounded text-sm font-medium transition ${
+                    selectedPlayer.availability === 'untouchable'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                  }`}
+                >
+                  Untouchable
+                </button>
+              </div>
+              <p className="text-gray-500 text-xs mt-2">
+                {selectedPlayer.availability === 'available' && '⚠️ May affect morale negatively'}
+                {selectedPlayer.availability === 'untouchable' && '✨ May boost morale'}
+                {!selectedPlayer.availability && 'Set status to signal intent to other coaches'}
               </p>
             </div>
             {/* Trait */}

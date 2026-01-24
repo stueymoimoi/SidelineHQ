@@ -79,6 +79,7 @@ export default function ClubhousePage() {
   const [ladderPosition, setLadderPosition] = useState(1);
   const [nextMatch, setNextMatch] = useState<{ opponent: Team; isHome: boolean; round: number } | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [balance, setBalance] = useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const router = useRouter();
@@ -182,6 +183,24 @@ export default function ClubhousePage() {
           .eq('read', false);
         
         setUnreadCount(count || 0);
+
+        // Get unread message count
+        const { data: conversations } = await supabase
+          .from('coach_conversations')
+          .select('id')
+          .or(`team_a_id.eq.${coachData.team_id},team_b_id.eq.${coachData.team_id}`);
+        
+        if (conversations && conversations.length > 0) {
+          const convoIds = conversations.map(c => c.id);
+          const { count: msgCount } = await supabase
+            .from('coach_messages')
+            .select('*', { count: 'exact', head: true })
+            .in('conversation_id', convoIds)
+            .neq('sender_team_id', coachData.team_id)
+            .is('read_at', null);
+          setUnreadMessages(msgCount || 0);
+        }
+
       // Get team balance
         const { data: financeData } = await supabase
           .from('team_finances')
@@ -253,10 +272,17 @@ export default function ClubhousePage() {
                 </span>
               )}
             </Link>
+            <Link href="/clubhouse/messages" className="relative">
+              <div className="text-4xl">📧</div>
+              {unreadMessages > 0 && (
+                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadMessages > 9 ? '9+' : unreadMessages}
+                </span>
+              )}
+            </Link>
           </div>
         </div>
       </div>
-
       <div className="max-w-6xl mx-auto p-6 -mt-4 flex-1">
         
         {/* Next Match Card */}

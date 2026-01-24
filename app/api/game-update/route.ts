@@ -1036,6 +1036,13 @@ allMatchResults.push({
           change -= 3;
         }
 
+        // Availability tag effects
+        if (player.availability === 'available') {
+          change -= 2;  // Player feels unwanted
+        } else if (player.availability === 'untouchable') {
+          change += 2;  // Player feels valued
+        }
+
         // Apply with clamping (0-100)
         const newMorale = Math.max(0, Math.min(100, currentMorale + change));
 
