@@ -15,6 +15,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+function getMoraleDisplay(morale: number): { label: string; color: string } {
+  if (morale <= 20) return { label: 'Angry', color: 'text-red-500' };
+  if (morale <= 40) return { label: 'Unhappy', color: 'text-orange-400' };
+  if (morale <= 60) return { label: 'Content', color: 'text-yellow-400' };
+  if (morale <= 80) return { label: 'Happy', color: 'text-green-400' };
+  return { label: 'Ecstatic', color: 'text-green-300' };
+}
+
 interface Player {
   id: string;
   first_name: string;
@@ -215,11 +223,11 @@ export default function NegotiationPage() {
           .eq('player_id', player.id);
 
         if (contractError) throw contractError;
-// Set morale to Ecstatic
-        await supabase
-          .from('players')
-          .update({ morale: 5 })
-          .eq('id', player.id);
+// Set morale to Ecstatic (90 on 0-100 scale)
+await supabase
+  .from('players')
+  .update({ morale: 90 })
+  .eq('id', player.id);
         // Get current round for event
         const { data: roundData } = await supabase
           .from('fixtures')
@@ -327,7 +335,7 @@ export default function NegotiationPage() {
             <div>
               <div className="text-xl font-semibold">{player.first_name} {player.last_name}</div>
               <div className="text-gray-400">{player.position} • Age {player.age}</div>
-              <div className="text-gray-400">Morale: {player.morale ?? 50}</div>
+              <div className="text-gray-400">Morale: {getMoraleDisplay(player.morale ?? 50).label}</div>
             </div>
           </div>
           {contract && (
@@ -403,7 +411,7 @@ export default function NegotiationPage() {
                     // Set morale to Ecstatic
                     await supabase
                       .from('players')
-                      .update({ morale: 5 })
+                      .update({ morale: 90 })
                       .eq('id', player!.id);
                     // Get current round for event
                     const { data: roundData } = await supabase

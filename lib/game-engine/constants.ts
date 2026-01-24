@@ -563,3 +563,19 @@ export function getAgeBracket(age: number): 'young' | 'prime' | 'veteran' | 'old
   if (age <= 31) return 'veteran';
   return 'old';
 }
+export const MORALE_LABELS = [
+  { maxValue: 20, label: 'Angry', color: 'text-red-500' },
+  { maxValue: 40, label: 'Unhappy', color: 'text-orange-400' },
+  { maxValue: 60, label: 'Content', color: 'text-yellow-400' },
+  { maxValue: 80, label: 'Happy', color: 'text-green-400' },
+  { maxValue: 100, label: 'Ecstatic', color: 'text-green-300' },
+] as const;
+
+export function getMoraleLabel(morale: number): { label: string; color: string } {
+  for (const tier of MORALE_LABELS) {
+    if (morale <= tier.maxValue) {
+      return { label: tier.label, color: tier.color };
+    }
+  }
+  return { label: 'Content', color: 'text-yellow-400' };
+}

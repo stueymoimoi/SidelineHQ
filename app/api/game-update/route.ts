@@ -89,14 +89,12 @@ function getPlayerTraitData(player: Player): PlayerTraitData {
 // ===========================================
 
 function getMoraleMultiplier(morale: number): number {
-  switch (morale) {
-    case 5: return 1.05;  // Ecstatic: +5%
-    case 4: return 1.02;  // Happy: +2%
-    case 3: return 1.00;  // Content: +0%
-    case 2: return 0.97;  // Unhappy: -3%
-    case 1: return 0.92;  // Angry: -8%
-    default: return 1.00;
-  }
+  // Morale is now 0-100 scale
+  if (morale <= 20) return 0.92;  // Angry: -8%
+  if (morale <= 40) return 0.97;  // Unhappy: -3%
+  if (morale <= 60) return 1.00;  // Content: +0%
+  if (morale <= 80) return 1.02;  // Happy: +2%
+  return 1.05;                     // Ecstatic: +5%
 }
 // ===========================================
 // AUTO-GENERATE TACTICS FOR UNMANAGED TEAMS
@@ -1009,44 +1007,47 @@ allMatchResults.push({
         if (!player.team_id) continue;
         
         let change = 0;
-        const currentMorale = player.morale || 3;
-        
+        const currentMorale = player.morale || 50;
+
         // Team result
         const teamResult = teamResults[player.team_id];
         if (teamResult) {
-          if (teamResult.result === 'win') change += 1;
-          else if (teamResult.result === 'loss') change -= 1;
-          
-          if (teamResult.streak >= 3) change += 1;
-          else if (teamResult.streak <= -3) change -= 1;
+          if (teamResult.result === 'win') change += 3;
+          else if (teamResult.result === 'loss') change -= 2;
+
+          if (teamResult.streak >= 3) change += 2;
+          else if (teamResult.streak <= -3) change -= 2;
         }
-        
+
         // Playing time
-        if (playersWhoStarted.has(player.id)) {
-          change += 1;
-        } else if (playersOnBench.has(player.id)) {
-          // Bench = no change
+        if (playersWhoStarted.has(player.id) || playersOnBench.has(player.id)) {
+          change += 1;  // Played (starter or bench)
         } else if (!injuredIds.has(player.id)) {
-          change -= 1; // Healthy but not selected
+          change -= 1;  // Healthy but not selected
         }
-        
+
         // MOTM bonus
         if (motmPlayers.has(player.id)) {
-          change += 2;
+          change += 5;
         }
-        
+
         // Transfer listed penalty
         if (transferListedIds.has(player.id)) {
-          change -= 1;
+          change -= 3;
         }
-        
-        // Apply with clamping (1-5)
-        const newMorale = Math.max(1, Math.min(5, currentMorale + change));
-        
+
+        // Apply with clamping (0-100)
+        const newMorale = Math.max(0, Math.min(100, currentMorale + change));
+
         if (newMorale !== currentMorale) {
           moraleUpdates.push({ id: player.id, morale: newMorale });
-          
-          if (newMorale === 1 && currentMorale > 1) {
+
+          // Get old and new tier for notifications
+          const oldTier = currentMorale <= 20 ? 'angry' : currentMorale <= 40 ? 'unhappy' : currentMorale <= 60 ? 'content' : currentMorale <= 80 ? 'happy' : 'ecstatic';
+          const newTier = newMorale <= 20 ? 'angry' : newMorale <= 40 ? 'unhappy' : newMorale <= 60 ? 'content' : newMorale <= 80 ? 'happy' : 'ecstatic';
+
+          // Only notify on tier change to angry or ecstatic
+          if (newTier === 'angry' && oldTier !== 'angry') {
             moraleNotifications.push({
               team_id: player.team_id,
               type: 'morale_angry' as any,
@@ -1054,7 +1055,7 @@ allMatchResults.push({
               message: `${player.first_name} ${player.last_name} is angry and considering their future.`,
               player_id: player.id
             });
-          } else if (newMorale === 5 && currentMorale < 5) {
+          } else if (newTier === 'ecstatic' && oldTier !== 'ecstatic') {
             moraleNotifications.push({
               team_id: player.team_id,
               type: 'morale_ecstatic' as any,
@@ -1065,7 +1066,7 @@ allMatchResults.push({
           }
         }
       }
-      
+
       // Batch update
       if (moraleUpdates.length > 0) {
         const chunkSize = 100;
@@ -1076,18 +1077,17 @@ allMatchResults.push({
           );
         }
       }
-      
+
       if (moraleNotifications.length > 0) {
         await supabase.from('notifications').insert(moraleNotifications);
       }
-      
-      const improved = moraleUpdates.filter(u => u.morale > (playersMap[u.id]?.morale || 3)).length;
+
+      const improved = moraleUpdates.filter(u => u.morale > (playersMap[u.id]?.morale || 50)).length;
       logs.push(`😊 Morale: ${improved} up, ${moraleUpdates.length - improved} down`);
-      
+
     } catch (moraleError) {
       logs.push(`😊 Morale error (non-fatal): ${moraleError}`);
     }
-    
     // ===========================================
     // PHASE 4.5: PROCESS FINANCES
     // ===========================================

@@ -50,13 +50,13 @@ interface PlayerSnapshotPopupProps {
   onClose: () => void;
 }
 
-const MORALE_LABELS: Record<number, { text: string; color: string }> = {
-  1: { text: 'Angry', color: 'text-red-500' },
-  2: { text: 'Unhappy', color: 'text-orange-500' },
-  3: { text: 'Neutral', color: 'text-gray-400' },
-  4: { text: 'Happy', color: 'text-green-400' },
-  5: { text: 'Ecstatic', color: 'text-yellow-400' },
-};
+function getMoraleDisplay(morale: number): { text: string; color: string } {
+  if (morale <= 20) return { text: 'Angry', color: 'text-red-500' };
+  if (morale <= 40) return { text: 'Unhappy', color: 'text-orange-400' };
+  if (morale <= 60) return { text: 'Content', color: 'text-yellow-400' };
+  if (morale <= 80) return { text: 'Happy', color: 'text-green-400' };
+  return { text: 'Ecstatic', color: 'text-green-300' };
+}
 
 const getAttributeColor = (value: number): string => {
   if (value >= 7) return 'text-green-400';
@@ -157,7 +157,7 @@ export default function PlayerSnapshotPopup({ playerId, isOpen, onClose }: Playe
 
   if (!isOpen) return null;
 
-  const morale = player?.morale ? MORALE_LABELS[player.morale] : MORALE_LABELS[3];
+  const morale = getMoraleDisplay(player?.morale ?? 50);
   const fitness = player ? 100 - (player.fatigue || 0) : 100;
 
   return (

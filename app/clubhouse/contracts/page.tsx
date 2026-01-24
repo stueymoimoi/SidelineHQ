@@ -11,13 +11,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const MORALE_DISPLAY: Record<number, { label: string; emoji: string; color: string }> = {
-  1: { label: 'Angry', emoji: '🔴', color: 'text-red-500' },
-  2: { label: 'Unhappy', emoji: '🟠', color: 'text-orange-400' },
-  3: { label: 'Content', emoji: '⚪', color: 'text-gray-400' },
-  4: { label: 'Happy', emoji: '💙', color: 'text-blue-400' },
-  5: { label: 'Ecstatic', emoji: '💚', color: 'text-green-400' },
-};
+function getMoraleDisplay(morale: number): { label: string; color: string } {
+  if (morale <= 20) return { label: 'Angry', color: 'text-red-500' };
+  if (morale <= 40) return { label: 'Unhappy', color: 'text-orange-400' };
+  if (morale <= 60) return { label: 'Content', color: 'text-yellow-400' };
+  if (morale <= 80) return { label: 'Happy', color: 'text-green-400' };
+  return { label: 'Ecstatic', color: 'text-green-300' };
+}
 
 const TIER_LABELS: Record<number, string> = {
   1: 'NONE', 2: 'POOR', 3: 'OK', 4: 'GOOD', 5: 'GREAT', 6: 'EXCELLENT', 7: 'ELITE', 8: 'LEGEND'
@@ -171,7 +171,7 @@ export default function ContractsPage() {
         age: c.players.age,
         overall: c.players.overall,
         position: c.players.position,
-        morale: c.players.morale ?? 3,
+        morale: c.players.morale ?? 50,
         speed: c.players.speed,
         strength: c.players.strength,
         power: c.players.power,
@@ -324,7 +324,7 @@ export default function ContractsPage() {
                         <span className="ml-2">{getStatusBadge(player.id)}</span>
                       </div>
                       <div className="text-sm text-gray-400">
-                        {player.position} • Age {player.age} • Morale: {MORALE_DISPLAY[player.morale]?.label}
+                        {player.position} • Age {player.age} • Morale: {getMoraleDisplay(player.morale).label}
                       </div>
                     </div>
                   </div>
@@ -420,7 +420,7 @@ export default function ContractsPage() {
               <div className="bg-gray-700 rounded p-3 mb-4">
                 <p className="text-gray-400 text-xs">Morale</p>
                 <p className="text-lg font-semibold text-white">
-                  {MORALE_DISPLAY[selectedPlayer.morale]?.label || 'Content'}
+                  {getMoraleDisplay(selectedPlayer.morale).label}
                 </p>
               </div>
 
