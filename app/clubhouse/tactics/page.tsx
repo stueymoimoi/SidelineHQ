@@ -147,9 +147,10 @@ const POSITION_FILTERS = [
 // HELPER FUNCTIONS
 // ============================================
 
-const getActiveInjury = (player: Player): PlayerInjury | null => {
+const getActiveInjury = (player: Player, currentRound: number): PlayerInjury | null => {
   if (!player.player_injuries || player.player_injuries.length === 0) return null;
-  return player.player_injuries.find(i => i.is_active) || null;
+  // Player is only injured if is_active AND round_return is AFTER current round
+  return player.player_injuries.find(i => i.is_active && i.round_return > currentRound) || null;
 };
 
 const getSideBadge = (side: string | null) => {
@@ -243,6 +244,7 @@ interface PlayerSelectionModalProps {
   selectedPlayerIds: Set<string>;
   injuredPlayerIds: Set<string>;
   tactics: Tactics | null;
+  currentRound: number;
   onSelectPlayer: (posKey: string, playerId: string) => void;
   onClose: () => void;
 }
@@ -253,6 +255,7 @@ function PlayerSelectionModal({
   selectedPlayerIds,
   injuredPlayerIds,
   tactics,
+  currentRound,
   onSelectPlayer,
   onClose,
 }: PlayerSelectionModalProps) {
@@ -336,7 +339,7 @@ function PlayerSelectionModal({
           {filteredPlayers.map((p) => {
             const alreadySelected = false; // Allow swapping - anyone can be selected
             const isInjured = injuredPlayerIds.has(p.id);
-            const activeInjury = getActiveInjury(p);
+            const activeInjury = getActiveInjury(p, currentRound);
             const showSide = SIDED_POSITIONS.has(p.position);
             const sideBadge = getSideBadge(p.dominant_side);
             const isDisabled = alreadySelected || isInjured;
@@ -536,6 +539,7 @@ export default function TacticsPage() {
   const [showKickerModal, setShowKickerModal] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [teamId, setTeamId] = useState<string | null>(null);
+  const [currentRound, setCurrentRound] = useState<number>(1);
   
   const router = useRouter();
 
@@ -576,11 +580,11 @@ export default function TacticsPage() {
   const injuredPlayerIds = useMemo(() => {
     const ids = new Set<string>();
     for (const player of players) {
-      const injury = getActiveInjury(player);
+      const injury = getActiveInjury(player, currentRound);
       if (injury) ids.add(player.id);
     }
     return ids;
-  }, [players]);
+  }, [players, currentRound]);
 
   // ============================================
   // DATABASE OPERATIONS
@@ -682,7 +686,7 @@ export default function TacticsPage() {
 
         setTeamId(coach.team_id);
 
-        const [teamResult, playersResult, tacticsResult] = await Promise.all([
+        const [teamResult, playersResult, tacticsResult, fixtureResult] = await Promise.all([
           supabase
             .from('teams')
             .select('id, name, primary_color, secondary_color')
@@ -698,10 +702,18 @@ export default function TacticsPage() {
             .select('*')
             .eq('team_id', coach.team_id)
             .single(),
+          supabase
+            .from('fixtures')
+            .select('round')
+            .eq('season', 0)
+            .eq('played', false)
+            .order('round', { ascending: true })
+            .limit(1),
         ]);
 
         setTeam(teamResult.data);
         setPlayers(playersResult.data || []);
+        setCurrentRound(fixtureResult.data?.[0]?.round || 1);
         setTactics({
           ...tacticsResult.data,
           attack_focus: tacticsResult.data?.attack_focus || '',
@@ -794,7 +806,7 @@ export default function TacticsPage() {
     const isCaptain = tactics?.captain === player?.id;
     const showSide = player && SIDED_POSITIONS.has(player.position);
     const sideBadge = player ? getSideBadge(player.dominant_side) : null;
-    const activeInjury = player ? getActiveInjury(player) : null;
+    const activeInjury = player ? getActiveInjury(player, currentRound) : null;
     
     return (
       <div
@@ -916,7 +928,7 @@ export default function TacticsPage() {
             <h3 className="text-red-400 font-bold mb-2">🏥 Injured Players ({injuredPlayerIds.size})</h3>
             <div className="flex flex-wrap gap-2">
               {players.filter(p => injuredPlayerIds.has(p.id)).map(p => {
-                const injury = getActiveInjury(p);
+                const injury = getActiveInjury(p, currentRound);
                 const injuryType = injury?.injury_types?.[0];
                 return (
                   <span key={p.id} className="bg-red-800/50 text-red-200 text-sm px-2 py-1 rounded">
@@ -1095,7 +1107,7 @@ export default function TacticsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {reservePlayers.map((p) => {
                 const isInjured = injuredPlayerIds.has(p.id);
-                const activeInjury = getActiveInjury(p);
+                const activeInjury = getActiveInjury(p, currentRound);
                 const fitness = getFitness(p.fatigue);
                 
                 return (
@@ -1236,6 +1248,7 @@ export default function TacticsPage() {
           selectedPlayerIds={selectedPlayerIds}
           injuredPlayerIds={injuredPlayerIds}
           tactics={tactics}
+          currentRound={currentRound}
           onSelectPlayer={handleSelectPlayer}
           onClose={() => setSelectedPosition(null)}
         />
@@ -1277,7 +1290,7 @@ export default function TacticsPage() {
                 const stats = getConversionDisplay(p);
                 const isCurrentKicker = tactics?.goal_kicker === p.id;
                 const isInjured = injuredPlayerIds.has(p.id);
-                const activeInjury = getActiveInjury(p);
+                const activeInjury = getActiveInjury(p, currentRound);
                 
                 return (
                   <button

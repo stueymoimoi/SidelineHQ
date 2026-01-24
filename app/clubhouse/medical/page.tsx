@@ -92,7 +92,8 @@ export default function MedicalRoomPage() {
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
-  
+  const [fixtures, setFixtures] = useState<Record<number, { opponent: string; isHome: boolean }>>({});
+
   const router = useRouter();
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function MedicalRoomPage() {
         }
 
         // Fetch all data in parallel
-        const [teamResult, activeResult, historyResult, fixturesResult] = await Promise.all([
+        const [teamResult, activeResult, historyResult, fixturesResult, allTeamsResult, allFixturesResult] = await Promise.all([
           supabase
             .from('teams')
             .select('id, name, primary_color, secondary_color')
@@ -142,19 +143,42 @@ export default function MedicalRoomPage() {
             .eq('played', false)
             .order('round', { ascending: true })
             .limit(1),
+          supabase
+            .from('teams')
+            .select('id, name'),
+          supabase
+            .from('fixtures')
+            .select('round, home_team_id, away_team_id')
+            .eq('season', 0)
+            .or(`home_team_id.eq.${coach.team_id},away_team_id.eq.${coach.team_id}`),
         ]);
+
+        // Build teams map
+        const teamsMap: Record<string, string> = {};
+        allTeamsResult.data?.forEach((t: { id: string; name: string }) => {
+          teamsMap[t.id] = t.name;
+        });
+
+        // Build fixtures map (round -> opponent info)
+        const fixturesMap: Record<number, { opponent: string; isHome: boolean }> = {};
+        allFixturesResult.data?.forEach((f: { round: number; home_team_id: string; away_team_id: string }) => {
+          const isHome = f.home_team_id === coach.team_id;
+          const opponentId = isHome ? f.away_team_id : f.home_team_id;
+          fixturesMap[f.round] = {
+            opponent: teamsMap[opponentId] || 'Unknown',
+            isHome,
+          };
+        });
 
         setTeam(teamResult.data);
         setActiveInjuries(activeResult.data || []);
         setInjuryHistory(historyResult.data || []);
-        
+        setFixtures(fixturesMap);
+
         // Get current round from next unplayed fixture
         const nextRound = fixturesResult.data?.[0]?.round || 1;
         setCurrentRound(nextRound);
 
-        setTeam(teamResult.data);
-        setActiveInjuries(activeResult.data || []);
-        setInjuryHistory(historyResult.data || []);
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
@@ -180,7 +204,7 @@ export default function MedicalRoomPage() {
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <div 
+      <div
         className="p-6"
         style={{
           background: `linear-gradient(135deg, ${team?.primary_color || '#1f2937'} 0%, ${team?.secondary_color || '#111827'} 100%)`
@@ -196,7 +220,7 @@ export default function MedicalRoomPage() {
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
-        
+
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-gray-800 rounded-xl p-4 text-center">
@@ -226,7 +250,7 @@ export default function MedicalRoomPage() {
         {/* Active Injuries */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-white mb-4">🚑 Active Injuries</h2>
-          
+
           {activeInjuries.length === 0 ? (
             <div className="bg-green-900/20 border border-green-600/50 rounded-xl p-8 text-center">
               <p className="text-green-400 text-xl font-bold">✅ All Clear!</p>
@@ -238,9 +262,10 @@ export default function MedicalRoomPage() {
                 const colors = getSeverityColor(injury.injury_types?.severity || 'minor');
                 const roundsRemaining = injury.round_return - currentRound;
                 const player = injury.players;
-                
+                const returnFixture = fixtures[injury.round_return];
+
                 return (
-                  <div 
+                  <div
                     key={injury.id}
                     className={`${colors.bg} border ${colors.border} rounded-xl p-4`}
                   >
@@ -276,9 +301,14 @@ export default function MedicalRoomPage() {
                       </div>
 
                       {/* Return Info */}
-                      <div className="bg-gray-900/50 rounded-lg p-3 text-center min-w-[120px]">
+                      <div className="bg-gray-900/50 rounded-lg p-3 text-center min-w-[160px]">
                         <p className="text-gray-400 text-xs">Returns</p>
                         <p className="text-white font-bold text-xl">Round {injury.round_return}</p>
+                        {returnFixture && (
+                          <p className="text-gray-400 text-xs mt-1">
+                            vs {returnFixture.opponent} ({returnFixture.isHome ? 'H' : 'A'})
+                          </p>
+                        )}
                         <p className={`text-sm ${roundsRemaining <= 1 ? 'text-green-400' : colors.text}`}>
                           {roundsRemaining <= 0 ? 'Ready!' : roundsRemaining === 1 ? '1 round' : `${roundsRemaining} rounds`}
                         </p>
@@ -309,7 +339,7 @@ export default function MedicalRoomPage() {
         {showHistory && (
           <div>
             <h2 className="text-xl font-bold text-white mb-4">📋 Recent Injury History</h2>
-            
+
             {injuryHistory.length === 0 ? (
               <div className="bg-gray-800 rounded-xl p-8 text-center">
                 <p className="text-gray-500">No injury history yet</p>
@@ -329,7 +359,7 @@ export default function MedicalRoomPage() {
                     {injuryHistory.map((injury) => {
                       const colors = getSeverityColor(injury.injury_types?.severity || 'minor');
                       const player = injury.players;
-                      
+
                       return (
                         <tr key={injury.id} className="hover:bg-gray-700/50">
                           <td className="px-4 py-3">

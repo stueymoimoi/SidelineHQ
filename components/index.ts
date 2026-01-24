@@ -12,3 +12,4 @@ export { default as TeamBadge } from './TeamBadge';
 export { default as TeamLink } from './TeamLink';
 export { default as TeamSnapshotPopup } from './TeamSnapshotPopup';
 export { default as MatchTimeline } from './MatchTimeline';
+export { default as PlayerSnapshotPopup } from './PlayerSnapshotPopup';

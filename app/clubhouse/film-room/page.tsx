@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { PlayerSnapshotPopup } from '@/components';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -104,6 +105,7 @@ export default function FilmRoomPage() {
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null);
   const [scoutReport, setScoutReport] = useState<ScoutReport | null>(null);
+const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [allTeams, setAllTeams] = useState<Record<string, Team>>({});
   const router = useRouter();
 
@@ -391,8 +393,9 @@ export default function FilmRoomPage() {
                   return (
                     <div 
                       key={player.id} 
-                      className="bg-gray-700 rounded-lg p-4 border-l-4"
+                      className="bg-gray-700 rounded-lg p-4 border-l-4 cursor-pointer hover:bg-gray-600 transition-colors"
                       style={{ borderColor: i === 0 ? '#ef4444' : i === 1 ? '#f97316' : '#eab308' }}
+                      onClick={() => setSelectedPlayerId(player.id)}
                     >
                       <div className="flex justify-between items-start">
                         <div>
@@ -433,7 +436,8 @@ export default function FilmRoomPage() {
                   return (
                     <div 
                       key={player.id} 
-                      className="bg-gray-700 rounded p-3 flex justify-between items-center"
+                      className="bg-gray-700 rounded p-3 flex justify-between items-center cursor-pointer hover:bg-gray-600 transition-colors"
+                      onClick={() => setSelectedPlayerId(player.id)}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-gray-500 text-xs w-4">{i + 1}</span>
@@ -484,6 +488,13 @@ export default function FilmRoomPage() {
           </div>
         )}
       </div>
+
+      {/* Player Snapshot Popup */}
+      <PlayerSnapshotPopup
+        playerId={selectedPlayerId || ''}
+        isOpen={!!selectedPlayerId}
+        onClose={() => setSelectedPlayerId(null)}
+      />
     </div>
   );
 }
