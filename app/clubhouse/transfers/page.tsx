@@ -266,7 +266,14 @@ setMyPendingOffers(myOffers?.map(o => o.listing_id) || []);
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Offer submitted!' });
+      // Notify the seller
+await supabase.from('notifications').insert({
+  team_id: listing.team_id,
+  type: 'transfer_offer',
+  title: '💰 Transfer Offer Received',
+  message: `You received an offer of $${amount.toLocaleString()} for ${listing.player.first_name} ${listing.player.last_name}.`,
+});
+setMessage({ type: 'success', text: 'Offer submitted!' });
       setShowOfferModal(null);
       setOfferAmount('');
 
