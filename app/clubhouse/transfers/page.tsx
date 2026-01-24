@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@/lib/supabase';
 import Link from 'next/link';
 import { TRANSFER_LIMITS } from '@/lib/transfers/constants';
 
@@ -26,12 +26,9 @@ interface Listing {
     division: number;
   };
 }
-
 export default function TransferMarketPage() {
-  const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+  const supabase = createBrowserClient();
+
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
