@@ -146,7 +146,21 @@ export default function FinancesPage() {
         ...c,
         players: Array.isArray(c.players) ? c.players[0] : c.players
       }));
-      setContracts(transformedContracts);
+      // Get contract negotiations to filter out accepted renewals
+      const { data: negData } = await supabase
+        .from('contract_negotiations')
+        .select('player_id, status')
+        .eq('team_id', coachData.team_id)
+        .eq('status', 'accepted');
+
+      const acceptedPlayerIds = new Set((negData || []).map((n: any) => n.player_id));
+      
+      // Filter out players with accepted negotiations
+      const filteredContracts = transformedContracts.filter(
+        (c: any) => !acceptedPlayerIds.has(c.player_id)
+      );
+      
+      setContracts(filteredContracts);
 
       // Get recent transactions
       const { data: txData } = await supabase
