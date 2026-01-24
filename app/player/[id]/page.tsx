@@ -106,6 +106,7 @@ export default function PlayerPage() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [myTeamId, setMyTeamId] = useState<string | null>(null);
+  const [messaging, setMessaging] = useState(false);
   const [matchHistory, setMatchHistory] = useState<MatchStat[]>([]);
   const [seasonTotals, setSeasonTotals] = useState<SeasonTotals | null>(null);
   const [teamsMap, setTeamsMap] = useState<Record<string, Team>>({});
@@ -239,6 +240,61 @@ export default function PlayerPage() {
   // Check if this is the current user's player
   const isMyPlayer = player.team_id === myTeamId;
   const isFreeAgent = !player.team_id;
+  const canMessage = team && myTeamId && player.team_id && player.team_id !== myTeamId;
+
+  const handleMessageCoach = async () => {
+    if (!myTeamId || !player.team_id) return;
+
+    setMessaging(true);
+    try {
+      // Check if conversation already exists (in either direction)
+      const { data: existingConvo } = await supabase
+        .from('coach_conversations')
+        .select('id')
+        .or(`and(team_a_id.eq.${myTeamId},team_b_id.eq.${player.team_id}),and(team_a_id.eq.${player.team_id},team_b_id.eq.${myTeamId})`)
+        .single();
+
+      let conversationId: string;
+
+      if (existingConvo) {
+        conversationId = existingConvo.id;
+      } else {
+        // Create new conversation
+        const { data: newConvo, error } = await supabase
+          .from('coach_conversations')
+          .insert({
+            team_a_id: myTeamId,
+            team_b_id: player.team_id,
+          })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        conversationId = newConvo.id;
+      }
+
+      // Send initial message about the player
+      await supabase.from('coach_messages').insert({
+        conversation_id: conversationId,
+        sender_team_id: myTeamId,
+        content: `Hi, I'm interested in ${player.first_name} ${player.last_name}. Is he available?`,
+        player_id: player.id,
+      });
+
+      // Update conversation timestamp
+      await supabase
+        .from('coach_conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', conversationId);
+
+      // Navigate to messages
+      router.push('/clubhouse/messages');
+    } catch (error) {
+      console.error('Message error:', error);
+    } finally {
+      setMessaging(false);
+    }
+  };
 
   // Calculate form trend from last 3 matches
   const recentRatings = matchHistory.slice(0, 3).map(m => m.rating || 6);
@@ -314,8 +370,17 @@ export default function PlayerPage() {
               </div>
             </div>
           )}
+          {/* Message Coach Button */}
+          {canMessage && (
+            <button
+              onClick={handleMessageCoach}
+              disabled={messaging}
+              className="mt-4 w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white py-3 rounded-lg font-semibold transition"
+            >
+              {messaging ? 'Opening chat...' : '💬 Message Coach'}
+            </button>
+          )}
         </div>
-
         {/* Stats Grid - Show for your players OR free agents */}
         {(isMyPlayer || isFreeAgent) ? (
           <div className="bg-gray-800 rounded-lg p-6 mb-6">
