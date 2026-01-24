@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@/lib/supabase';
 import Link from 'next/link';
 import { TRANSFER_LIMITS } from '@/lib/transfers/constants';
+import PlayerSnapshotPopup from '@/components/PlayerSnapshotPopup';
 
 interface Listing {
   id: string;
@@ -41,6 +42,7 @@ export default function TransferMarketPage() {
   const [offerAmount, setOfferAmount] = useState<string>('');
   const [showOfferModal, setShowOfferModal] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
 
   useEffect(() => {
     loadData();
@@ -375,9 +377,12 @@ export default function TransferMarketPage() {
                     <p className="text-xs text-gray-400">OVR</p>
                   </div>
                   <div>
-                    <p className="text-white font-bold text-lg">
-                      {listing.player?.first_name} {listing.player?.last_name}
-                    </p>
+                    <p 
+  className="text-white font-bold text-lg cursor-pointer hover:text-cyan-400"
+  onClick={() => setSelectedPlayer(listing.player)}
+>
+  {listing.player?.first_name} {listing.player?.last_name}
+</p>
                     <p className="text-gray-400 text-sm">
                       {listing.player?.position} • Age {listing.player?.age} • {listing.team?.name} (Div {listing.team?.division})
                     </p>
@@ -458,6 +463,14 @@ export default function TransferMarketPage() {
             </div>
           </div>
         </div>
+      )}
+{/* Player Snapshot Modal */}
+      {selectedPlayer && (
+        <PlayerSnapshotPopup
+          isOpen={true}
+          playerId={selectedPlayer.id}
+          onClose={() => setSelectedPlayer(null)}
+        />
       )}
     </div>
   );
