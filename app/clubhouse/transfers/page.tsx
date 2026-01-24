@@ -43,6 +43,7 @@ export default function TransferMarketPage() {
   const [showOfferModal, setShowOfferModal] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [myPendingOffers, setMyPendingOffers] = useState<string[]>([]);
 
   useEffect(() => {
     loadData();
@@ -86,6 +87,14 @@ export default function TransferMarketPage() {
       setWeeklyTransfersUsed(team?.weekly_transfers_used || 0);
       setMyBalance(finances?.balance || 0);
       setMySquadSize(count || 0);
+      // Get my pending offers
+const { data: myOffers } = await supabase
+  .from('transfer_offers')
+  .select('listing_id')
+  .eq('from_team_id', coach.team_id)
+  .eq('status', 'pending');
+
+setMyPendingOffers(myOffers?.map(o => o.listing_id) || []);
     }
 
     // Get active listings (excluding my team)
@@ -409,13 +418,22 @@ export default function TransferMarketPage() {
                       <div className="text-right">
                         <p className="text-yellow-400 font-bold">Taking Offers</p>
                       </div>
-                      <button
-                        onClick={() => setShowOfferModal(listing.id)}
-                        disabled={weeklyTransfersUsed >= 3 || mySquadSize >= 30}
-                        className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-bold"
-                      >
-                        Make Offer
-                      </button>
+                      {myPendingOffers.includes(listing.id) ? (
+  <button
+    disabled
+    className="bg-gray-600 cursor-not-allowed text-white px-4 py-2 rounded font-bold"
+  >
+    Offer Pending
+  </button>
+) : (
+  <button
+    onClick={() => setShowOfferModal(listing.id)}
+    disabled={weeklyTransfersUsed >= 3 || mySquadSize >= 30}
+    className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-bold"
+  >
+    Make Offer
+  </button>
+)}
                     </>
                   )}
                 </div>
