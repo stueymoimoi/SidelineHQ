@@ -324,6 +324,11 @@ export default function ClubhousePage() {
             <p className="text-white font-bold">Squad</p>
             <p className="text-gray-500 text-sm">View players</p>
           </Link>
+          <Link href="/clubhouse/squad-stats" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-cyan-500">
+            <div className="text-4xl mb-2">📈</div>
+            <p className="text-white font-bold">Squad Stats</p>
+            <p className="text-gray-500 text-sm">Season stats</p>
+          </Link>
           <Link href="/clubhouse/tactics" className="bg-gray-800 rounded-lg p-6 text-center hover:bg-gray-700 transition border-2 border-transparent hover:border-green-500">
             <div className="text-4xl mb-2">📋</div>
             <p className="text-white font-bold">Tactics</p>
