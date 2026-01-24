@@ -373,7 +373,11 @@ export default function FinancesPage() {
               ) : (
                 <div className="space-y-2">
                   {expiringContracts.slice(0, 5).map((contract) => (
-                    <div key={contract.player_id} className="flex items-center justify-between bg-gray-700 rounded p-3">
+                    <Link 
+                      key={contract.player_id} 
+                      href="/clubhouse/contracts"
+                      className="flex items-center justify-between bg-gray-700 rounded p-3 hover:bg-gray-600 transition cursor-pointer"
+                    >
                       <div>
                         <p className="text-white font-medium">
                           {contract.players?.first_name} {contract.players?.last_name}
@@ -386,7 +390,7 @@ export default function FinancesPage() {
                         <p className="text-yellow-400 font-bold">{contract.weeks_remaining}w</p>
                         <p className="text-gray-500 text-xs">{formatMoneyShort(contract.weekly_wage)}/wk</p>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                   {expiringContracts.length > 5 && (
                     <p className="text-gray-500 text-sm text-center">
