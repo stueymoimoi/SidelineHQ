@@ -88,19 +88,19 @@ export default function TransferMarketPage() {
 
     // Get active listings (excluding my team)
     const { data: listingsData } = await supabase
-      .from('transfer_listings')
-      .select(`
-        id,
-        player_id,
-        team_id,
-        asking_price,
-        listed_at,
-        status,
-        player:players(id, first_name, last_name, position, overall, age),
-        team:teams(id, name, division)
-      `)
-      .eq('status', 'active')
-      .order('listed_at', { ascending: false });
+  .from('transfer_listings')
+  .select(`
+    id,
+    player_id,
+    team_id,
+    asking_price,
+    listed_at,
+    status,
+    player:players(id, first_name, last_name, position, overall, age),
+    team:teams!transfer_listings_team_id_fkey(id, name, division)
+  `)
+  .eq('status', 'active')
+  .order('listed_at', { ascending: false });
 
     if (listingsData) {
       // Transform data to flatten player and team objects
