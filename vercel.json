@@ -1,8 +1,20 @@
 {
   "crons": [
     {
-      "path": "/api/game-update",
+      "path": "/api/cron/matches",
       "schedule": "0 8 * * 0,2,4"
+    },
+    {
+      "path": "/api/cron/training",
+      "schedule": "5 8 * * 0,2,4"
+    },
+    {
+      "path": "/api/cron/finances",
+      "schedule": "10 8 * * 0,2,4"
+    },
+    {
+      "path": "/api/cron/cleanup",
+      "schedule": "15 8 * * 0,2,4"
     }
   ]
 }
