@@ -1,11 +1,11 @@
 /**
  * SidelineHQ Cron: CLEANUP
  * 
- * Phase 4 of 4 - Runs at 6:15pm AEST (8:15 UTC)
+ * Phase 5 of 5 - Runs at 6:20pm AEST (8:20 UTC)
  * - Processes morale changes
  * - Sets maintenance mode OFF
  * 
- * Schedule: 15 8 * * 0,2,4
+ * Schedule: 20 8 * * 0,2,4
  */
 
 export const maxDuration = 60;
@@ -14,7 +14,6 @@ export const dynamic = 'force-dynamic';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { SEASON } from '@/lib/game-engine/constants';
-import type { Notification } from '@/lib/game-engine/types';
 
 function getSupabase() {
   return createClient(

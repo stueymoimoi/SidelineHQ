@@ -13,8 +13,12 @@
       "schedule": "10 8 * * 0,2,4"
     },
     {
-      "path": "/api/cron/cleanup",
+      "path": "/api/cron/freeagents",
       "schedule": "15 8 * * 0,2,4"
+    },
+    {
+      "path": "/api/cron/cleanup",
+      "schedule": "20 8 * * 0,2,4"
     }
   ]
 }
