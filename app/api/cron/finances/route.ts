@@ -2,11 +2,9 @@
  * SidelineHQ Cron: FINANCES
  * 
  * Phase 3 of 5 - Runs at 6:10pm AEST (8:10 UTC)
- * - Match revenue (every run)
- * - Wages + grants (Sunday only)
- * - Contract countdown (OPTIMIZED - single SQL call)
- * - AI contract renewals
- * - Weekly transfer reset (Sunday only)
+ * 
+ * SUNDAY: Full processing (wages, grants, revenue, contracts)
+ * TUE/THU: Light processing (just contracts + AI renewals)
  * 
  * Schedule: 10 8 * * 0,2,4
  */
@@ -32,70 +30,49 @@ function getSupabase() {
 
 // ============================================
 // OPTIMIZED CONTRACT COUNTDOWN
-// Uses single SQL call instead of loop
+// Uses database function for single-call update
 // ============================================
 async function processContractCountdownOptimized(
   supabase: any
 ): Promise<{ updated: number; expired: number }> {
   
-  // 1. Decrement ALL contracts in a single call using raw SQL
-  const { data: decrementResult, error: decrementError } = await supabase
-    .rpc('decrement_all_contracts');
-  
-  // If RPC doesn't exist, fall back to a different approach
+  // 1. Try to use the RPC function first (single SQL call)
   let updated = 0;
-  if (decrementError) {
-    // Fallback: Use a raw SQL update via REST
-    // This updates all contracts at once instead of one by one
-    const { count, error: updateError } = await supabase
-      .from('player_contracts')
-      .update({ 
-        weeks_remaining: supabase.sql`weeks_remaining - 1`,
-        updated_at: new Date().toISOString(),
-      })
-      .gt('weeks_remaining', 0)
-      .select('id', { count: 'exact', head: true });
-    
-    if (updateError) {
-      // If that also fails, do batch update in chunks
-      const { data: contracts } = await supabase
-        .from('player_contracts')
-        .select('id, weeks_remaining')
-        .gt('weeks_remaining', 0);
-      
-      if (contracts && contracts.length > 0) {
-        // Process in chunks of 500
-        const chunkSize = 500;
-        for (let i = 0; i < contracts.length; i += chunkSize) {
-          const chunk = contracts.slice(i, i + chunkSize);
-          const ids = chunk.map((c: any) => c.id);
-          
-          // Batch update this chunk
-          await Promise.all(
-            chunk.map((contract: any) =>
-              supabase
-                .from('player_contracts')
-                .update({ 
-                  weeks_remaining: contract.weeks_remaining - 1,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', contract.id)
-            )
-          );
-          updated += chunk.length;
-        }
-      }
-    } else {
-      updated = count || 0;
-    }
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('decrement_all_contracts');
+  
+  if (!rpcError && rpcResult !== null) {
+    updated = rpcResult;
   } else {
-    updated = decrementResult || 0;
+    // Fallback: batch update in parallel chunks
+    const { data: contracts } = await supabase
+      .from('player_contracts')
+      .select('id, weeks_remaining')
+      .gt('weeks_remaining', 0);
+    
+    if (contracts && contracts.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < contracts.length; i += chunkSize) {
+        const chunk = contracts.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map((contract: any) =>
+            supabase
+              .from('player_contracts')
+              .update({ 
+                weeks_remaining: contract.weeks_remaining - 1,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', contract.id)
+          )
+        );
+      }
+      updated = contracts.length;
+    }
   }
 
-  // 2. Find and process expired contracts
+  // 2. Handle expired contracts (batch operations)
   const { data: expiredContracts } = await supabase
     .from('player_contracts')
-    .select('id, player_id, team_id, weekly_wage')
+    .select('id, player_id, team_id')
     .lte('weeks_remaining', 0);
 
   let expired = 0;
@@ -103,11 +80,21 @@ async function processContractCountdownOptimized(
     const playerIds = expiredContracts.map((c: any) => c.player_id);
     const contractIds = expiredContracts.map((c: any) => c.id);
     
+    // Get current round for free agent availability
+    const { data: roundData } = await supabase
+      .from('fixtures')
+      .select('round')
+      .eq('season', SEASON)
+      .eq('played', true)
+      .order('round', { ascending: false })
+      .limit(1);
+    const currentRound = roundData?.[0]?.round || 1;
+    
     // Batch insert to free_agents
     const freeAgentInserts = expiredContracts.map((contract: any) => ({
       player_id: contract.player_id,
       released_by_team_id: contract.team_id,
-      available_round: 0, // Available immediately
+      available_round: currentRound + 1,
       claimed: false,
     }));
     
@@ -119,7 +106,7 @@ async function processContractCountdownOptimized(
       .delete()
       .in('id', contractIds);
     
-    // Batch update players to remove team_id
+    // Batch update players
     await supabase
       .from('players')
       .update({ team_id: null })
@@ -166,37 +153,40 @@ export async function GET(request: Request) {
     logs.push(`Round: ${currentRound}, Sunday: ${isSunday}`);
     
     // ===========================================
-    // SUNDAY: Reset weekly transfers
+    // SUNDAY ONLY: Reset weekly transfers
     // ===========================================
-    
     if (isSunday) {
       await supabase.from('teams').update({ weekly_transfers_used: 0 }).gte('weekly_transfers_used', 0);
       logs.push('🔄 Weekly transfers reset');
     }
     
-    // ===========================================
-    // TEAM FINANCES
-    // ===========================================
-    
     if (ENABLE_FINANCES) {
-      const financeStart = Date.now();
-      const financeResults = await processAllTeamFinances(supabase, SEASON, currentRound, isSunday);
-      const successCount = financeResults.filter(r => r.success).length;
-      logs.push(`💰 Finances: ${successCount}/${financeResults.length} teams (${Date.now() - financeStart}ms)`);
+      // ===========================================
+      // SUNDAY ONLY: Full team finances (wages, grants, revenue)
+      // This is the slow part - only run on Sundays
+      // ===========================================
+      if (isSunday) {
+        const financeStart = Date.now();
+        const financeResults = await processAllTeamFinances(supabase, SEASON, currentRound, true);
+        const successCount = financeResults.filter(r => r.success).length;
+        logs.push(`💰 Full finances: ${successCount}/${financeResults.length} teams (${Date.now() - financeStart}ms)`);
+      } else {
+        logs.push('💰 Skipping full finances (not Sunday)');
+      }
       
       // ===========================================
-      // AI CONTRACT RENEWALS
+      // EVERY RUN: AI contract renewals (fast)
       // ===========================================
       const aiStart = Date.now();
       const aiRenewalResult = await processAIContractRenewals(supabase, currentRound);
       logs.push(`🤖 AI: ${aiRenewalResult.renewed} renewed, ${aiRenewalResult.released} releasing (${Date.now() - aiStart}ms)`);
       
       // ===========================================
-      // CONTRACT COUNTDOWN (OPTIMIZED)
+      // EVERY RUN: Contract countdown (optimized)
       // ===========================================
       const contractStart = Date.now();
       const contractResult = await processContractCountdownOptimized(supabase);
-      logs.push(`📝 Contracts: ${contractResult.updated} updated, ${contractResult.expired} expired (${Date.now() - contractStart}ms)`);
+      logs.push(`📝 Contracts: ${contractResult.updated} decremented, ${contractResult.expired} expired (${Date.now() - contractStart}ms)`);
     }
     
     const totalTime = Date.now() - startTime;
