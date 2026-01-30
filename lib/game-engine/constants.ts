@@ -21,14 +21,17 @@ export const BASE_TRIES = 4;
 /** Bonus for teams with a human coach */
 export const COACHING_BONUS = 12;
 
-/** Fatigue added per match played */
+/** Fatigue added per match played (80 mins) */
 export const FATIGUE_PER_MATCH = 15;
 
 /** Fatigue added per training session */
 export const FATIGUE_PER_TRAINING = 5;
 
-/** Fatigue recovered when resting */
+/** Fatigue recovered when resting (not playing) */
 export const REST_RECOVERY = 25;
+
+/** Baseline fatigue recovery for ALL players between matches (realistic weekly recovery) */
+export const BASELINE_RECOVERY = 10;
 
 // ===========================================
 // POSITION CONFIGURATION
@@ -357,25 +360,28 @@ export const ORIGIN_TEAM_COLORS = {
 // INJURY SYSTEM CONSTANTS
 // =============================================
 
-// Base injury chance per match (6%)
-export const BASE_INJURY_CHANCE = 0.06;
+// Base injury chance per match (4% - realistic for NRL)
+// Real NRL: ~3-5 injuries per round across 16 teams = ~2-3% per player
+export const BASE_INJURY_CHANCE = 0.04;
 
 // Durability modifiers (multiply base chance)
+// Durability is now the PRIMARY injury factor
 export const DURABILITY_INJURY_MODIFIERS: Record<string, number> = {
-  fragile: 1.5,    // 9% chance
-  normal: 1.0,     // 6% chance
-  durable: 0.7,    // 4.2% chance
-  ironman: 0.4,    // 2.4% chance
+  fragile: 1.8,    // 7.2% chance - injury-prone players are risky
+  normal: 1.0,     // 4% chance - standard
+  durable: 0.6,    // 2.4% chance - reliable
+  ironman: 0.3,    // 1.2% chance - almost never injured
 };
 
 // Fatigue tier modifiers (multiply base chance)
+// REDUCED impact - fatigue is secondary to durability
 // Remember: fatigue 0 = fresh, 100 = exhausted
 export const FATIGUE_INJURY_MODIFIERS: Record<string, number> = {
-  fresh: 1.0,      // fatigue 0-30
-  mild: 1.1,       // fatigue 31-50
-  moderate: 1.2,   // fatigue 51-70
-  high: 1.35,      // fatigue 71-85
-  exhausted: 1.5,  // fatigue 86-100
+  fresh: 1.0,      // fatigue 0-30: no modifier
+  mild: 1.05,      // fatigue 31-50: minimal impact
+  moderate: 1.1,   // fatigue 51-70: slight increase
+  high: 1.2,       // fatigue 71-85: noticeable
+  exhausted: 1.3,  // fatigue 86-100: significant but not extreme
 };
 
 // Hidden trait modifiers
@@ -385,10 +391,12 @@ export const TRAIT_INJURY_MODIFIERS: Record<string, number> = {
 };
 
 // Injury severity distribution (when injury occurs)
+// MORE minor injuries, FEWER major (realistic)
+// Real NRL: Most injuries are minor soft tissue, major injuries are rare events
 export const INJURY_SEVERITY_WEIGHTS = {
-  minor: 60,      // 60% chance
-  moderate: 32,   // 32% chance
-  major: 8,       // 8% chance
+  minor: 70,      // 70% chance - corked thigh, stingers, minor strains
+  moderate: 24,   // 24% chance - hamstring tears, ankle sprains
+  major: 6,       // 6% chance - ACL, broken bones (rare, newsworthy)
 };
 
 // Training rules when injured
@@ -562,20 +570,4 @@ export function getAgeBracket(age: number): 'young' | 'prime' | 'veteran' | 'old
   if (age <= 27) return 'prime';
   if (age <= 31) return 'veteran';
   return 'old';
-}
-export const MORALE_LABELS = [
-  { maxValue: 20, label: 'Angry', color: 'text-red-500' },
-  { maxValue: 40, label: 'Unhappy', color: 'text-orange-400' },
-  { maxValue: 60, label: 'Content', color: 'text-yellow-400' },
-  { maxValue: 80, label: 'Happy', color: 'text-green-400' },
-  { maxValue: 100, label: 'Ecstatic', color: 'text-green-300' },
-] as const;
-
-export function getMoraleLabel(morale: number): { label: string; color: string } {
-  for (const tier of MORALE_LABELS) {
-    if (morale <= tier.maxValue) {
-      return { label: tier.label, color: tier.color };
-    }
-  }
-  return { label: 'Content', color: 'text-yellow-400' };
 }

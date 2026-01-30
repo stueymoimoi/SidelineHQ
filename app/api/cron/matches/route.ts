@@ -5,9 +5,15 @@
  * - Sets maintenance mode ON
  * - Simulates matches (or Origin)
  * - Processes injuries
- * - Updates fatigue
+ * - Updates fatigue (with baseline recovery)
  * 
  * Schedule: 0 8 * * 0,2,4
+ * 
+ * FATIGUE SYSTEM (Realistic NRL Model):
+ * - All players recover BASELINE_RECOVERY (10) fatigue between matches
+ * - Playing players then ADD fatigue based on minutes played
+ * - Non-playing players get additional 30% recovery bonus
+ * - Result: Starters can play every week (equilibrium ~15-20 fatigue)
  */
 
 export const maxDuration = 60;
@@ -21,6 +27,7 @@ import {
   HOME_ADVANTAGE,
   COACHING_BONUS,
   FATIGUE_PER_MATCH,
+  BASELINE_RECOVERY,
   POSITION_FIELDS,
   MOTM_MIN_RATING,
   REST_RECOVERY,
@@ -92,6 +99,41 @@ function generateAutoTactics(players: Player[]): Partial<TeamTactics> {
     bench_4: sorted[16]?.id,
     goal_kicker: sorted[6]?.id
   };
+}
+
+/**
+ * Calculate fatigue for a playing player
+ * Applies baseline recovery FIRST, then adds match fatigue
+ * This creates equilibrium so starters can play every week
+ */
+function calculatePlayerFatigue(
+  currentFatigue: number,
+  minutesPlayed: number,
+  traitFatigueMultiplier: number
+): number {
+  // Step 1: Apply baseline recovery (simulates week of professional recovery)
+  const afterRecovery = Math.max(0, currentFatigue - BASELINE_RECOVERY);
+  
+  // Step 2: Calculate fatigue gained from this match (scaled by minutes)
+  const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
+  const fatigueGain = Math.round(baseFatigueGain * traitFatigueMultiplier);
+  
+  // Step 3: Apply match fatigue, cap at 100
+  return Math.min(100, afterRecovery + fatigueGain);
+}
+
+/**
+ * Calculate fatigue for a non-playing player (rest recovery)
+ * Applies baseline recovery PLUS additional rest bonus
+ */
+function calculateRestFatigue(currentFatigue: number): number {
+  // Step 1: Apply baseline recovery
+  const afterBaseline = Math.max(0, currentFatigue - BASELINE_RECOVERY);
+  
+  // Step 2: Apply additional rest bonus (30% of remaining)
+  const afterRestBonus = Math.round(afterBaseline * (1 - 0.30));
+  
+  return Math.max(0, afterRestBonus);
 }
 
 export async function GET(request: Request) {
@@ -270,8 +312,13 @@ export async function GET(request: Request) {
           }
         }
         
-        Object.entries(originResult.fatigueUpdates).forEach(([playerId, fatigue]) => {
-          fatigueUpdates[playerId] = fatigue;
+        // Origin players: baseline recovery + Origin fatigue (higher than normal match)
+        Object.entries(originResult.fatigueUpdates).forEach(([playerId, originFatigue]) => {
+          const player = playersMap[playerId];
+          if (player) {
+            const afterRecovery = Math.max(0, (player.fatigue || 0) - BASELINE_RECOVERY);
+            fatigueUpdates[playerId] = Math.min(100, afterRecovery + originFatigue);
+          }
         });
         
         // Origin injuries
@@ -286,11 +333,11 @@ export async function GET(request: Request) {
           logs.push(`Origin Injuries: ${originInjuries.length}`);
         }
         
-        // Rest for non-Origin players
+        // Non-Origin players: full rest recovery
         const originPlayerIds = new Set(Object.keys(originResult.fatigueUpdates));
         for (const player of allPlayers) {
           if (player.team_id && !originPlayerIds.has(player.id)) {
-            fatigueUpdates[player.id] = Math.max(0, (player.fatigue || 0) - REST_RECOVERY);
+            fatigueUpdates[player.id] = calculateRestFatigue(player.fatigue || 0);
           }
         }
         
@@ -487,10 +534,13 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
+            // Calculate fatigue with baseline recovery
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
-            const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
-            const fatigueGain = Math.round(baseFatigueGain * traitMods.fatigueMultiplier);
-            fatigueUpdates[homePlayerId] = Math.min(100, (player.fatigue || 0) + fatigueGain);
+            fatigueUpdates[homePlayerId] = calculatePlayerFatigue(
+              player.fatigue || 0,
+              minutesPlayed,
+              traitMods.fatigueMultiplier
+            );
           }
           
           // Away player
@@ -563,10 +613,13 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
+            // Calculate fatigue with baseline recovery
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
-            const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
-            const fatigueGain = Math.round(baseFatigueGain * traitMods.fatigueMultiplier);
-            fatigueUpdates[awayPlayerId] = Math.min(100, (player.fatigue || 0) + fatigueGain);
+            fatigueUpdates[awayPlayerId] = calculatePlayerFatigue(
+              player.fatigue || 0,
+              minutesPlayed,
+              traitMods.fatigueMultiplier
+            );
           }
         }
         
@@ -696,12 +749,11 @@ export async function GET(request: Request) {
         logs.push(`${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}`);
       }
       
-      // Rest recovery for non-playing
+      // Rest recovery for non-playing players (baseline + 30% bonus)
       const playingPlayerIds = new Set(Object.keys(fatigueUpdates));
       for (const player of allPlayers) {
         if (player.team_id && !playingPlayerIds.has(player.id)) {
-          const currentFatigue = player.fatigue || 0;
-          fatigueUpdates[player.id] = Math.max(0, Math.round(currentFatigue * 0.7));
+          fatigueUpdates[player.id] = calculateRestFatigue(player.fatigue || 0);
         }
       }
     }
