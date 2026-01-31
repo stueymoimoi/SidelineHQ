@@ -1,7 +1,7 @@
 // /app/clubhouse/messages/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { createBrowserClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -16,6 +16,9 @@ interface Conversation {
     name: string;
     primary_color: string;
   };
+  other_coach: {
+    name: string | null;
+  } | null;
   last_message?: {
     content: string;
     sender_team_id: string;
@@ -43,14 +46,21 @@ interface Message {
 export default function MessagesPage() {
   const router = useRouter();
   const supabase = createBrowserClient();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [teamId, setTeamId] = useState<string | null>(null);
+  const [myCoachName, setMyCoachName] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   useEffect(() => {
     loadData();
@@ -63,6 +73,38 @@ export default function MessagesPage() {
     }
   }, [selectedConversation]);
 
+  // Real-time subscription for new messages
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const channel = supabase
+      .channel(`messages:${selectedConversation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'coach_messages',
+          filter: `conversation_id=eq.${selectedConversation.id}`,
+        },
+        (payload) => {
+          // Add new message to the list
+          const newMsg = payload.new as Message;
+          setMessages((prev) => [...prev, newMsg]);
+          
+          // Mark as read if from other team
+          if (newMsg.sender_team_id !== teamId) {
+            markAsRead(selectedConversation.id);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedConversation, teamId]);
+
   async function loadData() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -73,7 +115,7 @@ export default function MessagesPage() {
 
       const { data: coach } = await supabase
         .from('coaches')
-        .select('team_id')
+        .select('team_id, name, coach_name')
         .eq('user_id', user.id)
         .single();
 
@@ -83,6 +125,7 @@ export default function MessagesPage() {
       }
 
       setTeamId(coach.team_id);
+      setMyCoachName(coach.name || coach.coach_name || null);
 
       // Get all conversations for this team
       const { data: convos } = await supabase
@@ -92,15 +135,23 @@ export default function MessagesPage() {
         .order('last_message_at', { ascending: false });
 
       if (convos && convos.length > 0) {
-        // Get other team details and last message for each conversation
+        // Get other team details, coach name, and last message for each conversation
         const enrichedConvos: Conversation[] = await Promise.all(
           convos.map(async (convo) => {
             const otherTeamId = convo.team_a_id === coach.team_id ? convo.team_b_id : convo.team_a_id;
 
+            // Get team info
             const { data: otherTeam } = await supabase
               .from('teams')
               .select('id, name, primary_color')
               .eq('id', otherTeamId)
+              .single();
+
+            // Get coach info for the other team
+            const { data: otherCoach } = await supabase
+              .from('coaches')
+              .select('name, coach_name')
+              .eq('team_id', otherTeamId)
               .single();
 
             const { data: lastMsg } = await supabase
@@ -121,6 +172,7 @@ export default function MessagesPage() {
             return {
               ...convo,
               other_team: otherTeam || { id: otherTeamId, name: 'Unknown', primary_color: '#666' },
+              other_coach: otherCoach ? { name: otherCoach.name || otherCoach.coach_name } : null,
               last_message: lastMsg || undefined,
               unread_count: count || 0,
             };
@@ -189,8 +241,9 @@ export default function MessagesPage() {
         .eq('id', selectedConversation.id);
 
       setNewMessage('');
-      loadMessages(selectedConversation.id);
-      loadData(); // Refresh conversation list
+      // Don't need to loadMessages manually - real-time subscription will handle it
+      // But refresh conversation list to update last message preview
+      loadData();
     } catch (err) {
       console.error('Error sending message:', err);
     } finally {
@@ -213,6 +266,13 @@ export default function MessagesPage() {
     } else {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
+  }
+
+  function getCoachDisplayName(conversation: Conversation): string {
+    if (conversation.other_coach?.name) {
+      return `Coach ${conversation.other_coach.name}`;
+    }
+    return conversation.other_team.name;
   }
 
   if (loading) {
@@ -266,7 +326,10 @@ export default function MessagesPage() {
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: convo.other_team.primary_color }}
                         />
-                        <span className="font-medium">{convo.other_team.name}</span>
+                        <div>
+                          <span className="font-medium">{getCoachDisplayName(convo)}</span>
+                          <p className="text-xs text-gray-500">{convo.other_team.name}</p>
+                        </div>
                       </div>
                       {convo.unread_count > 0 && (
                         <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
@@ -296,43 +359,55 @@ export default function MessagesPage() {
             {selectedConversation ? (
               <>
                 {/* Thread Header */}
-                <div className="p-3 border-b border-gray-700 flex items-center gap-2">
+                <div className="p-3 border-b border-gray-700 flex items-center gap-3">
                   <div
                     className="w-4 h-4 rounded-full"
                     style={{ backgroundColor: selectedConversation.other_team.primary_color }}
                   />
-                  <h2 className="font-semibold">{selectedConversation.other_team.name}</h2>
+                  <div>
+                    <h2 className="font-semibold">{getCoachDisplayName(selectedConversation)}</h2>
+                    {selectedConversation.other_coach?.name && (
+                      <p className="text-xs text-gray-500">{selectedConversation.other_team.name}</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {messages.map((msg) => {
-                    const isMe = msg.sender_team_id === teamId;
-                    return (
-                      <div
-                        key={msg.id}
-                        className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                      >
+                  {messages.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">
+                      No messages yet. Start the conversation!
+                    </div>
+                  ) : (
+                    messages.map((msg) => {
+                      const isMe = msg.sender_team_id === teamId;
+                      return (
                         <div
-                          className={`max-w-[70%] rounded-lg p-3 ${
-                            isMe
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-700 text-gray-100'
-                          }`}
+                          key={msg.id}
+                          className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                         >
-                          {msg.player && (
-                            <div className="text-xs mb-1 opacity-75 border-b border-white/20 pb-1">
-                              Re: {msg.player.first_name} {msg.player.last_name} ({msg.player.position}, {msg.player.overall} OVR)
-                            </div>
-                          )}
-                          <p>{msg.content}</p>
-                          <p className={`text-xs mt-1 ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
-                            {formatTime(msg.created_at)}
-                          </p>
+                          <div
+                            className={`max-w-[70%] rounded-lg p-3 ${
+                              isMe
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-700 text-gray-100'
+                            }`}
+                          >
+                            {msg.player && (
+                              <div className="text-xs mb-1 opacity-75 border-b border-white/20 pb-1">
+                                Re: {msg.player.first_name} {msg.player.last_name} ({msg.player.position}, {msg.player.overall} OVR)
+                              </div>
+                            )}
+                            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                            <p className={`text-xs mt-1 ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
+                              {formatTime(msg.created_at)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input */}
