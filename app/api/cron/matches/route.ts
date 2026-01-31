@@ -108,16 +108,20 @@ function generateAutoTactics(players: Player[]): Partial<TeamTactics> {
  * 
  * Net fatigue per match:
  * - 80-min starter: +2 (12 gain - 10 recovery)
+ * - 80-min starter on REST: +1 (12 gain - 11 recovery) ← veteran maintenance mode
  * - 55-min prop: +1.4 (8.25 gain - 6.875 recovery)
  * - 30-min bench: +0.75 (4.5 gain - 3.75 recovery)
  */
 function calculatePlayerFatigue(
   currentFatigue: number,
   minutesPlayed: number,
-  traitFatigueMultiplier: number
+  traitFatigueMultiplier: number,
+  isOnRest: boolean = false
 ): number {
   // Step 1: Recovery scales with minutes (reflects conditioning from play time)
-  const recoveryAmount = Math.round(BASELINE_RECOVERY * (minutesPlayed / 80));
+  // REST players get +1 bonus recovery (veteran maintenance mode)
+  const baseRecovery = BASELINE_RECOVERY + (isOnRest ? 1 : 0);
+  const recoveryAmount = Math.round(baseRecovery * (minutesPlayed / 80));
   const afterRecovery = Math.max(0, currentFatigue - recoveryAmount);
   
   // Step 2: Calculate fatigue gained from this match (already scales by minutes)
@@ -547,11 +551,14 @@ export async function GET(request: Request) {
             });
             
             // Calculate fatigue with baseline recovery (scaled by minutes)
+            // REST players get +1 bonus recovery (veteran maintenance mode)
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
+            const isOnRest = player.current_training === 'Rest';
             fatigueUpdates[homePlayerId] = calculatePlayerFatigue(
               player.fatigue || 0,
               minutesPlayed,
-              traitMods.fatigueMultiplier
+              traitMods.fatigueMultiplier,
+              isOnRest
             );
           }
           
@@ -626,11 +633,14 @@ export async function GET(request: Request) {
             });
             
             // Calculate fatigue with baseline recovery (scaled by minutes)
+            // REST players get +1 bonus recovery (veteran maintenance mode)
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
+            const isOnRest = player.current_training === 'Rest';
             fatigueUpdates[awayPlayerId] = calculatePlayerFatigue(
               player.fatigue || 0,
               minutesPlayed,
-              traitMods.fatigueMultiplier
+              traitMods.fatigueMultiplier,
+              isOnRest
             );
           }
         }
