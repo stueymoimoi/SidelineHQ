@@ -18,10 +18,10 @@ function getSupabase() {
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = getSupabase();
-  const playerId = params.id;
+  const { id: playerId } = await params;
 
   if (!playerId) {
     return NextResponse.json({ error: 'Player ID required' }, { status: 400 });
