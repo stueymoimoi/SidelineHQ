@@ -10,12 +10,6 @@ function getSupabase() {
   );
 }
 
-/**
- * GET /api/player/[id]/recent-stats
- * 
- * Returns last 5 matches for a player with full stats
- * Used by Player Profile "Recent Performance" UI
- */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -31,31 +25,12 @@ export async function GET(
     // Fetch last 5 matches for this player
     const { data: recentStats, error } = await supabase
       .from('player_match_stats')
-      .select(`
-        id,
-        fixture_id,
-        team_id,
-        jersey_number,
-        minutes_played,
-        rating,
-        tries,
-        try_assists,
-        goals_made,
-        goals_attempted,
-        metres,
-        tackles,
-        missed_tackles,
-        line_breaks,
-        tackle_breaks,
-        errors,
-        created_at
-      `)
+      .select('*')
       .eq('player_id', playerId)
       .order('created_at', { ascending: false })
       .limit(5);
 
     if (error) {
-      console.error('Error fetching recent stats:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -68,43 +43,52 @@ export async function GET(
       });
     }
 
-    // Get fixture details
-    const fixtureIds = [...new Set(recentStats.map((s: any) => s.fixture_id).filter(Boolean))];
+    // Get fixture IDs
+    const fixtureIds = recentStats.map((s: any) => s.fixture_id).filter(Boolean);
     
-    let fixturesMap: Record<string, any> = {};
-    if (fixtureIds.length > 0) {
-      const { data: fixtures } = await supabase
-        .from('fixtures')
-        .select('id, round, season, home_team_id, away_team_id')
-        .in('id', fixtureIds);
-      
-      (fixtures || []).forEach((f: any) => { fixturesMap[f.id] = f; });
-    }
+    // DEBUG: Log fixture IDs
+    console.log('Fixture IDs:', fixtureIds);
 
-    // Get all team IDs from fixtures
-    const teamIds = [...new Set(
-      Object.values(fixturesMap)
-        .flatMap((f: any) => [f.home_team_id, f.away_team_id])
-        .filter(Boolean)
-    )];
+    // Get fixtures
+    const { data: fixtures, error: fixturesError } = await supabase
+      .from('fixtures')
+      .select('*')
+      .in('id', fixtureIds);
 
-    let teamsMap: Record<string, any> = {};
-    if (teamIds.length > 0) {
-      const { data: teams } = await supabase
-        .from('teams')
-        .select('id, name, short_name')
-        .in('id', teamIds);
-      
-      (teams || []).forEach((t: any) => { teamsMap[t.id] = t; });
-    }
+    // DEBUG: Log fixtures result
+    console.log('Fixtures result:', fixtures, 'Error:', fixturesError);
 
-    // Transform data for frontend
+    // Build fixtures map
+    const fixturesMap: Record<string, any> = {};
+    (fixtures || []).forEach((f: any) => { fixturesMap[f.id] = f; });
+
+    // Get team IDs from fixtures
+    const teamIds: string[] = [];
+    Object.values(fixturesMap).forEach((f: any) => {
+      if (f.home_team_id) teamIds.push(f.home_team_id);
+      if (f.away_team_id) teamIds.push(f.away_team_id);
+    });
+    const uniqueTeamIds = [...new Set(teamIds)];
+
+    // Get teams
+    const { data: teams, error: teamsError } = await supabase
+      .from('teams')
+      .select('id, name, short_name')
+      .in('id', uniqueTeamIds);
+
+    // DEBUG: Log teams result
+    console.log('Teams result:', teams, 'Error:', teamsError);
+
+    // Build teams map
+    const teamsMap: Record<string, any> = {};
+    (teams || []).forEach((t: any) => { teamsMap[t.id] = t; });
+
+    // Transform data
     const formattedStats = recentStats.map((stat: any) => {
       const fixture = fixturesMap[stat.fixture_id];
       const isHome = stat.team_id === fixture?.home_team_id;
       const opponentId = isHome ? fixture?.away_team_id : fixture?.home_team_id;
       const opponent = teamsMap[opponentId] || null;
-      const playerTeam = teamsMap[stat.team_id] || null;
 
       return {
         id: stat.id,
@@ -130,6 +114,13 @@ export async function GET(
         missed_tackles: stat.missed_tackles,
         errors: stat.errors,
         played_at: stat.created_at,
+        // DEBUG: Include raw data
+        _debug: {
+          fixture_id: stat.fixture_id,
+          fixture_found: !!fixture,
+          opponent_id: opponentId,
+          opponent_found: !!opponent,
+        }
       };
     });
 
@@ -148,6 +139,13 @@ export async function GET(
       matches: formattedStats,
       total_matches: totalMatches,
       averages,
+      // DEBUG: Include counts
+      _debug: {
+        fixture_ids_count: fixtureIds.length,
+        fixtures_found: fixtures?.length || 0,
+        team_ids_count: uniqueTeamIds.length,
+        teams_found: teams?.length || 0,
+      }
     });
 
   } catch (error) {
