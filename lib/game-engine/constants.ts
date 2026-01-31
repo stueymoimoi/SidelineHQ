@@ -1,6 +1,11 @@
 /**
  * SidelineHQ Game Engine Constants
  * All configurable values in one place for easy tuning
+ * 
+ * UPDATED: January 31, 2026
+ * - Stat tiers changed from 1-8 to 0-7
+ * - OVR range changed from 0-49 to 0-49
+ * - Labels: NONE → BAD → POOR → OK → GOOD → GREAT → EXC → ELITE
  */
 
 import type { PositionConfig, ProgressStage } from './types';
@@ -235,8 +240,8 @@ export const TRAINING_ADVANCE_BASE_CHANCE = 60;
 // FREE AGENCY CONSTANTS
 // ===========================================
 
-/** OVR threshold for "ambitious star" classification */
-export const AMBITIOUS_STAR_OVR_THRESHOLD = 43;
+/** OVR threshold for "ambitious star" classification (adjusted for 0-49 scale) */
+export const AMBITIOUS_STAR_OVR_THRESHOLD = 36;
 
 /** Age threshold for "young prospect" classification */
 export const YOUNG_PROSPECT_AGE_THRESHOLD = 21;
@@ -282,26 +287,42 @@ export const RATING_MODIFIERS = {
   cleanSheetErrors: 0.2,
   captainBonus: 0.2
 } as const;
+
 // ===========================================
-// STAT TIER NAMES (Training System v2.0)
+// STAT TIER NAMES (v3.0 - 0-7 Scale)
 // ===========================================
 
-/** Stat tier names for display (1-8 scale) */
+/** 
+ * Stat tier names for display (0-7 scale)
+ * OVR = sum of 7 stats = 0-49 range
+ */
 export const STAT_TIER_NAMES: Record<number, string> = {
-  1: 'None',
-  2: 'Poor',
-  3: 'Fair',
-  4: 'OK',
-  5: 'Good',
-  6: 'Very Good',
-  7: 'Excellent',
-  8: 'Elite'
+  0: 'NONE',
+  1: 'BAD',
+  2: 'POOR',
+  3: 'OK',
+  4: 'GOOD',
+  5: 'GREAT',
+  6: 'EXC',
+  7: 'ELITE'
 };
 
 /** Get tier name from stat value */
 export function getStatTierName(value: number): string {
-  return STAT_TIER_NAMES[Math.max(1, Math.min(8, value))] || 'Unknown';
+  return STAT_TIER_NAMES[Math.max(0, Math.min(7, value))] || 'Unknown';
 }
+
+/** Minimum stat value */
+export const MIN_STAT = 0;
+
+/** Maximum stat value */
+export const MAX_STAT = 7;
+
+/** Minimum OVR (7 stats × 0) */
+export const MIN_OVR = 0;
+
+/** Maximum OVR (7 stats × 7) */
+export const MAX_OVR = 49;
 
 // ===========================================
 // FITNESS DISPLAY (Training System v2.0)
@@ -338,6 +359,7 @@ export const POSITIONS = [
   'Second Row',
   'Lock'
 ] as const;
+
 // ===========================================
 // ORIGIN CONSTANTS
 // ===========================================
@@ -356,6 +378,7 @@ export const ORIGIN_TEAM_COLORS = {
   NSW: { primary: '#87CEEB', secondary: '#1E3A5F', text: '#1a1a2e' },
   QLD: { primary: '#800020', secondary: '#FFD700', text: '#ffffff' }
 } as const;
+
 // =============================================
 // INJURY SYSTEM CONSTANTS
 // =============================================
@@ -408,6 +431,7 @@ export const INJURY_TRAINING_RULES: Record<string, 'none' | 'light' | 'full'> = 
 
 // REST recovery (30% fatigue reduction for non-playing players)
 export const REST_RECOVERY_PERCENT = 0.30;
+
 // =============================================
 // INTERCHANGE SYSTEM CONSTANTS
 // =============================================
@@ -440,6 +464,7 @@ export const TACTICAL_SUB_CHANCE = 0.6;
 export const calculateFatigueByMinutes = (minutes: number, baseFatigue: number): number => {
   return Math.round(baseFatigue * (minutes / 80));
 };
+
 // Smart minutes based on player position
 export const getMinutesForPlayer = (jerseyNumber: number, position: string): number => {
   // Starting 13 - based on position
@@ -471,8 +496,9 @@ export const getMinutesForPlayer = (jerseyNumber: number, position: string): num
   
   return 0;
 };
+
 // =============================================
-// TRAINING POINTS SYSTEM (v3.0)
+// TRAINING POINTS SYSTEM (v3.0 - Updated for 0-7 scale)
 // =============================================
 
 /** 
@@ -480,14 +506,14 @@ export const getMinutesForPlayer = (jerseyNumber: number, position: string): num
  * Higher stats = more points needed (natural diminishing returns)
  */
 export const TRAINING_POINT_THRESHOLDS: Record<number, number> = {
+  0: 8,   // 0→1: ~2-3 rounds
   1: 8,   // 1→2: ~2-3 rounds
-  2: 8,   // 2→3: ~2-3 rounds
+  2: 12,  // 2→3: ~4 rounds
   3: 12,  // 3→4: ~4 rounds
-  4: 12,  // 4→5: ~4 rounds
+  4: 20,  // 4→5: ~6 rounds
   5: 20,  // 5→6: ~6 rounds
-  6: 20,  // 6→7: ~6 rounds
-  7: 35,  // 7→8: ~11 rounds (elite ceiling)
-  8: 999, // 8 is max - can't go higher
+  6: 35,  // 6→7: ~11 rounds (elite ceiling)
+  7: 999, // 7 is max - can't go higher
 };
 
 /**

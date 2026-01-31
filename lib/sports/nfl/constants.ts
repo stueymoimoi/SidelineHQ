@@ -169,7 +169,7 @@ export const NFL_STAT_TIERS = {
   8: { label: 'Superstar', color: 'text-cyan-400' },
 } as const;
 
-// OVR calculation: sum of 7 stats (range 7-56)
+// OVR calculation: sum of 7 stats (range 0-49)
 export const NFL_OVR_MIN = 7;
 export const NFL_OVR_MAX = 56;
 
