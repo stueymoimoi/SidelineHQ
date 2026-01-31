@@ -45,18 +45,12 @@ export async function GET(
 
     // Get fixture IDs
     const fixtureIds = recentStats.map((s: any) => s.fixture_id).filter(Boolean);
-    
-    // DEBUG: Log fixture IDs
-    console.log('Fixture IDs:', fixtureIds);
 
     // Get fixtures
-    const { data: fixtures, error: fixturesError } = await supabase
+    const { data: fixtures } = await supabase
       .from('fixtures')
       .select('*')
       .in('id', fixtureIds);
-
-    // DEBUG: Log fixtures result
-    console.log('Fixtures result:', fixtures, 'Error:', fixturesError);
 
     // Build fixtures map
     const fixturesMap: Record<string, any> = {};
@@ -70,14 +64,11 @@ export async function GET(
     });
     const uniqueTeamIds = [...new Set(teamIds)];
 
-    // Get teams
-    const { data: teams, error: teamsError } = await supabase
+    // Get teams - only select columns that exist
+    const { data: teams } = await supabase
       .from('teams')
-      .select('id, name, short_name')
+      .select('id, name, mascot, city')
       .in('id', uniqueTeamIds);
-
-    // DEBUG: Log teams result
-    console.log('Teams result:', teams, 'Error:', teamsError);
 
     // Build teams map
     const teamsMap: Record<string, any> = {};
@@ -97,7 +88,8 @@ export async function GET(
         opponent: opponent ? {
           id: opponent.id,
           name: opponent.name,
-          short_name: opponent.short_name,
+          mascot: opponent.mascot,
+          city: opponent.city,
         } : null,
         isHome,
         jersey_number: stat.jersey_number,
@@ -114,13 +106,6 @@ export async function GET(
         missed_tackles: stat.missed_tackles,
         errors: stat.errors,
         played_at: stat.created_at,
-        // DEBUG: Include raw data
-        _debug: {
-          fixture_id: stat.fixture_id,
-          fixture_found: !!fixture,
-          opponent_id: opponentId,
-          opponent_found: !!opponent,
-        }
       };
     });
 
@@ -139,13 +124,6 @@ export async function GET(
       matches: formattedStats,
       total_matches: totalMatches,
       averages,
-      // DEBUG: Include counts
-      _debug: {
-        fixture_ids_count: fixtureIds.length,
-        fixtures_found: fixtures?.length || 0,
-        team_ids_count: uniqueTeamIds.length,
-        teams_found: teams?.length || 0,
-      }
     });
 
   } catch (error) {
