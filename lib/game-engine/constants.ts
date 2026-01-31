@@ -610,3 +610,222 @@ export function getAgeBracket(age: number): 'young' | 'prime' | 'veteran' | 'old
   if (age <= 31) return 'veteran';
   return 'old';
 }
+// =============================================================================
+// HEIGHT/WEIGHT SYSTEM — GRIDIRON ONLY
+// =============================================================================
+
+// Position physical profiles: [min, ideal, max]
+// Height in cm, Weight in kg
+export const GRIDIRON_POSITION_PROFILES: Record<string, {
+  height: { min: number; ideal: number; max: number; stdDev: number };
+  weight: { min: number; ideal: number; max: number; stdDev: number };
+}> = {
+  // Offense
+  QB: {
+    height: { min: 175, ideal: 191, max: 201, stdDev: 5 },
+    weight: { min: 90, ideal: 102, max: 115, stdDev: 6 },
+  },
+  RB: {
+    height: { min: 168, ideal: 178, max: 188, stdDev: 4 },
+    weight: { min: 85, ideal: 98, max: 115, stdDev: 7 },
+  },
+  WR: {
+    height: { min: 173, ideal: 183, max: 198, stdDev: 5 },
+    weight: { min: 80, ideal: 91, max: 105, stdDev: 6 },
+  },
+  TE: {
+    height: { min: 188, ideal: 196, max: 203, stdDev: 3 },
+    weight: { min: 105, ideal: 116, max: 130, stdDev: 6 },
+  },
+  OT: {
+    height: { min: 193, ideal: 198, max: 208, stdDev: 3 },
+    weight: { min: 130, ideal: 143, max: 160, stdDev: 7 },
+  },
+  OG: {
+    height: { min: 188, ideal: 193, max: 201, stdDev: 3 },
+    weight: { min: 130, ideal: 143, max: 155, stdDev: 6 },
+  },
+  C: {
+    height: { min: 183, ideal: 191, max: 198, stdDev: 3 },
+    weight: { min: 125, ideal: 138, max: 150, stdDev: 6 },
+  },
+  // Defense
+  DT: {
+    height: { min: 185, ideal: 191, max: 201, stdDev: 3 },
+    weight: { min: 130, ideal: 141, max: 155, stdDev: 6 },
+  },
+  DE: {
+    height: { min: 188, ideal: 196, max: 206, stdDev: 4 },
+    weight: { min: 115, ideal: 122, max: 140, stdDev: 6 },
+  },
+  LB: {
+    height: { min: 183, ideal: 188, max: 196, stdDev: 3 },
+    weight: { min: 105, ideal: 111, max: 125, stdDev: 5 },
+  },
+  CB: {
+    height: { min: 173, ideal: 180, max: 191, stdDev: 4 },
+    weight: { min: 80, ideal: 88, max: 100, stdDev: 5 },
+  },
+  S: {
+    height: { min: 178, ideal: 183, max: 193, stdDev: 3 },
+    weight: { min: 88, ideal: 94, max: 108, stdDev: 5 },
+  },
+  // Special Teams
+  K: {
+    height: { min: 175, ideal: 185, max: 193, stdDev: 4 },
+    weight: { min: 85, ideal: 94, max: 105, stdDev: 5 },
+  },
+  P: {
+    height: { min: 178, ideal: 188, max: 196, stdDev: 4 },
+    weight: { min: 90, ideal: 98, max: 110, stdDev: 5 },
+  },
+};
+
+// Modifier mappings: which Gridiron stats are affected by height/weight
+// Positive value = tall/heavy is GOOD for this stat
+// Negative value = tall/heavy is BAD for this stat
+// Max modifier is ±15% at extreme deviations
+export const HEIGHT_WEIGHT_MODIFIERS: Record<string, {
+  heightAffects: { stat: string; direction: number }[];
+  weightAffects: { stat: string; direction: number }[];
+}> = {
+  QB: {
+    heightAffects: [
+      { stat: 'arm', direction: 1 },      // Tall = better arm (see over OL)
+      { stat: 'agility', direction: -1 }, // Tall = worse mobility
+    ],
+    weightAffects: [
+      { stat: 'power', direction: 1 },    // Heavy = harder to sack
+      { stat: 'agility', direction: -1 }, // Heavy = slower scrambles
+    ],
+  },
+  RB: {
+    heightAffects: [
+      { stat: 'power', direction: 1 },    // Tall = more power
+      { stat: 'agility', direction: -1 }, // Tall = easier to spot/tackle
+    ],
+    weightAffects: [
+      { stat: 'power', direction: 1 },    // Heavy = break tackles
+      { stat: 'agility', direction: -1 }, // Heavy = less elusive
+    ],
+  },
+  WR: {
+    heightAffects: [
+      { stat: 'catching', direction: 1 }, // Tall = contested catches, jump balls
+      { stat: 'agility', direction: -1 }, // Tall = slower route breaks
+    ],
+    weightAffects: [
+      { stat: 'power', direction: 1 },    // Heavy = break press coverage
+      { stat: 'speed', direction: -1 },   // Heavy = slower deep routes
+    ],
+  },
+  TE: {
+    heightAffects: [
+      { stat: 'catching', direction: 1 }, // Tall = red zone threat
+      { stat: 'agility', direction: -1 }, // Tall = slower releases
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = better blocking
+      { stat: 'speed', direction: -1 },   // Heavy = slower seam routes
+    ],
+  },
+  OT: {
+    heightAffects: [
+      { stat: 'strength', direction: 1 }, // Tall = better reach/pass pro
+      { stat: 'agility', direction: -1 }, // Tall = slower vs speed rush
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = better anchor
+      { stat: 'agility', direction: -1 }, // Heavy = slower pulls
+    ],
+  },
+  OG: {
+    heightAffects: [
+      { stat: 'strength', direction: 1 }, // Tall = leverage
+      { stat: 'agility', direction: -1 }, // Tall = slower pulls
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = run blocking power
+      { stat: 'agility', direction: -1 }, // Heavy = slower in space
+    ],
+  },
+  C: {
+    heightAffects: [
+      { stat: 'strength', direction: 1 }, // Tall = anchor strength
+      { stat: 'agility', direction: -1 }, // Tall = worse leverage (higher pads)
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = anchor
+      { stat: 'agility', direction: -1 }, // Heavy = slower
+    ],
+  },
+  DT: {
+    heightAffects: [
+      { stat: 'strength', direction: 1 }, // Tall = occupy blockers
+      { stat: 'agility', direction: -1 }, // Tall = slower penetration
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = run stuffing
+      { stat: 'speed', direction: -1 },   // Heavy = slower pass rush
+    ],
+  },
+  DE: {
+    heightAffects: [
+      { stat: 'strength', direction: 1 }, // Tall = power rush, run D
+      { stat: 'agility', direction: -1 }, // Tall = less bend
+    ],
+    weightAffects: [
+      { stat: 'power', direction: 1 },    // Heavy = bull rush
+      { stat: 'speed', direction: -1 },   // Heavy = slower speed rush
+    ],
+  },
+  LB: {
+    heightAffects: [
+      { stat: 'strength', direction: 1 }, // Tall = take on blocks
+      { stat: 'agility', direction: -1 }, // Tall = worse coverage
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = run stuffing
+      { stat: 'speed', direction: -1 },   // Heavy = slower in space
+    ],
+  },
+  CB: {
+    heightAffects: [
+      { stat: 'catching', direction: 1 }, // Tall = jump ball defense
+      { stat: 'speed', direction: -1 },   // Tall = slower recovery
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = press coverage
+      { stat: 'agility', direction: -1 }, // Heavy = struggle vs quick WRs
+    ],
+  },
+  S: {
+    heightAffects: [
+      { stat: 'catching', direction: 1 }, // Tall = high point INTs
+      { stat: 'speed', direction: -1 },   // Tall = worse range
+    ],
+    weightAffects: [
+      { stat: 'strength', direction: 1 }, // Heavy = tackling, vs TEs
+      { stat: 'speed', direction: -1 },   // Heavy = worse deep coverage
+    ],
+  },
+  K: {
+    heightAffects: [
+      { stat: 'arm', direction: 1 },      // Tall = leg strength (distance)
+    ],
+    weightAffects: [
+      { stat: 'arm', direction: 1 },      // Heavy = more power
+    ],
+  },
+  P: {
+    heightAffects: [
+      { stat: 'arm', direction: 1 },      // Tall = leg strength
+    ],
+    weightAffects: [
+      { stat: 'arm', direction: 1 },      // Heavy = more power
+    ],
+  },
+};
+
+// Maximum modifier percentage (at extreme height/weight)
+export const MAX_HEIGHT_WEIGHT_MODIFIER = 0.15; // ±15%
