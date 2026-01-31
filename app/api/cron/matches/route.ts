@@ -9,11 +9,11 @@
  * 
  * Schedule: 0 8 * * 0,2,4
  * 
- * FATIGUE SYSTEM (Realistic NRL Model):
- * - All players recover BASELINE_RECOVERY (10) fatigue between matches
- * - Playing players then ADD fatigue based on minutes played
- * - Non-playing players get additional 30% recovery bonus
- * - Result: Starters can play every week (equilibrium ~15-20 fatigue)
+ * FATIGUE SYSTEM (Rebalanced Jan 31):
+ * - Both fatigue AND recovery scale by minutes played
+ * - Net +2 per 80 mins → slow decline, rewards rotation
+ * - Origin: 10-13 fatigue (random)
+ * - REST only works in training cron if player didn't play
  */
 
 export const maxDuration = 60;
@@ -34,6 +34,7 @@ import {
   MINUTES_WITH_ROTATION,
   calculateFatigueByMinutes,
   getMinutesForPlayer,
+  getOriginFatigue,
 } from '@/lib/game-engine/constants';
 
 import type { Player, Team, Fixture, TeamTactics, Notification } from '@/lib/game-engine/types';
@@ -103,18 +104,23 @@ function generateAutoTactics(players: Player[]): Partial<TeamTactics> {
 
 /**
  * Calculate fatigue for a playing player
- * Applies baseline recovery FIRST, then adds match fatigue
- * This creates equilibrium so starters can play every week
+ * UPDATED: Both fatigue AND recovery scale by minutes played
+ * 
+ * Net fatigue per match:
+ * - 80-min starter: +2 (12 gain - 10 recovery)
+ * - 55-min prop: +1.4 (8.25 gain - 6.875 recovery)
+ * - 30-min bench: +0.75 (4.5 gain - 3.75 recovery)
  */
 function calculatePlayerFatigue(
   currentFatigue: number,
   minutesPlayed: number,
   traitFatigueMultiplier: number
 ): number {
-  // Step 1: Apply baseline recovery (simulates week of professional recovery)
-  const afterRecovery = Math.max(0, currentFatigue - BASELINE_RECOVERY);
+  // Step 1: Recovery scales with minutes (reflects conditioning from play time)
+  const recoveryAmount = Math.round(BASELINE_RECOVERY * (minutesPlayed / 80));
+  const afterRecovery = Math.max(0, currentFatigue - recoveryAmount);
   
-  // Step 2: Calculate fatigue gained from this match (scaled by minutes)
+  // Step 2: Calculate fatigue gained from this match (already scales by minutes)
   const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
   const fatigueGain = Math.round(baseFatigueGain * traitFatigueMultiplier);
   
@@ -312,17 +318,23 @@ export async function GET(request: Request) {
           }
         }
         
-        // Origin players: baseline recovery + Origin fatigue (higher than normal match)
-        Object.entries(originResult.fatigueUpdates).forEach(([playerId, originFatigue]) => {
+        // Origin players: baseline recovery + Origin fatigue (10-13 random)
+        const originSquadIds = new Set([
+          ...nswSquad.players.map(p => p.player.id),
+          ...qldSquad.players.map(p => p.player.id)
+        ]);
+
+        originSquadIds.forEach(playerId => {
           const player = playersMap[playerId];
           if (player) {
             const afterRecovery = Math.max(0, (player.fatigue || 0) - BASELINE_RECOVERY);
+            const originFatigue = getOriginFatigue(); // Random 10-13
             fatigueUpdates[playerId] = Math.min(100, afterRecovery + originFatigue);
           }
         });
         
         // Origin injuries
-        const originPlayingIds = Object.keys(originResult.fatigueUpdates);
+        const originPlayingIds = Array.from(originSquadIds);
         const { injuries: originInjuries, notifications: originInjuryNotifications } = await processMatchInjuries(
           supabase, originPlayingIds, playersMap, SEASON, currentRound, 'origin'
         );
@@ -334,7 +346,7 @@ export async function GET(request: Request) {
         }
         
         // Non-Origin players: full rest recovery
-        const originPlayerIds = new Set(Object.keys(originResult.fatigueUpdates));
+        const originPlayerIds = new Set(originSquadIds);
         for (const player of allPlayers) {
           if (player.team_id && !originPlayerIds.has(player.id)) {
             fatigueUpdates[player.id] = calculateRestFatigue(player.fatigue || 0);
@@ -534,7 +546,7 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
-            // Calculate fatigue with baseline recovery
+            // Calculate fatigue with baseline recovery (scaled by minutes)
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
             fatigueUpdates[homePlayerId] = calculatePlayerFatigue(
               player.fatigue || 0,
@@ -613,7 +625,7 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
-            // Calculate fatigue with baseline recovery
+            // Calculate fatigue with baseline recovery (scaled by minutes)
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
             fatigueUpdates[awayPlayerId] = calculatePlayerFatigue(
               player.fatigue || 0,

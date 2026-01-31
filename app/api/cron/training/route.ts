@@ -4,8 +4,13 @@
  * Phase 2 of 4 - Runs at 6:05pm AEST (8:05 UTC)
  * - Processes training progress for all players
  * - Stat gains based on training stage + affinities
+ * - REST only gives recovery if player DIDN'T play this round
  * 
  * Schedule: 5 8 * * 0,2,4
+ * 
+ * UPDATED: January 31, 2026
+ * - Checks player_match_stats to see who played
+ * - REST skipped if player was in match lineup
  */
 
 export const maxDuration = 60;
@@ -14,6 +19,7 @@ export const dynamic = 'force-dynamic';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { processAllTraining } from '@/lib/training';
+import { SEASON } from '@/lib/game-engine/constants';
 
 function getSupabase() {
   return createClient(
@@ -42,7 +48,80 @@ export async function GET(request: Request) {
     await supabase.from('game_state').update({ current_phase: 'training' }).eq('id', 1);
     logs.push('📚 Training phase started');
     
-    // Load all players
+    // ===========================================
+    // GET CURRENT ROUND FROM GAME STATE
+    // ===========================================
+    const { data: gameState } = await supabase
+      .from('game_state')
+      .select('current_round')
+      .eq('id', 1)
+      .single();
+    
+    // Get current round from most recent played fixture if game_state doesn't have it
+    let currentRound = gameState?.current_round;
+    
+    if (!currentRound) {
+      const { data: lastFixture } = await supabase
+        .from('fixtures')
+        .select('round')
+        .eq('season', SEASON)
+        .eq('played', true)
+        .order('round', { ascending: false })
+        .limit(1)
+        .single();
+      
+      currentRound = lastFixture?.round || 1;
+    }
+    
+    logs.push(`Current round: ${currentRound}`);
+    
+    // ===========================================
+    // GET PLAYERS WHO PLAYED THIS ROUND
+    // ===========================================
+    const playedThisRound = new Set<string>();
+    
+    // Check club match stats
+    const { data: recentFixtures } = await supabase
+      .from('fixtures')
+      .select('id')
+      .eq('season', SEASON)
+      .eq('round', currentRound)
+      .eq('played', true);
+    
+    if (recentFixtures && recentFixtures.length > 0) {
+      const fixtureIds = recentFixtures.map(f => f.id);
+      
+      const { data: matchStats } = await supabase
+        .from('player_match_stats')
+        .select('player_id')
+        .in('fixture_id', fixtureIds);
+      
+      (matchStats || []).forEach(s => playedThisRound.add(s.player_id));
+    }
+    
+    // Check origin stats (for origin rounds)
+    const { data: recentOriginFixture } = await supabase
+      .from('origin_fixtures')
+      .select('id')
+      .eq('season', SEASON)
+      .eq('round', currentRound)
+      .eq('played', true)
+      .single();
+    
+    if (recentOriginFixture) {
+      const { data: originStats } = await supabase
+        .from('origin_player_stats')
+        .select('player_id')
+        .eq('origin_fixture_id', recentOriginFixture.id);
+      
+      (originStats || []).forEach(s => playedThisRound.add(s.player_id));
+    }
+    
+    logs.push(`Players who played this round: ${playedThisRound.size}`);
+    
+    // ===========================================
+    // LOAD ALL PLAYERS
+    // ===========================================
     const [players1, players2, players3] = await Promise.all([
       supabase.from('players').select('*').range(0, 999),
       supabase.from('players').select('*').range(1000, 1999),
@@ -57,10 +136,19 @@ export async function GET(request: Request) {
     
     logs.push(`Loaded ${allPlayers.length} players`);
     
-    // Process training
-    const { playerUpdates, notifications: trainingNotifications, improvementCount } = processAllTraining(allPlayers);
+    // ===========================================
+    // PROCESS TRAINING (with played info)
+    // ===========================================
+    const { 
+      playerUpdates, 
+      notifications: trainingNotifications, 
+      improvementCount,
+      declineCount,
+      restSkippedCount 
+    } = processAllTraining(allPlayers, playedThisRound);
     
-    logs.push(`Training processed: ${improvementCount} players improved`);
+    logs.push(`Training processed: ${improvementCount} improved, ${declineCount} declined`);
+    logs.push(`REST skipped (played in match): ${restSkippedCount} players`);
     
     // Save updates in chunks
     if (playerUpdates.length > 0) {
@@ -88,8 +176,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       phase: 'training',
+      round: currentRound,
       playersProcessed: allPlayers.length,
       improvements: improvementCount,
+      declines: declineCount,
+      restSkipped: restSkippedCount,
       executionTime: totalTime,
       logs
     });

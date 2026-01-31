@@ -6,6 +6,8 @@
  * - Stat tiers changed from 1-8 to 0-7
  * - OVR range changed from 0-49 to 0-49
  * - Labels: NONE → BAD → POOR → OK → GOOD → GREAT → EXC → ELITE
+ * - Fatigue rebalance: FATIGUE_PER_MATCH = 12, scaled recovery
+ * - Origin fatigue: 10-13 range
  */
 
 import type { PositionConfig, ProgressStage } from './types';
@@ -26,8 +28,8 @@ export const BASE_TRIES = 4;
 /** Bonus for teams with a human coach */
 export const COACHING_BONUS = 12;
 
-/** Fatigue added per match played (80 mins) */
-export const FATIGUE_PER_MATCH = 15;
+/** Fatigue added per match played (80 mins) - REBALANCED for slow decline */
+export const FATIGUE_PER_MATCH = 12;
 
 /** Fatigue added per training session */
 export const FATIGUE_PER_TRAINING = 5;
@@ -378,6 +380,17 @@ export const ORIGIN_TEAM_COLORS = {
   NSW: { primary: '#87CEEB', secondary: '#1E3A5F', text: '#1a1a2e' },
   QLD: { primary: '#800020', secondary: '#FFD700', text: '#ffffff' }
 } as const;
+
+/** Origin match fatigue minimum */
+export const ORIGIN_FATIGUE_MIN = 10;
+
+/** Origin match fatigue maximum */
+export const ORIGIN_FATIGUE_MAX = 13;
+
+/** Helper to get random Origin fatigue (10-13) */
+export function getOriginFatigue(): number {
+  return Math.floor(Math.random() * (ORIGIN_FATIGUE_MAX - ORIGIN_FATIGUE_MIN + 1)) + ORIGIN_FATIGUE_MIN;
+}
 
 // =============================================
 // INJURY SYSTEM CONSTANTS

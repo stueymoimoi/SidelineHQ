@@ -11,9 +11,10 @@
  * - Hidden training affinities (bonus points)
  * - Stat decline for aging players
  * - Position-specific retirement system
+ * - REST only works if player didn't play (Jan 31 update)
  * 
  * @author SidelineHQ
- * @version 3.0
+ * @version 3.1
  */
 
 import type { Player, Notification } from '../game-engine/types';
@@ -37,16 +38,16 @@ import {
 // CONSTANTS (kept for decline/retirement)
 // ===========================================
 
-/** Stat tier names for notifications */
+/** Stat tier names for notifications (0-7 scale) */
 const STAT_TIER_NAMES: Record<number, string> = {
-  1: 'None',
+  0: 'None',
+  1: 'Bad',
   2: 'Poor',
-  3: 'Fair',
-  4: 'OK',
-  5: 'Good',
-  6: 'Very Good',
-  7: 'Excellent',
-  8: 'Elite'
+  3: 'OK',
+  4: 'Good',
+  5: 'Great',
+  6: 'Excellent',
+  7: 'Elite'
 };
 
 /** Position-specific decline and retirement ages */
@@ -158,6 +159,7 @@ export interface TrainingResult {
   updates: Partial<Player> & { id?: string };
   improved: boolean;
   declined: boolean;
+  restSkipped: boolean;
   notification?: Notification;
 }
 
@@ -188,10 +190,10 @@ function rollChance(percent: number): boolean {
 }
 
 /**
- * Get stat tier name from value (1-8)
+ * Get stat tier name from value (0-7)
  */
 function getStatTierName(value: number): string {
-  return STAT_TIER_NAMES[Math.max(1, Math.min(8, value))] || 'Unknown';
+  return STAT_TIER_NAMES[Math.max(0, Math.min(7, value))] || 'Unknown';
 }
 
 /**
@@ -200,14 +202,14 @@ function getStatTierName(value: number): string {
 function getPlayerStat(player: Player, stat: string): number {
   const key = stat.toLowerCase();
   switch (key) {
-    case 'speed': return player.speed ?? 1;
-    case 'strength': return player.strength ?? 1;
-    case 'power': return player.power ?? 1;
-    case 'passing': return player.passing ?? 1;
-    case 'stamina': return player.stamina ?? 1;
-    case 'tackling': return player.tackling ?? 1;
-    case 'kicking': return player.kicking ?? 1;
-    default: return 1;
+    case 'speed': return player.speed ?? 0;
+    case 'strength': return player.strength ?? 0;
+    case 'power': return player.power ?? 0;
+    case 'passing': return player.passing ?? 0;
+    case 'stamina': return player.stamina ?? 0;
+    case 'tackling': return player.tackling ?? 0;
+    case 'kicking': return player.kicking ?? 0;
+    default: return 0;
   }
 }
 
@@ -216,13 +218,13 @@ function getPlayerStat(player: Player, stat: string): number {
  */
 function calculateOverall(player: Player, updates: Partial<Player>): number {
   return (
-    (updates.speed ?? player.speed ?? 1) +
-    (updates.strength ?? player.strength ?? 1) +
-    (updates.power ?? player.power ?? 1) +
-    (updates.passing ?? player.passing ?? 1) +
-    (updates.stamina ?? player.stamina ?? 1) +
-    (updates.tackling ?? player.tackling ?? 1) +
-    (updates.kicking ?? player.kicking ?? 1)
+    (updates.speed ?? player.speed ?? 0) +
+    (updates.strength ?? player.strength ?? 0) +
+    (updates.power ?? player.power ?? 0) +
+    (updates.passing ?? player.passing ?? 0) +
+    (updates.stamina ?? player.stamina ?? 0) +
+    (updates.tackling ?? player.tackling ?? 0) +
+    (updates.kicking ?? player.kicking ?? 0)
   );
 }
 
@@ -343,30 +345,58 @@ export function generateDurability(): 'fragile' | 'normal' | 'durable' | 'ironma
 }
 
 // ===========================================
-// TRAINING POINTS PROCESSING (v3.0)
+// TRAINING POINTS PROCESSING (v3.1)
 // ===========================================
 
 /**
  * Process training for a single player using Training Points System
+ * 
+ * @param player - The player to process
+ * @param playedThisRound - Whether this player played in the current round's match
+ *                          If true and player is on REST, REST benefit is SKIPPED
  */
-export function processPlayerTraining(player: Player): TrainingResult {
+export function processPlayerTraining(
+  player: Player,
+  playedThisRound: boolean = false
+): TrainingResult {
   const updates: Partial<Player> = {};
   let improved = false;
   let declined = false;
+  let restSkipped = false;
   let notification: Notification | undefined;
 
   const currentTraining = player.current_training;
-  const lastTrainingStat = player.last_training_stat as string | null;
   const age = player.age || 25;
   const ageBracket = getAgeBracket(age);
 
   // ===========================================
-  // REST MODE - Recover fatigue, freeze progress
+  // REST MODE - Only works if player didn't play
   // ===========================================
   if (currentTraining === 'Rest') {
-    updates.fatigue = Math.max(0, (player.fatigue || 0) - REST_RECOVERY);
-    // Progress stays frozen - no changes to training_points
-    return { playerId: player.id, updates, improved: false, declined: false };
+    if (playedThisRound) {
+      // Player was set to REST but played in the match
+      // REST benefit is SKIPPED - they get no recovery bonus
+      restSkipped = true;
+      // Progress stays frozen, no fatigue change from training
+      return { 
+        playerId: player.id, 
+        updates: {}, 
+        improved: false, 
+        declined: false, 
+        restSkipped 
+      };
+    } else {
+      // Player actually rested - they get full REST recovery
+      updates.fatigue = Math.max(0, (player.fatigue || 0) - REST_RECOVERY);
+      // Progress stays frozen - no changes to training_points
+      return { 
+        playerId: player.id, 
+        updates, 
+        improved: false, 
+        declined: false, 
+        restSkipped: false 
+      };
+    }
   }
 
   // ===========================================
@@ -375,9 +405,15 @@ export function processPlayerTraining(player: Player): TrainingResult {
   if (!currentTraining) {
     const declineResult = processStatDecline(player);
     if (declineResult.declined) {
-      return declineResult;
+      return { ...declineResult, restSkipped: false };
     }
-    return { playerId: player.id, updates: {}, improved: false, declined: false };
+    return { 
+      playerId: player.id, 
+      updates: {}, 
+      improved: false, 
+      declined: false, 
+      restSkipped: false 
+    };
   }
 
   // ===========================================
@@ -392,14 +428,20 @@ export function processPlayerTraining(player: Player): TrainingResult {
   
   if (!isTrainableStat) {
     // Invalid training stat, just return with fatigue update
-    return { playerId: player.id, updates, improved: false, declined: false };
+    return { 
+      playerId: player.id, 
+      updates, 
+      improved: false, 
+      declined: false, 
+      restSkipped: false 
+    };
   }
 
   // Get current training points
   let trainingPoints = getTrainingPoints(player);
   const currentPoints = trainingPoints[statKey] || 0;
   const currentStat = getPlayerStat(player, statKey);
-  const MAX_STAT = 8;
+  const MAX_STAT = 7; // 0-7 scale
 
   // Get threshold for next stat level
   const threshold = TRAINING_POINT_THRESHOLDS[currentStat] || 999;
@@ -407,7 +449,13 @@ export function processPlayerTraining(player: Player): TrainingResult {
   // If already at max stat, no training benefit
   if (currentStat >= MAX_STAT) {
     updates.last_training_stat = currentTraining;
-    return { playerId: player.id, updates, improved: false, declined: false };
+    return { 
+      playerId: player.id, 
+      updates, 
+      improved: false, 
+      declined: false, 
+      restSkipped: false 
+    };
   }
 
   // ===========================================
@@ -503,7 +551,14 @@ export function processPlayerTraining(player: Player): TrainingResult {
     };
   }
 
-  return { playerId: player.id, updates, improved, declined, notification };
+  return { 
+    playerId: player.id, 
+    updates, 
+    improved, 
+    declined, 
+    notification, 
+    restSkipped: false 
+  };
 }
 
 // ===========================================
@@ -551,9 +606,9 @@ export function processStatDecline(player: Player): TrainingResult {
       if (rollChance(declineChance)) {
         const currentStat = getPlayerStat(player, stat);
         
-        if (currentStat > 1) {
+        if (currentStat > 0) {
           const drop = Math.random() < 0.9 ? 1 : 2;
-          const newStat = Math.max(1, currentStat - drop);
+          const newStat = Math.max(0, currentStat - drop);
           
           if (newStat < currentStat) {
             (updates as Record<string, unknown>)[stat] = newStat;
@@ -593,7 +648,7 @@ export function processStatDecline(player: Player): TrainingResult {
       if (currentStat > 4) continue;
       
       if (rollChance(useItOrLoseItChance)) {
-        const newStat = Math.max(1, currentStat - 1);
+        const newStat = Math.max(0, currentStat - 1);
         
         if (newStat < currentStat) {
           (updates as Record<string, unknown>)[stat] = newStat;
@@ -622,7 +677,14 @@ export function processStatDecline(player: Player): TrainingResult {
     updates.overall = newOverall;
   }
 
-  return { playerId: player.id, updates, improved: false, declined, notification };
+  return { 
+    playerId: player.id, 
+    updates, 
+    improved: false, 
+    declined, 
+    notification,
+    restSkipped: false 
+  };
 }
 
 // ===========================================
@@ -713,20 +775,30 @@ export function checkRetirement(player: Player): RetirementCheck {
 
 /**
  * Process training for all players (called by cron job)
+ * 
+ * @param players - All players to process
+ * @param playedThisRound - Set of player IDs who played in the current round
+ *                          Players in this set will have REST benefits SKIPPED
  */
-export function processAllTraining(players: Player[]): {
+export function processAllTraining(
+  players: Player[],
+  playedThisRound: Set<string> = new Set()
+): {
   playerUpdates: { id: string; [key: string]: unknown }[];
   notifications: Notification[];
   improvementCount: number;
   declineCount: number;
+  restSkippedCount: number;
 } {
   const playerUpdates: { id: string; [key: string]: unknown }[] = [];
   const notifications: Notification[] = [];
   let improvementCount = 0;
   let declineCount = 0;
+  let restSkippedCount = 0;
 
   for (const player of players) {
-    const result = processPlayerTraining(player);
+    const didPlay = playedThisRound.has(player.id);
+    const result = processPlayerTraining(player, didPlay);
 
     if (Object.keys(result.updates).length > 0) {
       playerUpdates.push({ id: result.playerId, ...result.updates });
@@ -734,10 +806,17 @@ export function processAllTraining(players: Player[]): {
 
     if (result.improved) improvementCount++;
     if (result.declined) declineCount++;
+    if (result.restSkipped) restSkippedCount++;
     if (result.notification) notifications.push(result.notification);
   }
 
-  return { playerUpdates, notifications, improvementCount, declineCount };
+  return { 
+    playerUpdates, 
+    notifications, 
+    improvementCount, 
+    declineCount, 
+    restSkippedCount 
+  };
 }
 
 /**
