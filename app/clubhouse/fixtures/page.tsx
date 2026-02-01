@@ -135,6 +135,7 @@ export default function FixturesPage() {
   const [nextUpdate, setNextUpdate] = useState<{ date: Date; round: number } | null>(null);
   const [seasonStarted, setSeasonStarted] = useState(false);
   const [userDivision, setUserDivision] = useState(1);
+  const [originFixtures, setOriginFixtures] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -214,6 +215,12 @@ export default function FixturesPage() {
         .eq('division', myTeam.division)
         .order('round', { ascending: true });
 
+      // Fetch Origin fixtures
+      const { data: originFixturesData } = await supabase
+        .from('origin_fixtures')
+        .select('*')
+        .eq('season', 0);
+
       const fixtureIds = (fixturesData || []).map(f => f.id);
       let resultsMap: Record<string, MatchResult> = {};
       
@@ -225,6 +232,8 @@ export default function FixturesPage() {
 
         results?.forEach(r => { resultsMap[r.fixture_id] = r; });
       }
+
+      setOriginFixtures(originFixturesData || []);
 
       const fixturesWithTeams: FixtureWithTeams[] = (fixturesData || [])
         .filter(f => teamsMap[f.home_team_id] && teamsMap[f.away_team_id])
@@ -491,8 +500,37 @@ export default function FixturesPage() {
                 [9, 12, 15].includes(selectedRound) ? (
                   <div className="text-center py-8">
                     <p className="text-blue-400 text-xl font-bold mb-2">🏉 State of Origin</p>
-                    <p className="text-gray-400">No club games this round</p>
-                    <p className="text-gray-500 text-sm mt-2">Your players may be representing NSW or QLD!</p>
+                    {(() => {
+                      const originMatch = originFixtures.find(o => o.round === selectedRound);
+                      if (originMatch?.played) {
+                        const nswScore = originMatch.home_team === 'NSW' ? originMatch.home_score : originMatch.away_score;
+                        const qldScore = originMatch.home_team === 'QLD' ? originMatch.home_score : originMatch.away_score;
+                        const winner = nswScore > qldScore ? 'NSW' : qldScore > nswScore ? 'QLD' : null;
+                        return (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-center gap-8">
+                              <div className={`text-center ${winner === 'NSW' ? 'text-blue-400' : 'text-gray-400'}`}>
+                                <p className="text-2xl font-bold">NSW</p>
+                                <p className="text-4xl font-bold">{nswScore}</p>
+                              </div>
+                              <div className="text-gray-500 text-xl">-</div>
+                              <div className={`text-center ${winner === 'QLD' ? 'text-red-400' : 'text-gray-400'}`}>
+                                <p className="text-2xl font-bold">QLD</p>
+                                <p className="text-4xl font-bold">{qldScore}</p>
+                              </div>
+                            </div>
+                            <p className="text-gray-400 mt-4">Game {originMatch.game_number} @ {originMatch.venue}</p>
+                            {winner && <p className="text-green-400 mt-2">{winner} wins!</p>}
+                          </div>
+                        );
+                      }
+                      return (
+                        <>
+                          <p className="text-gray-400">No club games this round</p>
+                          <p className="text-gray-500 text-sm mt-2">Your players may be representing NSW or QLD!</p>
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <p className="text-gray-500 text-center py-4">No fixtures found for this round</p>
