@@ -119,13 +119,12 @@ function calculatePlayerFatigue(
   traitFatigueMultiplier: number,
   isOnRest: boolean = false
 ): number {
-  // Step 1: Recovery scales with minutes (reflects conditioning from play time)
+  // Step 1: Apply baseline recovery (represents a week of professional rest - does NOT scale)
   // REST players get +1 bonus recovery (veteran maintenance mode)
   const baseRecovery = BASELINE_RECOVERY + (isOnRest ? 1 : 0);
-  const recoveryAmount = Math.round(baseRecovery * (minutesPlayed / 80));
-  const afterRecovery = Math.max(0, currentFatigue - recoveryAmount);
+  const afterRecovery = Math.max(0, currentFatigue - baseRecovery);
   
-  // Step 2: Calculate fatigue gained from this match (already scales by minutes)
+  // Step 2: Calculate fatigue gained from this match (scales by minutes played)
   const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
   const fatigueGain = Math.round(baseFatigueGain * traitFatigueMultiplier);
   

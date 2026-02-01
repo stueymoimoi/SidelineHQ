@@ -29,7 +29,7 @@ export const BASE_TRIES = 4;
 export const COACHING_BONUS = 12;
 
 /** Fatigue added per match played (80 mins) - REBALANCED for slow decline */
-export const FATIGUE_PER_MATCH = 12;
+export const FATIGUE_PER_MATCH = 2;
 
 /** Fatigue added per training session */
 export const FATIGUE_PER_TRAINING = 5;
