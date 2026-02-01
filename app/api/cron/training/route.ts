@@ -20,6 +20,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { processAllTraining } from '@/lib/training';
 import { SEASON } from '@/lib/game-engine/constants';
+import { awardCoachXP } from '@/lib/coaches/xp';
 
 function getSupabase() {
   return createClient(
@@ -120,6 +121,18 @@ export async function GET(request: Request) {
     logs.push(`Players who played this round: ${playedThisRound.size}`);
     
     // ===========================================
+    // LOAD COACHES (for XP awards)
+    // ===========================================
+    const { data: coaches } = await supabase
+      .from('coaches')
+      .select('id, team_id');
+    
+    const teamCoachMap: Record<string, string> = {};
+    (coaches || []).forEach((c: { id: string; team_id: string | null }) => {
+      if (c.team_id) teamCoachMap[c.team_id] = c.id;
+    });
+    
+    // ===========================================
     // LOAD ALL PLAYERS
     // ===========================================
     const [players1, players2, players3] = await Promise.all([
@@ -168,6 +181,26 @@ export async function GET(request: Request) {
     if (trainingNotifications.length > 0) {
       await supabase.from('notifications').insert(trainingNotifications);
       logs.push(`Created ${trainingNotifications.length} training notifications`);
+    }
+    
+    // ===========================================
+    // AWARD COACH XP FOR PLAYER IMPROVEMENTS
+    // ===========================================
+    const improvementNotifications = trainingNotifications.filter(
+      n => n.type === 'player_improvement'
+    );
+    
+    let xpAwarded = 0;
+    for (const notification of improvementNotifications) {
+      const coachId = teamCoachMap[notification.team_id];
+      if (coachId) {
+        await awardCoachXP(coachId, 'PLAYER_STAT_GAIN');
+        xpAwarded++;
+      }
+    }
+    
+    if (xpAwarded > 0) {
+      logs.push(`Awarded XP to ${xpAwarded} coaches for player improvements`);
     }
     
     const totalTime = Date.now() - startTime;
