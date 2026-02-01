@@ -521,6 +521,12 @@ export default function FixturesPage() {
                             </div>
                             <p className="text-gray-400 mt-4">Game {originMatch.game_number} @ {originMatch.venue}</p>
                             {winner && <p className="text-green-400 mt-2">{winner} wins!</p>}
+                            <Link 
+                              href={`/clubhouse/match/origin/${originMatch.id}`}
+                              className="inline-block mt-4 text-blue-400 hover:text-blue-300 text-sm"
+                            >
+                              View Match Centre →
+                            </Link>
                           </div>
                         );
                       }
