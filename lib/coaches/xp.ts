@@ -64,9 +64,9 @@ export async function awardCoachXP(
     return { success: false, xpAwarded: 0, newTotal: oldXP, leveledUp: false, oldLevel, newLevel: oldLevel };
   }
   
-  // If leveled up, create news item
+  // If leveled up, create notification
   if (leveledUp && coach.team_id) {
-    await createLevelUpNews(coach.team_id, coach.coach_name || 'Coach', newLevel, newTitle);
+    await createLevelUpNotification(coach.team_id, coach.coach_name || 'Coach', newLevel, newTitle);
   }
   
   return {
@@ -97,32 +97,31 @@ export async function awardBatchXP(
 }
 
 /**
- * Create a news item for level-up
+ * Create a notification for level-up
  */
-async function createLevelUpNews(
+async function createLevelUpNotification(
   teamId: string,
   coachName: string,
   newLevel: number,
   title: string
 ): Promise<void> {
-  const headlines = [
+  const titles = [
     `${coachName} promoted to ${title}!`,
     `${coachName} reaches Level ${newLevel}!`,
     `${coachName} earns ${title} status!`,
   ];
   
-  const headline = headlines[Math.floor(Math.random() * headlines.length)];
+  const notificationTitle = titles[Math.floor(Math.random() * titles.length)];
   
-  const { error } = await supabase.from('news').insert({
+  const { error } = await supabase.from('notifications').insert({
     team_id: teamId,
-    headline,
-    content: `Congratulations! Your coaching career has progressed to Level ${newLevel}: ${title}. Keep building your legacy!`,
-    category: 'achievement',
-    is_read: false,
+    type: 'coach_level_up',
+    title: notificationTitle,
+    message: `Congratulations! Your coaching career has progressed to Level ${newLevel}: ${title}. Keep building your legacy!`,
   });
   
   if (error) {
-    console.error('Failed to create level-up news:', error);
+    console.error('Failed to create level-up notification:', error);
   }
 }
 
