@@ -45,6 +45,7 @@ import { calculateMotmInfluence, buildMotmReason } from '@/lib/game-engine/motm'
 import { calculateTacticalBonus } from '@/lib/game-engine/tactics';
 import { calculateTries, calculateKickingStats, calculateScore, distributeTries } from '@/lib/game-engine/scoring';
 import { processMatchInjuries, saveInjuries, processInjuryRecoveries } from '@/lib/game-engine/injury-processing';
+import { awardCoachXP } from '@/lib/coaches/xp';
 import { generateMatchEventsFromStats } from '@/lib/game-engine/match-events';
 
 import { 
@@ -183,7 +184,7 @@ export async function GET(request: Request) {
       supabase.from('players').select('*').range(0, 999),
       supabase.from('players').select('*').range(1000, 1999),
       supabase.from('players').select('*').range(2000, 2999),
-      supabase.from('coaches').select('team_id')
+      supabase.from('coaches').select('id, team_id')
     ]);
     
     const fixtures = fixturesRes.data || [];
@@ -222,6 +223,12 @@ export async function GET(request: Request) {
     });
     
     const coachedTeams = new Set((coachesRes.data || []).map((c: any) => c.team_id));
+    
+    // Build coach lookup: team_id -> coach_id
+    const teamCoachMap: Record<string, string> = {};
+    (coachesRes.data || []).forEach((c: any) => {
+      if (c.team_id) teamCoachMap[c.team_id] = c.id;
+    });
     
     // ===========================================
     // PHASE 2: SIMULATE MATCHES
@@ -769,6 +776,32 @@ export async function GET(request: Request) {
         }
         
         logs.push(`${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}`);
+        
+        // Award Coach XP
+        const homeCoachId = teamCoachMap[homeTeam.id];
+        const awayCoachId = teamCoachMap[awayTeam.id];
+        
+        if (homeCoachId) {
+          if (homeWon) {
+            await awardCoachXP(homeCoachId, 'WIN');
+            if (margin >= 20) await awardCoachXP(homeCoachId, 'WIN_BLOWOUT_BONUS');
+          } else if (draw) {
+            await awardCoachXP(homeCoachId, 'DRAW');
+          } else {
+            await awardCoachXP(homeCoachId, 'LOSS');
+          }
+        }
+        
+        if (awayCoachId) {
+          if (awayWon) {
+            await awardCoachXP(awayCoachId, 'WIN');
+            if (margin >= 20) await awardCoachXP(awayCoachId, 'WIN_BLOWOUT_BONUS');
+          } else if (draw) {
+            await awardCoachXP(awayCoachId, 'DRAW');
+          } else {
+            await awardCoachXP(awayCoachId, 'LOSS');
+          }
+        }
       }
       
       // Rest recovery for non-playing players (baseline + 30% bonus)

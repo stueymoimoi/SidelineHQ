@@ -829,3 +829,81 @@ export const HEIGHT_WEIGHT_MODIFIERS: Record<string, {
 
 // Maximum modifier percentage (at extreme height/weight)
 export const MAX_HEIGHT_WEIGHT_MODIFIER = 0.15; // ±15%
+// =============================================================================
+// COACH XP SYSTEM
+// =============================================================================
+
+/** XP awarded for various actions */
+export const COACH_XP_REWARDS = {
+  // Match results
+  WIN: 10,
+  DRAW: 5,
+  LOSS: 2,
+  WIN_BLOWOUT_BONUS: 5,      // Win by 20+ points
+  WIN_STREAK_BONUS: 5,       // Per match while streak ≥3
+  
+  // Player development
+  PLAYER_STAT_GAIN: 3,       // Training pays off
+  
+  // Season achievements
+  DIVISION_TITLE: 50,
+  GRAND_FINAL_WIN: 100,
+  
+  // Representative honors
+  ORIGIN_SELECTION: 10,      // Per player selected
+} as const;
+
+/** Level thresholds and titles */
+export const COACH_LEVELS: Array<{
+  level: number;
+  title: string;
+  xpRequired: number;
+}> = [
+  { level: 1,  title: 'Rookie',         xpRequired: 0 },
+  { level: 2,  title: 'Assistant',      xpRequired: 50 },
+  { level: 3,  title: 'Junior Coach',   xpRequired: 150 },
+  { level: 4,  title: 'Coach',          xpRequired: 300 },
+  { level: 5,  title: 'Senior Coach',   xpRequired: 500 },
+  { level: 6,  title: 'Head Coach',     xpRequired: 800 },
+  { level: 7,  title: 'Elite Coach',    xpRequired: 1200 },
+  { level: 8,  title: 'Master Coach',   xpRequired: 1800 },
+  { level: 9,  title: 'Legendary',      xpRequired: 2500 },
+  { level: 10, title: 'Hall of Famer',  xpRequired: 3500 },
+];
+
+/** Calculate level from XP */
+export function getCoachLevel(xp: number): { level: number; title: string; xpForNext: number | null; progress: number } {
+  let currentLevel = COACH_LEVELS[0];
+  let nextLevel: typeof currentLevel | null = null;
+  
+  for (let i = COACH_LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= COACH_LEVELS[i].xpRequired) {
+      currentLevel = COACH_LEVELS[i];
+      nextLevel = COACH_LEVELS[i + 1] || null;
+      break;
+    }
+  }
+  
+  // Calculate progress to next level
+  let progress = 100;
+  let xpForNext: number | null = null;
+  
+  if (nextLevel) {
+    const xpIntoLevel = xp - currentLevel.xpRequired;
+    const xpNeeded = nextLevel.xpRequired - currentLevel.xpRequired;
+    progress = Math.round((xpIntoLevel / xpNeeded) * 100);
+    xpForNext = nextLevel.xpRequired;
+  }
+  
+  return {
+    level: currentLevel.level,
+    title: currentLevel.title,
+    xpForNext,
+    progress,
+  };
+}
+
+/** Get title for a specific level */
+export function getCoachTitle(level: number): string {
+  return COACH_LEVELS.find(l => l.level === level)?.title || 'Rookie';
+}
