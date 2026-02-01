@@ -184,7 +184,7 @@ export async function GET(request: Request) {
       supabase.from('players').select('*').range(0, 999),
       supabase.from('players').select('*').range(1000, 1999),
       supabase.from('players').select('*').range(2000, 2999),
-      supabase.from('coaches').select('id, team_id')
+      supabase.from('coaches').select('id, team_id, current_streak')
     ]);
     
     const fixtures = fixturesRes.data || [];
@@ -224,11 +224,14 @@ export async function GET(request: Request) {
     
     const coachedTeams = new Set((coachesRes.data || []).map((c: any) => c.team_id));
     
-    // Build coach lookup: team_id -> coach_id
-    const teamCoachMap: Record<string, string> = {};
+    // Build coach lookup: team_id -> { id, streak }
+    const teamCoachMap: Record<string, { id: string; streak: number }> = {};
     (coachesRes.data || []).forEach((c: any) => {
-      if (c.team_id) teamCoachMap[c.team_id] = c.id;
+      if (c.team_id) teamCoachMap[c.team_id] = { id: c.id, streak: c.current_streak || 0 };
     });
+    
+    // Track streak updates to save at end
+    const streakUpdates: Record<string, number> = {};
     
     // ===========================================
     // PHASE 2: SIMULATE MATCHES
@@ -777,29 +780,55 @@ export async function GET(request: Request) {
         
         logs.push(`${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}`);
         
-        // Award Coach XP
-        const homeCoachId = teamCoachMap[homeTeam.id];
-        const awayCoachId = teamCoachMap[awayTeam.id];
+        // Award Coach XP and update streaks
+        const homeCoach = teamCoachMap[homeTeam.id];
+        const awayCoach = teamCoachMap[awayTeam.id];
         
-        if (homeCoachId) {
+        if (homeCoach) {
           if (homeWon) {
-            await awardCoachXP(homeCoachId, 'WIN');
-            if (margin >= 20) await awardCoachXP(homeCoachId, 'WIN_BLOWOUT_BONUS');
+            // Win: increment streak (or start at 1 if was negative/zero)
+            const oldStreak = homeCoach.streak;
+            const newStreak = oldStreak > 0 ? oldStreak + 1 : 1;
+            streakUpdates[homeCoach.id] = newStreak;
+            homeCoach.streak = newStreak; // Update in memory for multiple matches
+            
+            await awardCoachXP(homeCoach.id, 'WIN');
+            if (margin >= 20) await awardCoachXP(homeCoach.id, 'WIN_BLOWOUT_BONUS');
+            if (newStreak >= 3) await awardCoachXP(homeCoach.id, 'WIN_STREAK_BONUS');
           } else if (draw) {
-            await awardCoachXP(homeCoachId, 'DRAW');
+            streakUpdates[homeCoach.id] = 0;
+            homeCoach.streak = 0;
+            await awardCoachXP(homeCoach.id, 'DRAW');
           } else {
-            await awardCoachXP(homeCoachId, 'LOSS');
+            // Loss: decrement streak (or start at -1 if was positive/zero)
+            const oldStreak = homeCoach.streak;
+            const newStreak = oldStreak < 0 ? oldStreak - 1 : -1;
+            streakUpdates[homeCoach.id] = newStreak;
+            homeCoach.streak = newStreak;
+            await awardCoachXP(homeCoach.id, 'LOSS');
           }
         }
         
-        if (awayCoachId) {
+        if (awayCoach) {
           if (awayWon) {
-            await awardCoachXP(awayCoachId, 'WIN');
-            if (margin >= 20) await awardCoachXP(awayCoachId, 'WIN_BLOWOUT_BONUS');
+            const oldStreak = awayCoach.streak;
+            const newStreak = oldStreak > 0 ? oldStreak + 1 : 1;
+            streakUpdates[awayCoach.id] = newStreak;
+            awayCoach.streak = newStreak;
+            
+            await awardCoachXP(awayCoach.id, 'WIN');
+            if (margin >= 20) await awardCoachXP(awayCoach.id, 'WIN_BLOWOUT_BONUS');
+            if (newStreak >= 3) await awardCoachXP(awayCoach.id, 'WIN_STREAK_BONUS');
           } else if (draw) {
-            await awardCoachXP(awayCoachId, 'DRAW');
+            streakUpdates[awayCoach.id] = 0;
+            awayCoach.streak = 0;
+            await awardCoachXP(awayCoach.id, 'DRAW');
           } else {
-            await awardCoachXP(awayCoachId, 'LOSS');
+            const oldStreak = awayCoach.streak;
+            const newStreak = oldStreak < 0 ? oldStreak - 1 : -1;
+            streakUpdates[awayCoach.id] = newStreak;
+            awayCoach.streak = newStreak;
+            await awardCoachXP(awayCoach.id, 'LOSS');
           }
         }
       }
@@ -847,6 +876,16 @@ export async function GET(request: Request) {
           supabase.from('players').update({ fatigue }).eq('id', playerId)
         ));
       }
+    }
+    
+    // Save streak updates
+    if (Object.keys(streakUpdates).length > 0) {
+      await Promise.all(
+        Object.entries(streakUpdates).map(([coachId, streak]) =>
+          supabase.from('coaches').update({ current_streak: streak }).eq('id', coachId)
+        )
+      );
+      logs.push(`Updated ${Object.keys(streakUpdates).length} coach streaks`);
     }
     
     // Injury recoveries
