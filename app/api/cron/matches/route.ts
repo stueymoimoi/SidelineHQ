@@ -199,10 +199,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, message: 'Season complete!' });
     }
     
-    const currentRound = fixtures[0].round;
-    const roundFixtures = fixtures.filter((f: Fixture) => f.round === currentRound);
-    
-    logs.push(`Processing Round ${currentRound} - ${roundFixtures.length} fixtures`);
+    // Determine the actual current round (considering Origin rounds)
+    const nextFixtureRound = fixtures[0].round;
+
+    // Check if there's an unplayed Origin round BEFORE the next fixture round
+    const { data: pendingOrigin } = await supabase
+      .from('origin_fixtures')
+      .select('round')
+      .eq('season', SEASON)
+      .eq('played', false)
+      .lt('round', nextFixtureRound)
+      .order('round', { ascending: true })
+      .limit(1);
+
+    const currentRound = (pendingOrigin && pendingOrigin.length > 0) 
+      ? pendingOrigin[0].round 
+      : nextFixtureRound;
+
+    const isOrigin = isOriginRound(currentRound);
+    const roundFixtures = isOrigin ? [] : fixtures.filter((f: Fixture) => f.round === currentRound);
+
+    logs.push(`Processing Round ${currentRound} - ${isOrigin ? 'ORIGIN' : `${roundFixtures.length} fixtures`}`);
     
     // Build lookup maps
     const teamsMap: Record<string, Team> = {};
@@ -243,7 +260,6 @@ export async function GET(request: Request) {
     const teamUpdates: Record<string, any> = {};
     const fatigueUpdates: Record<string, number> = {};
     
-    const isOrigin = isOriginRound(currentRound);
     
     if (isOrigin) {
       logs.push(`🏉 ORIGIN ROUND ${currentRound}`);
