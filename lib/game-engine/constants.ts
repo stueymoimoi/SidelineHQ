@@ -32,7 +32,7 @@ export const COACHING_BONUS = 12;
 export const FATIGUE_PER_MATCH = 2;
 
 /** Fatigue added per training session */
-export const FATIGUE_PER_TRAINING = 5;
+export const FATIGUE_PER_TRAINING = 0;
 
 /** Fatigue recovered when resting (not playing) */
 export const REST_RECOVERY = 25;

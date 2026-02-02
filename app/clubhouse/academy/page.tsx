@@ -91,7 +91,6 @@ const NATIONALITY_NAME_POOL: Record<string, string> = {
   TON: 'TONGAN', SAM: 'SAMOAN', FIJ: 'FIJIAN', PNG: 'PNG'
 };
 
-// Updated to match other pages (passing/tackling instead of skill/defense)
 const POSITION_STATS: Record<string, { primary: string[], secondary: string[], minor: string[], negligible: string[] }> = {
   'Prop': { primary: ['strength', 'tackling'], secondary: ['stamina', 'passing'], minor: ['speed'], negligible: ['kicking'] },
   'Hooker': { primary: ['passing', 'stamina'], secondary: ['tackling', 'speed'], minor: ['strength'], negligible: ['kicking'] },
@@ -189,7 +188,7 @@ const generateName = (nationality: string): { firstName: string, lastName: strin
 };
 
 const generateGoalKicking = (position: string): number => {
-  if (Math.random() < 0.05) return randomInt(85, 95); // 5% hidden gem
+  if (Math.random() < 0.05) return randomInt(85, 95);
   const config = GOAL_KICKING_BY_POSITION[position] || { avg: 30, min: 5, max: 50 };
   const variance = (config.max - config.min) / 4;
   const value = config.avg + (Math.random() - 0.5) * variance * 2;
@@ -275,7 +274,6 @@ export default function DevelopmentSquadPage() {
       setCoach(coachData);
       setTeamId(coachData.team_id);
 
-      // Parallel fetch for performance
       const [teamResult, playersResult, fixturesResult] = await Promise.all([
         supabase
           .from('teams')
@@ -303,7 +301,7 @@ export default function DevelopmentSquadPage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [supabase, router]);
 
   useEffect(() => {
     loadData();
@@ -321,7 +319,6 @@ export default function DevelopmentSquadPage() {
   const generateAndAddPlayer = useCallback(async (positionType: string, releasePlayerId: string | null) => {
     if (!team || !coach || !teamId) return;
     
-    // Security: Re-verify team ownership
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       router.push('/auth');
@@ -342,7 +339,6 @@ export default function DevelopmentSquadPage() {
     setProcessing(true);
 
     try {
-      // Release player if needed
       if (releasePlayerId) {
         await Promise.all([
           supabase.from('free_agents').insert({
@@ -360,23 +356,19 @@ export default function DevelopmentSquadPage() {
       const state = generateState(nationality);
       const { firstName, lastName } = generateName(nationality);
 
-      // Calculate patience bonus
       const roundsWaited = coach.last_academy_pull_round > 0 
         ? currentRound - coach.last_academy_pull_round 
         : 0;
       const currentPatienceBonus = Math.min(20, Math.floor(roundsWaited / PROMOTION_COOLDOWN_ROUNDS) * 5);
 
-      // Generate potential with patience bonus
       const potentialWeights = [15, 25, 35, 20 + currentPatienceBonus / 2, 5 + currentPatienceBonus / 2];
       const potential = weightedRandomChoice([1, 2, 3, 4, 5], potentialWeights);
 
-      // Generate stats
       const posStats = POSITION_STATS[position];
       const stats: Record<string, number> = {};
       const baseMin = 2;
       const baseMax = 3 + potential;
 
-      // Using correct stat names: speed, strength, power, passing, stamina, tackling, kicking
       ['speed', 'strength', 'power', 'passing', 'stamina', 'tackling', 'kicking'].forEach(stat => {
         let min = baseMin;
         let max = baseMax;
@@ -398,11 +390,9 @@ export default function DevelopmentSquadPage() {
         stats[stat] = Math.round((r1 + r2) / 2);
       });
 
-      // Calculate OVR (sum of 7 stats)
       let overall = Object.values(stats).reduce((sum, val) => sum + val, 0);
       
-      // Enforce minimum OVR
-      const minOvr = 14; // 7 stats * 2 minimum
+      const minOvr = 14;
       if (overall < minOvr) {
         const statKeys = Object.keys(stats);
         while (overall < minOvr) {
@@ -412,7 +402,6 @@ export default function DevelopmentSquadPage() {
         }
       }
 
-      // Calculate match power (hidden)
       let matchPower = 0;
       Object.entries(stats).forEach(([stat, value]) => {
         if (posStats.primary.includes(stat)) {
@@ -426,7 +415,6 @@ export default function DevelopmentSquadPage() {
 
       const goalKicking = generateGoalKicking(position);
 
-      // Insert new player
       const { data: newPlayerData, error } = await supabase
         .from('players')
         .insert({
@@ -459,14 +447,12 @@ export default function DevelopmentSquadPage() {
 
       if (error) throw error;
 
-      // Update coach last pull round
       await supabase
         .from('coaches')
         .update({ last_academy_pull_round: currentRound })
         .eq('id', coach.id)
-        .eq('team_id', teamId); // Security: double-check
+        .eq('team_id', teamId);
 
-      // Batch notifications
       const { data: allTeams } = await supabase
         .from('teams')
         .select('id')
@@ -480,7 +466,6 @@ export default function DevelopmentSquadPage() {
           message: `${team.name} promoted ${firstName} ${lastName} (${position}, ${overall} OVR, Age 18) from their development squad.`
         }));
 
-        // Add release notification if applicable
         if (releasePlayerId && selectedPlayer) {
           allTeams.forEach(t => {
             notifications.push({
@@ -506,7 +491,7 @@ export default function DevelopmentSquadPage() {
       setSelectedPlayer(null);
       setSelectedPositionType(null);
     }
-  }, [team, coach, teamId, currentRound, selectedPlayer, loadData, router]);
+  }, [team, coach, teamId, currentRound, selectedPlayer, loadData, router, supabase]);
 
   const closeReleaseModal = useCallback(() => {
     setShowReleaseModal(false);
@@ -558,7 +543,6 @@ export default function DevelopmentSquadPage() {
             Quality varies - you might get a future star or a squad filler!
           </p>
 
-          {/* Weeks/Rounds since last promotion */}
           {hasPromotedBefore && roundsSinceLastPromotion !== null && (
             <div className="bg-gray-700/50 border border-gray-600 text-gray-300 p-3 rounded mb-4">
               📅 Last promotion: <strong>{roundsSinceLastPromotion}</strong> round{roundsSinceLastPromotion !== 1 ? 's' : ''} ago
@@ -618,7 +602,7 @@ export default function DevelopmentSquadPage() {
           </div>
         </div>
 
-        {/* Squad Count - Updated to /30 */}
+        {/* Squad Count */}
         <div className="bg-gray-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <span className="text-gray-400">Current Squad Size</span>
