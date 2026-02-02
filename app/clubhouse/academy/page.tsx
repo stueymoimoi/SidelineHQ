@@ -1,14 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // ============================================
 // TYPES
@@ -45,7 +40,7 @@ interface Coach {
 // CONSTANTS
 // ============================================
 
-const MAX_SQUAD_SIZE = 30; // Updated from 22
+const MAX_SQUAD_SIZE = 30;
 const PROMOTION_COOLDOWN_ROUNDS = 6;
 
 const NATIONALITIES = {
@@ -232,6 +227,7 @@ const getOvrStars = (ovr: number): string => {
 // ============================================
 
 export default function DevelopmentSquadPage() {
+  const supabase = createBrowserClient();
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<Team | null>(null);
   const [coach, setCoach] = useState<Coach | null>(null);
