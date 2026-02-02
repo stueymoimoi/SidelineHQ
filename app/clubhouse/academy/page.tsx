@@ -432,8 +432,9 @@ export default function DevelopmentSquadPage() {
           goal_kick_successes: 0,
           potential: potential,
           fatigue: 0,
-          training_progress: 'NONE',
-          retiring_end_of_season: false
+            morale: 50,
+            training_progress: 'NONE',
+            retiring_end_of_season: false
         })
         .select('id, first_name, last_name, position, overall, age, nationality, state, visible_trait')
         .single();
@@ -451,22 +452,20 @@ export default function DevelopmentSquadPage() {
         .select('id')
         .eq('division', team.division);
 
-      if (allTeams && allTeams.length > 0) {
-        const notifications = allTeams.map(t => ({
-          team_id: t.id,
-          type: 'league_news',
-          title: '📰 Development Squad Promotion',
-          message: `${team.name} promoted ${firstName} ${lastName} (${position}, ${overall} OVR, Age 18) from their development squad.`
-        }));
+      if (teamId) {
+          const notifications = [{
+            team_id: teamId,
+            type: 'league_news',
+            title: '📰 Development Squad Promotion',
+            message: `You promoted ${firstName} ${lastName} (${position}, ${overall} OVR, Age 18) from your development squad.`
+          }];
 
         if (releasePlayerId && selectedPlayer) {
-          allTeams.forEach(t => {
-            notifications.push({
-              team_id: t.id,
-              type: 'league_news',
-              title: '🏪 Player Released to Free Agents',
-              message: `${team.name} released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR, Age ${selectedPlayer.age}). Available next round.`
-            });
+          notifications.push({
+            team_id: teamId,
+            type: 'league_news',
+            title: '🪓 Player Released to Free Agents',
+            message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR, Age ${selectedPlayer.age}). Available next round.`
           });
         }
 
