@@ -213,13 +213,6 @@ const getOvrColor = (ovr: number): string => {
   return 'bg-red-500';
 };
 
-const getOvrStars = (ovr: number): string => {
-  if (ovr >= 39) return '⭐⭐⭐⭐⭐';
-  if (ovr >= 33) return '⭐⭐⭐⭐';
-  if (ovr >= 27) return '⭐⭐⭐';
-  if (ovr >= 21) return '⭐⭐';
-  return '⭐';
-};
 
 // ============================================
 // MAIN COMPONENT
@@ -713,7 +706,7 @@ export default function DevelopmentSquadPage() {
                   {newPlayer.overall}
                 </span>
               </div>
-              <p className="text-yellow-500 text-sm mb-2">{getOvrStars(newPlayer.overall)}</p>
+              
               <p className="text-gray-300 text-lg font-semibold">{newPlayer.first_name}</p>
               <p className="text-white text-2xl font-bold">{newPlayer.last_name}</p>
               <p className="text-gray-500 text-sm">
