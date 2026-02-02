@@ -1,13 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createBrowserClient();
 
 const ADMIN_USER_ID = 'b0c4c970-ac17-4be8-9b35-68d321a166ad';
 
@@ -148,6 +145,16 @@ export default function ChooseTeamPage() {
           });
 
         if (insertError) throw insertError;
+      }
+
+      // Link team to this user for RLS policies
+      const { error: teamUpdateError } = await supabase
+        .from('teams')
+        .update({ current_manager_id: user.id })
+        .eq('id', selectedTeam.id);
+
+      if (teamUpdateError) {
+        console.error('Failed to link team:', teamUpdateError);
       }
 
       // Create notification for admin
