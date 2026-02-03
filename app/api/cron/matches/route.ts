@@ -271,6 +271,18 @@ export async function GET(request: Request) {
         .single();
       
       if (originFixture && !originFixture.played) {
+        // Idempotency guard: skip if already simulated
+        const { count: existingOriginStats } = await supabase
+          .from('origin_player_stats')
+          .select('id', { count: 'exact', head: true })
+          .eq('origin_fixture_id', originFixture.id);
+        
+        if (existingOriginStats && existingOriginStats > 0) {
+          logs.push(`⏭️ Skipping Origin fixture ${originFixture.id} — already simulated (${existingOriginStats} stats)`);
+          await supabase.from('game_state').update({ maintenance: false, current_phase: null }).eq('id', 1);
+          return NextResponse.json({ success: true, message: 'Origin already simulated', logs });
+        }
+        
         const nswSquad = selectOriginSquad(allPlayers, 'NSW');
         const qldSquad = selectOriginSquad(allPlayers, 'QLD');
         
@@ -417,6 +429,17 @@ export async function GET(request: Request) {
       logs.push(`Simulating ${roundFixtures.length} club matches`);
       
       for (const fixture of roundFixtures) {
+        // Idempotency guard: skip if already simulated
+        const { count: existingEvents } = await supabase
+          .from('match_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('fixture_id', fixture.id);
+        
+        if (existingEvents && existingEvents > 0) {
+          logs.push(`⏭️ Skipping fixture ${fixture.id} — already simulated (${existingEvents} events)`);
+          continue;
+        }
+        
         const homeTeam = teamsMap[fixture.home_team_id];
         const awayTeam = teamsMap[fixture.away_team_id];
         if (!homeTeam || !awayTeam) continue;
