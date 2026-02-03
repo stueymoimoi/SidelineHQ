@@ -311,54 +311,12 @@ export default function DevelopmentSquadPage() {
   }, [players.length]);
 
   const generateAndAddPlayer = useCallback(async (positionType: string, releasePlayerId: string | null) => {
-    if (!team || !coach || !teamId) return;
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.push('/auth');
-      return;
-    }
-
-    const { data: verifiedCoach } = await supabase
-      .from('coaches')
-      .select('team_id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!verifiedCoach?.team_id || verifiedCoach.team_id !== teamId) {
-      console.error('Team ID mismatch - security issue');
-      return;
-    }
-
-    // Cooldown enforcement - fresh DB read to prevent spam
-    const { data: cooldownCheck } = await supabase
-      .from('coaches')
-      .select('last_academy_pull_round')
-      .eq('user_id', user.id)
-      .single();
-
-    if (cooldownCheck?.last_academy_pull_round) {
-      const roundsSince = currentRound - cooldownCheck.last_academy_pull_round;
-      if (roundsSince < PROMOTION_COOLDOWN_ROUNDS) {
-        console.error('Promotion cooldown not met');
-        return;
-      }
-    }
+    if (!team || !coach || !teamId || processing) return;
 
     setProcessing(true);
 
     try {
-      if (releasePlayerId) {
-        await Promise.all([
-          supabase.from('free_agents').insert({
-            player_id: releasePlayerId,
-            released_by_team_id: teamId,
-            available_round: currentRound + 1
-          }),
-          supabase.from('players').delete().eq('id', releasePlayerId).eq('team_id', teamId)
-        ]);
-      }
-
+      // Generate player stats client-side (randomness only)
       const posOptions = POSITION_GROUPS[positionType];
       const position = randomChoice(posOptions);
       const nationality = generateNationality();
@@ -424,71 +382,51 @@ export default function DevelopmentSquadPage() {
 
       const goalKicking = generateGoalKicking(position);
 
-      const { data: newPlayerData, error } = await supabase
-        .from('players')
-        .insert({
-          team_id: teamId,
-          first_name: firstName,
-          last_name: lastName,
-          position: position,
-          age: 18,
-          nationality: nationality,
-          state: state,
-          speed: stats.speed,
-          strength: stats.strength,
-          power: stats.power,
-          passing: stats.passing,
-          stamina: stats.stamina,
-          tackling: stats.tackling,
-          kicking: stats.kicking,
-          overall: overall,
-          match_power: matchPower,
-          goal_kicking: goalKicking,
-          goal_kick_attempts: 0,
-          goal_kick_successes: 0,
-          potential: potential,
-          fatigue: 0,
-            morale: 50,
-            training_progress: 'NONE',
-            retiring_end_of_season: false
-        })
-        .select('id, first_name, last_name, position, overall, age, nationality, state, visible_trait')
-        .single();
+      // Call the secure database function
+      const { data: newPlayerId, error } = await supabase.rpc('promote_youth_player', {
+        p_position_type: positionType,
+        p_first_name: firstName,
+        p_last_name: lastName,
+        p_position: position,
+        p_nationality: nationality,
+        p_state: state || null,
+        p_speed: stats.speed,
+        p_strength: stats.strength,
+        p_power: stats.power,
+        p_passing: stats.passing,
+        p_stamina: stats.stamina,
+        p_tackling: stats.tackling,
+        p_kicking: stats.kicking,
+        p_overall: overall,
+        p_match_power: matchPower,
+        p_goal_kicking: goalKicking,
+        p_potential: potential,
+        p_release_player_id: releasePlayerId || null
+      });
 
       if (error) throw error;
 
-      await supabase
-        .from('coaches')
-        .update({ last_academy_pull_round: currentRound })
-        .eq('id', coach.id)
-        .eq('team_id', teamId);
-
-      const { data: allTeams } = await supabase
-        .from('teams')
-        .select('id')
-        .eq('division', team.division);
-
-      if (teamId) {
-          const notifications = [{
-            team_id: teamId,
-            type: 'league_news',
-            title: '📰 Development Squad Promotion',
-            message: `You promoted ${firstName} ${lastName} (${position}, ${overall} OVR, Age 18) from your development squad.`
-          }];
-
-        if (releasePlayerId && selectedPlayer) {
-          notifications.push({
-            team_id: teamId,
-            type: 'league_news',
-            title: '🪓 Player Released to Free Agents',
-            message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR, Age ${selectedPlayer.age}). Available next round.`
-          });
-        }
-
-        await supabase.from('notifications').insert(notifications);
+      // Release notification (handled separately since DB function does the promotion one)
+      if (releasePlayerId && selectedPlayer && teamId) {
+        await supabase.from('notifications').insert({
+          team_id: teamId,
+          type: 'league_news',
+          title: '🪓 Player Released to Free Agents',
+          message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR, Age ${selectedPlayer.age}). Available next round.`
+        });
       }
 
-      setNewPlayer(newPlayerData);
+      // Fetch the new player for the reveal modal
+      if (newPlayerId) {
+        const { data: newPlayerData } = await supabase
+          .from('players')
+          .select('id, first_name, last_name, position, overall, age, nationality, state, visible_trait')
+          .eq('id', newPlayerId)
+          .single();
+
+        setNewPlayer(newPlayerData);
+      }
+
       await loadData();
 
     } catch (err) {
@@ -499,7 +437,7 @@ export default function DevelopmentSquadPage() {
       setSelectedPlayer(null);
       setSelectedPositionType(null);
     }
-  }, [team, coach, teamId, currentRound, selectedPlayer, loadData, router, supabase]);
+  }, [team, coach, teamId, currentRound, selectedPlayer, processing, loadData, supabase]);
 
   const closeReleaseModal = useCallback(() => {
     setShowReleaseModal(false);
