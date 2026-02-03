@@ -301,6 +301,7 @@ export default function DevelopmentSquadPage() {
   }, [loadData]);
 
   const handlePromote = useCallback((positionType: string) => {
+    if (processing) return;
     setSelectedPositionType(positionType);
     if (players.length >= MAX_SQUAD_SIZE) {
       setShowReleaseModal(true);
@@ -327,6 +328,21 @@ export default function DevelopmentSquadPage() {
     if (!verifiedCoach?.team_id || verifiedCoach.team_id !== teamId) {
       console.error('Team ID mismatch - security issue');
       return;
+    }
+
+    // Cooldown enforcement - fresh DB read to prevent spam
+    const { data: cooldownCheck } = await supabase
+      .from('coaches')
+      .select('last_academy_pull_round')
+      .eq('user_id', user.id)
+      .single();
+
+    if (cooldownCheck?.last_academy_pull_round) {
+      const roundsSince = currentRound - cooldownCheck.last_academy_pull_round;
+      if (roundsSince < PROMOTION_COOLDOWN_ROUNDS) {
+        console.error('Promotion cooldown not met');
+        return;
+      }
     }
 
     setProcessing(true);
