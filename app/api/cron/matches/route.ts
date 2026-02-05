@@ -38,6 +38,8 @@ import {
   calculateFatigueByMinutes,
   getMinutesForPlayer,
   getOriginFatigue,
+  COACH_XP_REWARDS,
+  getCoachLevel,
 } from '@/lib/game-engine/constants';
 
 import type { Player, Team, Fixture, TeamTactics, Notification } from '@/lib/game-engine/types';
@@ -48,7 +50,6 @@ import { calculateMotmInfluence, buildMotmReason } from '@/lib/game-engine/motm'
 import { calculateTacticalBonus } from '@/lib/game-engine/tactics';
 import { calculateTries, calculateKickingStats, calculateScore, distributeTries } from '@/lib/game-engine/scoring';
 import { processMatchInjuries, saveInjuries, processInjuryRecoveries } from '@/lib/game-engine/injury-processing';
-import { awardCoachXP } from '@/lib/coaches/xp';
 import { generateMatchEventsFromStats } from '@/lib/game-engine/match-events';
 
 import { 
@@ -936,28 +937,76 @@ export async function GET(request: Request) {
       logs.push(`Fatigue updates done in ${Date.now() - saveStart}ms`);
     }
     
-    // Fourth batch: coach XP + streaks in parallel
-    const xpAndStreakPromises: Promise<any>[] = [];
-    
-    // XP awards — fire all in parallel
-    if (xpAwards.length > 0) {
-      xpAndStreakPromises.push(
-        ...xpAwards.map(award => awardCoachXP(award.coachId, award.eventType as any))
-      );
-    }
-    
-    // Streak updates
-    if (Object.keys(streakUpdates).length > 0) {
-      xpAndStreakPromises.push(
-        ...Object.entries(streakUpdates).map(([coachId, streak]) =>
+    // Fourth batch: coach XP + streaks — single DB call per coach
+    if (xpAwards.length > 0 || Object.keys(streakUpdates).length > 0) {
+      // Sum XP per coach in memory
+      const coachXPTotals: Record<string, number> = {};
+      for (const award of xpAwards) {
+        const xpAmount = COACH_XP_REWARDS[award.eventType as keyof typeof COACH_XP_REWARDS] || 0;
+        coachXPTotals[award.coachId] = (coachXPTotals[award.coachId] || 0) + xpAmount;
+      }
+      
+      // Load current XP for coaches who earned XP (one query)
+      const coachIdsWithXP = Object.keys(coachXPTotals);
+      let coachCurrentData: Record<string, { xp: number; level: number; coach_name: string; team_id: string }> = {};
+      
+      if (coachIdsWithXP.length > 0) {
+        const { data: coachRows } = await supabase
+          .from('coaches')
+          .select('id, xp, level, coach_name, team_id')
+          .in('id', coachIdsWithXP);
+        
+        for (const c of (coachRows || [])) {
+          coachCurrentData[c.id] = { xp: c.xp || 0, level: c.level || 1, coach_name: c.coach_name || 'Coach', team_id: c.team_id };
+        }
+      }
+      
+      // Calculate new XP/levels and build updates
+      const coachUpdatePromises: Promise<any>[] = [];
+      const levelUpNotifications: any[] = [];
+      
+      for (const [coachId, xpGain] of Object.entries(coachXPTotals)) {
+        const current = coachCurrentData[coachId];
+        if (!current) continue;
+        
+        const newTotal = current.xp + xpGain;
+        const { level: newLevel, title: newTitle } = getCoachLevel(newTotal);
+        const leveledUp = newLevel > current.level;
+        
+        const updateData: any = { xp: newTotal, level: newLevel };
+        if (streakUpdates[coachId] !== undefined) {
+          updateData.current_streak = streakUpdates[coachId];
+          delete streakUpdates[coachId]; // handled here
+        }
+        
+        coachUpdatePromises.push(
+          Promise.resolve(supabase.from('coaches').update(updateData).eq('id', coachId))
+        );
+        
+        if (leveledUp && current.team_id) {
+          levelUpNotifications.push({
+            team_id: current.team_id,
+            type: 'coach_level_up',
+            title: `${current.coach_name} promoted to ${newTitle}!`,
+            message: `Congratulations! Your coaching career has progressed to Level ${newLevel}: ${newTitle}. Keep building your legacy!`,
+          });
+        }
+      }
+      
+      // Any remaining streak-only updates (coaches with no XP this round)
+      for (const [coachId, streak] of Object.entries(streakUpdates)) {
+        coachUpdatePromises.push(
           Promise.resolve(supabase.from('coaches').update({ current_streak: streak }).eq('id', coachId))
-        )
-      );
-    }
-    
-    if (xpAndStreakPromises.length > 0) {
-      await Promise.all(xpAndStreakPromises);
-      logs.push(`XP + streaks done in ${Date.now() - saveStart}ms`);
+        );
+      }
+      
+      await Promise.all(coachUpdatePromises);
+      
+      if (levelUpNotifications.length > 0) {
+        await supabase.from('notifications').insert(levelUpNotifications);
+      }
+      
+      logs.push(`XP + streaks done in ${Date.now() - saveStart}ms (${xpAwards.length} awards, ${Object.keys(coachXPTotals).length} coaches)`);
     }
     
     // Injury recoveries
