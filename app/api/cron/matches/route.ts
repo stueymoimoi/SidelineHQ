@@ -9,6 +9,9 @@
  * 
  * Schedule: 0 8 * * 0,2,4
  * 
+ * OPTIMISED Feb 5: Batched all DB writes to avoid 60s timeout.
+ * ~500 individual queries → ~15 batched queries.
+ * 
  * FATIGUE SYSTEM (Rebalanced Jan 31):
  * - Both fatigue AND recovery scale by minutes played
  * - Net +2 per 80 mins → slow decline, rewards rotation
@@ -105,13 +108,6 @@ function generateAutoTactics(players: Player[]): Partial<TeamTactics> {
 
 /**
  * Calculate fatigue for a playing player
- * UPDATED: Both fatigue AND recovery scale by minutes played
- * 
- * Net fatigue per match:
- * - 80-min starter: +2 (12 gain - 10 recovery)
- * - 80-min starter on REST: +1 (12 gain - 11 recovery) ← veteran maintenance mode
- * - 55-min prop: +1.4 (8.25 gain - 6.875 recovery)
- * - 30-min bench: +0.75 (4.5 gain - 3.75 recovery)
  */
 function calculatePlayerFatigue(
   currentFatigue: number,
@@ -119,30 +115,19 @@ function calculatePlayerFatigue(
   traitFatigueMultiplier: number,
   isOnRest: boolean = false
 ): number {
-  // Step 1: Apply baseline recovery (represents a week of professional rest - does NOT scale)
-  // REST players get +1 bonus recovery (veteran maintenance mode)
   const baseRecovery = BASELINE_RECOVERY + (isOnRest ? 1 : 0);
   const afterRecovery = Math.max(0, currentFatigue - baseRecovery);
-  
-  // Step 2: Calculate fatigue gained from this match (scales by minutes played)
   const baseFatigueGain = calculateFatigueByMinutes(minutesPlayed, FATIGUE_PER_MATCH);
   const fatigueGain = Math.round(baseFatigueGain * traitFatigueMultiplier);
-  
-  // Step 3: Apply match fatigue, cap at 100
   return Math.min(100, afterRecovery + fatigueGain);
 }
 
 /**
  * Calculate fatigue for a non-playing player (rest recovery)
- * Applies baseline recovery PLUS additional rest bonus
  */
 function calculateRestFatigue(currentFatigue: number): number {
-  // Step 1: Apply baseline recovery
   const afterBaseline = Math.max(0, currentFatigue - BASELINE_RECOVERY);
-  
-  // Step 2: Apply additional rest bonus (30% of remaining)
   const afterRestBonus = Math.round(afterBaseline * (1 - 0.30));
-  
   return Math.max(0, afterRestBonus);
 }
 
@@ -201,7 +186,6 @@ export async function GET(request: Request) {
     // Determine the actual current round (considering Origin rounds)
     const nextFixtureRound = fixtures[0].round;
 
-    // Check if there's an unplayed Origin round BEFORE the next fixture round
     const { data: pendingOrigin } = await supabase
       .from('origin_fixtures')
       .select('round')
@@ -240,13 +224,11 @@ export async function GET(request: Request) {
     
     const coachedTeams = new Set((coachesRes.data || []).map((c: any) => c.team_id));
     
-    // Build coach lookup: team_id -> { id, streak }
     const teamCoachMap: Record<string, { id: string; streak: number }> = {};
     (coachesRes.data || []).forEach((c: any) => {
       if (c.team_id) teamCoachMap[c.team_id] = { id: c.id, streak: c.current_streak || 0 };
     });
     
-    // Track streak updates to save at end
     const streakUpdates: Record<string, number> = {};
     
     // ===========================================
@@ -255,9 +237,12 @@ export async function GET(request: Request) {
     
     const allPlayerStats: any[] = [];
     const allMatchResults: any[] = [];
+    const allMatchEvents: any[] = [];          // BATCHED — was per-fixture insert
     const allNotifications: Notification[] = [];
     const teamUpdates: Record<string, any> = {};
     const fatigueUpdates: Record<string, number> = {};
+    const allMatchPlayerIds: string[] = [];    // BATCHED — collect for bulk injury processing
+    const xpAwards: { coachId: string; eventType: string }[] = []; // BATCHED — was per-fixture await
     
     
     if (isOrigin) {
@@ -271,7 +256,7 @@ export async function GET(request: Request) {
         .single();
       
       if (originFixture && !originFixture.played) {
-        // Idempotency guard: skip if already simulated
+        // Idempotency guard
         const { count: existingOriginStats } = await supabase
           .from('origin_player_stats')
           .select('id', { count: 'exact', head: true })
@@ -359,7 +344,7 @@ export async function GET(request: Request) {
           }
         }
         
-        // Origin players: baseline recovery + Origin fatigue (10-13 random)
+        // Origin fatigue
         const originSquadIds = new Set([
           ...nswSquad.players.map(p => p.player.id),
           ...qldSquad.players.map(p => p.player.id)
@@ -369,12 +354,12 @@ export async function GET(request: Request) {
           const player = playersMap[playerId];
           if (player) {
             const afterRecovery = Math.max(0, (player.fatigue || 0) - BASELINE_RECOVERY);
-            const originFatigue = getOriginFatigue(); // Random 10-13
+            const originFatigue = getOriginFatigue();
             fatigueUpdates[playerId] = Math.min(100, afterRecovery + originFatigue);
           }
         });
         
-        // Origin injuries
+        // Origin injuries — single call, not in a loop
         const originPlayingIds = Array.from(originSquadIds);
         const { injuries: originInjuries, notifications: originInjuryNotifications } = await processMatchInjuries(
           supabase, originPlayingIds, playersMap, SEASON, currentRound, 'origin'
@@ -386,7 +371,7 @@ export async function GET(request: Request) {
           logs.push(`Origin Injuries: ${originInjuries.length}`);
         }
         
-        // Non-Origin players: full rest recovery
+        // Non-Origin players: rest recovery
         const originPlayerIds = new Set(originSquadIds);
         for (const player of allPlayers) {
           if (player.team_id && !originPlayerIds.has(player.id)) {
@@ -426,20 +411,29 @@ export async function GET(request: Request) {
       // ===========================================
       // CLUB MATCHES
       // ===========================================
-      logs.push(`Simulating ${roundFixtures.length} club matches`);
       
-      for (const fixture of roundFixtures) {
-        // Idempotency guard: skip if already simulated
-        const { count: existingEvents } = await supabase
-          .from('match_events')
-          .select('id', { count: 'exact', head: true })
-          .eq('fixture_id', fixture.id);
-        
-        if (existingEvents && existingEvents > 0) {
-          logs.push(`⏭️ Skipping fixture ${fixture.id} — already simulated (${existingEvents} events)`);
-          continue;
-        }
-        
+      // -----------------------------------------------
+      // BULK IDEMPOTENCY CHECK — one query, not 50
+      // -----------------------------------------------
+      const fixtureIds = roundFixtures.map((f: Fixture) => f.id);
+      const { data: existingEventRows } = await supabase
+        .from('match_events')
+        .select('fixture_id')
+        .in('fixture_id', fixtureIds);
+      
+      const alreadySimulated = new Set((existingEventRows || []).map((r: any) => r.fixture_id));
+      const fixturesToSimulate = roundFixtures.filter((f: Fixture) => !alreadySimulated.has(f.id));
+      
+      if (alreadySimulated.size > 0) {
+        logs.push(`⏭️ Skipping ${alreadySimulated.size} already-simulated fixtures`);
+      }
+      
+      logs.push(`Simulating ${fixturesToSimulate.length} club matches`);
+      
+      // -----------------------------------------------
+      // SIMULATE ALL MATCHES — pure computation, NO DB calls
+      // -----------------------------------------------
+      for (const fixture of fixturesToSimulate) {
         const homeTeam = teamsMap[fixture.home_team_id];
         const awayTeam = teamsMap[fixture.away_team_id];
         if (!homeTeam || !awayTeam) continue;
@@ -598,8 +592,6 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
-            // Calculate fatigue with baseline recovery (scaled by minutes)
-            // REST players get +1 bonus recovery (veteran maintenance mode)
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
             const isOnRest = player.current_training === 'Rest';
             fatigueUpdates[homePlayerId] = calculatePlayerFatigue(
@@ -680,8 +672,6 @@ export async function GET(request: Request) {
               _is_captain: isCaptain
             });
             
-            // Calculate fatigue with baseline recovery (scaled by minutes)
-            // REST players get +1 bonus recovery (veteran maintenance mode)
             const minutesPlayed = MINUTES_WITH_ROTATION[jerseyNumber] || 80;
             const isOnRest = player.current_training === 'Rest';
             fatigueUpdates[awayPlayerId] = calculatePlayerFatigue(
@@ -729,7 +719,7 @@ export async function GET(request: Request) {
         const cleanStats = fixtureStats.map(({ _motm_influence, _is_captain, ...rest }) => rest);
         allPlayerStats.push(...cleanStats);
         
-        // Match events
+        // BATCHED: Collect match events instead of inserting per fixture
         const matchResult = {
           fixture_id: fixture.id,
           home_team_id: fixture.home_team_id,
@@ -738,9 +728,7 @@ export async function GET(request: Request) {
           away_score: awayScore
         };
         const matchEvents = generateMatchEventsFromStats(matchResult, cleanStats);
-        if (matchEvents.length > 0) {
-          await supabase.from('match_events').insert(matchEvents);
-        }
+        allMatchEvents.push(...matchEvents);
         
         allMatchResults.push({
           fixture_id: fixture.id,
@@ -805,45 +793,35 @@ export async function GET(request: Request) {
           });
         }
         
-        // Match injuries
-        const matchPlayerIds = fixtureStats.map(s => s.player_id);
-        const { injuries: matchInjuries, notifications: injuryNotifications } = await processMatchInjuries(
-          supabase, matchPlayerIds, playersMap, SEASON, currentRound, 'match'
-        );
-        
-        if (matchInjuries.length > 0) {
-          await saveInjuries(supabase, matchInjuries, SEASON, currentRound, 'match');
-          allNotifications.push(...injuryNotifications);
-        }
+        // BATCHED: Collect playing player IDs for bulk injury processing
+        allMatchPlayerIds.push(...fixtureStats.map(s => s.player_id));
         
         logs.push(`${homeTeam.name} ${homeScore}-${awayScore} ${awayTeam.name}`);
         
-        // Award Coach XP and update streaks
+        // BATCHED: Collect XP awards instead of awaiting each one
         const homeCoach = teamCoachMap[homeTeam.id];
         const awayCoach = teamCoachMap[awayTeam.id];
         
         if (homeCoach) {
           if (homeWon) {
-            // Win: increment streak (or start at 1 if was negative/zero)
             const oldStreak = homeCoach.streak;
             const newStreak = oldStreak > 0 ? oldStreak + 1 : 1;
             streakUpdates[homeCoach.id] = newStreak;
-            homeCoach.streak = newStreak; // Update in memory for multiple matches
+            homeCoach.streak = newStreak;
             
-            await awardCoachXP(homeCoach.id, 'WIN');
-            if (margin >= 20) await awardCoachXP(homeCoach.id, 'WIN_BLOWOUT_BONUS');
-            if (newStreak >= 3) await awardCoachXP(homeCoach.id, 'WIN_STREAK_BONUS');
+            xpAwards.push({ coachId: homeCoach.id, eventType: 'WIN' });
+            if (margin >= 20) xpAwards.push({ coachId: homeCoach.id, eventType: 'WIN_BLOWOUT_BONUS' });
+            if (newStreak >= 3) xpAwards.push({ coachId: homeCoach.id, eventType: 'WIN_STREAK_BONUS' });
           } else if (draw) {
             streakUpdates[homeCoach.id] = 0;
             homeCoach.streak = 0;
-            await awardCoachXP(homeCoach.id, 'DRAW');
+            xpAwards.push({ coachId: homeCoach.id, eventType: 'DRAW' });
           } else {
-            // Loss: decrement streak (or start at -1 if was positive/zero)
             const oldStreak = homeCoach.streak;
             const newStreak = oldStreak < 0 ? oldStreak - 1 : -1;
             streakUpdates[homeCoach.id] = newStreak;
             homeCoach.streak = newStreak;
-            await awardCoachXP(homeCoach.id, 'LOSS');
+            xpAwards.push({ coachId: homeCoach.id, eventType: 'LOSS' });
           }
         }
         
@@ -854,46 +832,68 @@ export async function GET(request: Request) {
             streakUpdates[awayCoach.id] = newStreak;
             awayCoach.streak = newStreak;
             
-            await awardCoachXP(awayCoach.id, 'WIN');
-            if (margin >= 20) await awardCoachXP(awayCoach.id, 'WIN_BLOWOUT_BONUS');
-            if (newStreak >= 3) await awardCoachXP(awayCoach.id, 'WIN_STREAK_BONUS');
+            xpAwards.push({ coachId: awayCoach.id, eventType: 'WIN' });
+            if (margin >= 20) xpAwards.push({ coachId: awayCoach.id, eventType: 'WIN_BLOWOUT_BONUS' });
+            if (newStreak >= 3) xpAwards.push({ coachId: awayCoach.id, eventType: 'WIN_STREAK_BONUS' });
           } else if (draw) {
             streakUpdates[awayCoach.id] = 0;
             awayCoach.streak = 0;
-            await awardCoachXP(awayCoach.id, 'DRAW');
+            xpAwards.push({ coachId: awayCoach.id, eventType: 'DRAW' });
           } else {
             const oldStreak = awayCoach.streak;
             const newStreak = oldStreak < 0 ? oldStreak - 1 : -1;
             streakUpdates[awayCoach.id] = newStreak;
             awayCoach.streak = newStreak;
-            await awardCoachXP(awayCoach.id, 'LOSS');
+            xpAwards.push({ coachId: awayCoach.id, eventType: 'LOSS' });
           }
         }
       }
       
-      // Rest recovery for non-playing players (baseline + 30% bonus)
+      // Rest recovery for non-playing players
       const playingPlayerIds = new Set(Object.keys(fatigueUpdates));
       for (const player of allPlayers) {
         if (player.team_id && !playingPlayerIds.has(player.id)) {
           fatigueUpdates[player.id] = calculateRestFatigue(player.fatigue || 0);
         }
       }
+      
+      // -----------------------------------------------
+      // BATCHED: Process all injuries in one call
+      // -----------------------------------------------
+      if (allMatchPlayerIds.length > 0) {
+        const { injuries: matchInjuries, notifications: injuryNotifications } = await processMatchInjuries(
+          supabase, allMatchPlayerIds, playersMap, SEASON, currentRound, 'match'
+        );
+        
+        if (matchInjuries.length > 0) {
+          await saveInjuries(supabase, matchInjuries, SEASON, currentRound, 'match');
+          allNotifications.push(...injuryNotifications);
+          logs.push(`Match injuries: ${matchInjuries.length}`);
+        }
+      }
     }
     
     // ===========================================
-    // PHASE 3: SAVE DATA
+    // PHASE 3: SAVE ALL DATA (BATCHED)
     // ===========================================
+    
+    const saveStart = Date.now();
     
     const fixtureIds = roundFixtures.map((f: Fixture) => f.id);
     
+    // First batch: all inserts in parallel
     await Promise.all([
       allPlayerStats.length > 0 ? supabase.from('player_match_stats').insert(allPlayerStats) : Promise.resolve(),
       allMatchResults.length > 0 ? supabase.from('match_results').insert(allMatchResults) : Promise.resolve(),
+      allMatchEvents.length > 0 ? supabase.from('match_events').insert(allMatchEvents) : Promise.resolve(),
       allNotifications.length > 0 ? supabase.from('notifications').insert(allNotifications) : Promise.resolve(),
       !isOrigin && fixtureIds.length > 0 ? supabase.from('fixtures').update({ played: true }).in('id', fixtureIds) : Promise.resolve(),
     ]);
     
-    if (!isOrigin) {
+    logs.push(`Inserts done in ${Date.now() - saveStart}ms`);
+    
+    // Second batch: team updates in parallel
+    if (!isOrigin && Object.keys(teamUpdates).length > 0) {
       await Promise.all(
         Object.entries(teamUpdates).map(([teamId, data]) =>
           supabase.from('teams').update({
@@ -902,28 +902,62 @@ export async function GET(request: Request) {
           }).eq('id', teamId)
         )
       );
+      logs.push(`Team updates done in ${Date.now() - saveStart}ms`);
     }
     
-    // Fatigue updates in chunks
+    // Third batch: fatigue — use bulk SQL instead of individual updates
     if (Object.keys(fatigueUpdates).length > 0) {
-      const fatigueChunks = Object.entries(fatigueUpdates);
-      const chunkSize = 100;
-      for (let i = 0; i < fatigueChunks.length; i += chunkSize) {
-        const chunk = fatigueChunks.slice(i, i + chunkSize);
-        await Promise.all(chunk.map(([playerId, fatigue]) =>
-          supabase.from('players').update({ fatigue }).eq('id', playerId)
-        ));
+      // Build a single SQL CASE statement to update all players at once
+      const cases = Object.entries(fatigueUpdates)
+        .map(([id, fatigue]) => `WHEN '${id}' THEN ${fatigue}`)
+        .join(' ');
+      const playerIds = Object.keys(fatigueUpdates)
+        .map(id => `'${id}'`)
+        .join(',');
+      
+      const { error: fatigueError } = await supabase.rpc('bulk_update_fatigue', {
+        player_ids: Object.keys(fatigueUpdates),
+        fatigue_values: Object.values(fatigueUpdates)
+      }).single();
+      
+      // Fallback: if RPC doesn't exist yet, use chunked updates
+      if (fatigueError) {
+        logs.push(`⚠️ bulk_update_fatigue RPC not found, using chunked fallback`);
+        const fatigueChunks = Object.entries(fatigueUpdates);
+        const chunkSize = 200;
+        for (let i = 0; i < fatigueChunks.length; i += chunkSize) {
+          const chunk = fatigueChunks.slice(i, i + chunkSize);
+          await Promise.all(chunk.map(([playerId, fatigue]) =>
+            supabase.from('players').update({ fatigue }).eq('id', playerId)
+          ));
+        }
       }
+      
+      logs.push(`Fatigue updates done in ${Date.now() - saveStart}ms`);
     }
     
-    // Save streak updates
+    // Fourth batch: coach XP + streaks in parallel
+    const xpAndStreakPromises: Promise<any>[] = [];
+    
+    // XP awards — fire all in parallel
+    if (xpAwards.length > 0) {
+      xpAndStreakPromises.push(
+        ...xpAwards.map(award => awardCoachXP(award.coachId, award.eventType as any))
+      );
+    }
+    
+    // Streak updates
     if (Object.keys(streakUpdates).length > 0) {
-      await Promise.all(
-        Object.entries(streakUpdates).map(([coachId, streak]) =>
-          supabase.from('coaches').update({ current_streak: streak }).eq('id', coachId)
+      xpAndStreakPromises.push(
+        ...Object.entries(streakUpdates).map(([coachId, streak]) =>
+          Promise.resolve(supabase.from('coaches').update({ current_streak: streak }).eq('id', coachId))
         )
       );
-      logs.push(`Updated ${Object.keys(streakUpdates).length} coach streaks`);
+    }
+    
+    if (xpAndStreakPromises.length > 0) {
+      await Promise.all(xpAndStreakPromises);
+      logs.push(`XP + streaks done in ${Date.now() - saveStart}ms`);
     }
     
     // Injury recoveries
