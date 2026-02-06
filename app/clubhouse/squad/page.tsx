@@ -453,94 +453,15 @@ export default function SquadPage() {
     setReleasing(true);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
-
-      const { data: coach } = await supabase
-        .from('coaches')
-        .select('team_id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!coach?.team_id || coach.team_id !== teamId) {
-        console.error('Team ID mismatch - security issue');
-        return;
-      }
-
-      const playerBelongsToTeam = players.some(p => p.id === selectedPlayer.id);
-      if (!playerBelongsToTeam) {
-        console.error('Player does not belong to team');
-        return;
-      }
-
-      const { data: fixtures } = await supabase
-        .from('fixtures')
-        .select('round')
-        .eq('played', false)
-        .order('round', { ascending: true })
-        .limit(1);
-
-      const currentRound = fixtures?.[0]?.round || 1;
-
-      // 1. Add to free agents
-      const { error: insertError } = await supabase.from('free_agents').insert({
-        player_id: selectedPlayer.id,
-        released_by_team_id: coach.team_id,
-        available_round: currentRound,
-        claimed: false
+      const { error } = await supabase.rpc('release_player', {
+        p_player_id: selectedPlayer.id,
+        p_team_id: teamId
       });
-      
-      if (insertError) {
-        console.error('Insert error:', insertError);
+
+      if (error) {
+        console.error('Release error:', error);
         return;
       }
-
-      // 2. Remove player from any tactics positions
-      const { data: currentTactics } = await supabase
-        .from('team_tactics')
-        .select('*')
-        .eq('team_id', coach.team_id)
-        .single();
-
-      if (currentTactics) {
-        const fieldsToUpdate: Record<string, null> = {};
-        POSITION_FIELDS.forEach(field => {
-          if (currentTactics[field] === selectedPlayer.id) {
-            fieldsToUpdate[field] = null;
-          }
-        });
-
-        if (Object.keys(fieldsToUpdate).length > 0) {
-          await supabase
-            .from('team_tactics')
-            .update(fieldsToUpdate)
-            .eq('team_id', coach.team_id);
-        }
-      }
-
-      // 3. DELETE player from team (not UPDATE — RLS blocks setting team_id to null)
-      const { error: deleteError } = await supabase
-        .from('players')
-        .delete()
-        .eq('id', selectedPlayer.id)
-        .eq('team_id', coach.team_id);
-        
-      if (deleteError) {
-        console.error('Delete error:', deleteError);
-        return;
-      }
-
-      // 4. Notify releasing coach only (authenticated users can't insert for other teams)
-      await supabase.from('notifications').insert({
-        team_id: coach.team_id,
-        type: 'player_released',
-        title: '👋 Player Released',
-        message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`,
-        player_id: selectedPlayer.id
-      });
 
       await loadData();
       setSelectedPlayer(null);
@@ -551,7 +472,7 @@ export default function SquadPage() {
     } finally {
       setReleasing(false);
     }
-  }, [selectedPlayer, teamId, players, loadData, router]);
+  }, [selectedPlayer, teamId, players, loadData]);
 
   const closeModal = useCallback(() => {
     setSelectedPlayer(null);
