@@ -3,17 +3,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@/lib/supabase';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { calculatePlayerDemands, evaluateOffer, PlayerDemands } from '@/lib/contracts/negotiations';
 import { CONTRACT_LENGTHS, NEGOTIATION } from '@/lib/contracts/constants';
 import { formatWageForHeadline, formatLengthForHeadline } from '@/lib/events';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createBrowserClient();
 
 function getMoraleDisplay(morale: number): { label: string; color: string } {
   if (morale <= 20) return { label: 'Angry', color: 'text-red-500' };
