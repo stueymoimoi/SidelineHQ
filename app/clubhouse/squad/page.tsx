@@ -1,15 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MAX_SQUAD_SIZE, MIN_SQUAD_SIZE } from '@/lib/game-engine/constants';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabase = createBrowserClient();
 
 // ============================================
 // TYPES
@@ -56,25 +53,25 @@ interface Team {
 // ============================================
 
 const TIER_LABELS: Record<number, string> = {
-  1: 'NONE',
+  0: 'NONE',
+  1: 'BAD',
   2: 'POOR',
   3: 'OK',
   4: 'GOOD',
   5: 'GREAT',
-  6: 'EXCELLENT',
-  7: 'ELITE',
-  8: 'LEGEND'
+  6: 'EXC',
+  7: 'ELITE'
 };
 
 const TIER_COLORS: Record<number, string> = {
-  1: 'text-red-500 bg-red-500/20',
-  2: 'text-orange-600 bg-orange-600/20',
-  3: 'text-orange-400 bg-orange-400/20',
-  4: 'text-yellow-400 bg-yellow-400/20',
-  5: 'text-lime-400 bg-lime-400/20',
-  6: 'text-green-400 bg-green-400/20',
-  7: 'text-cyan-400 bg-cyan-400/20',
-  8: 'text-yellow-300 bg-yellow-500/30 border border-yellow-500/50'
+  0: 'text-red-500 bg-red-500/20',
+  1: 'text-red-400 bg-red-400/20',
+  2: 'text-orange-500 bg-orange-500/20',
+  3: 'text-yellow-400 bg-yellow-400/20',
+  4: 'text-lime-400 bg-lime-400/20',
+  5: 'text-green-400 bg-green-400/20',
+  6: 'text-cyan-400 bg-cyan-400/20',
+  7: 'text-purple-400 bg-purple-400/20'
 };
 
 const POSITION_COLORS: Record<string, string> = {
@@ -456,7 +453,6 @@ export default function SquadPage() {
     setReleasing(true);
     
     try {
-      // Re-verify team ownership (security)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/auth');
@@ -474,14 +470,12 @@ export default function SquadPage() {
         return;
       }
 
-      // Validate player belongs to team
       const playerBelongsToTeam = players.some(p => p.id === selectedPlayer.id);
       if (!playerBelongsToTeam) {
         console.error('Player does not belong to team');
         return;
       }
 
-      // Get current round
       const { data: fixtures } = await supabase
         .from('fixtures')
         .select('round')
@@ -504,11 +498,7 @@ export default function SquadPage() {
         return;
       }
 
-      // 2. Remove player from any tactics positions (batch update)
-      const updateObj: Record<string, null> = {};
-      POSITION_FIELDS.forEach(field => { updateObj[field] = null; });
-      
-      // First get the tactics row, then update only if player is in any position
+      // 2. Remove player from any tactics positions
       const { data: currentTactics } = await supabase
         .from('team_tactics')
         .select('*')
@@ -531,38 +521,27 @@ export default function SquadPage() {
         }
       }
 
-      // 3. Remove player from team
-      const { error: updateError } = await supabase
+      // 3. DELETE player from team (not UPDATE — RLS blocks setting team_id to null)
+      const { error: deleteError } = await supabase
         .from('players')
-        .update({ team_id: null })
+        .delete()
         .eq('id', selectedPlayer.id)
         .eq('team_id', coach.team_id);
         
-      if (updateError) {
-        console.error('Update error:', updateError);
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
         return;
       }
 
-      // 4. Notify ALL coaches in the league (batch insert)
-      const { data: allCoaches } = await supabase
-        .from('coaches')
-        .select('team_id');
+      // 4. Notify releasing coach only (authenticated users can't insert for other teams)
+      await supabase.from('notifications').insert({
+        team_id: coach.team_id,
+        type: 'player_released',
+        title: '👋 Player Released',
+        message: `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`,
+        player_id: selectedPlayer.id
+      });
 
-      if (allCoaches && allCoaches.length > 0) {
-        const notifications = allCoaches.map(c => ({
-          team_id: c.team_id,
-          type: c.team_id === coach.team_id ? 'player_released' : 'new_free_agent',
-          title: c.team_id === coach.team_id ? '👋 Player Released' : '🏪 New Free Agent',
-          message: c.team_id === coach.team_id 
-            ? `You released ${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) to free agency.`
-            : `${selectedPlayer.first_name} ${selectedPlayer.last_name} (${selectedPlayer.position}, ${selectedPlayer.overall} OVR) has been released and is now available!`,
-          player_id: selectedPlayer.id
-        }));
-
-        await supabase.from('notifications').insert(notifications);
-      }
-
-      // 5. Refresh data and close modal
       await loadData();
       setSelectedPlayer(null);
       setShowReleaseConfirm(false);
@@ -923,7 +902,7 @@ export default function SquadPage() {
               {renderStatRow('Tackling', selectedPlayer.tackling)}
               {renderStatRow('Kicking', selectedPlayer.kicking)}
               <p className="text-gray-500 text-[10px] text-center mt-3 pt-2 border-t border-gray-600">
-                NONE → POOR → OK → GOOD → GREAT → EXCELLENT → ELITE → LEGEND
+                NONE → BAD → POOR → OK → GOOD → GREAT → EXC → ELITE
               </p>
             </div>
 
