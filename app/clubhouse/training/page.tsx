@@ -59,13 +59,12 @@ const VALID_STAT_KEYS = ['speed', 'strength', 'power', 'passing', 'stamina', 'ta
 type StatKey = typeof VALID_STAT_KEYS[number];
 
 const STAT_TIERS: Record<number, string> = {
-  1: 'None', 2: 'Poor', 3: 'Fair', 4: 'OK',
-  5: 'Good', 6: 'Very Good', 7: 'Excellent', 8: 'Elite',
+  0: 'None', 1: 'Bad', 2: 'Poor', 3: 'OK',
+  4: 'Good', 5: 'Great', 6: 'Excellent', 7: 'Elite',
 };
-
 const STAT_TIERS_SHORT: Record<number, string> = {
-  1: 'None', 2: 'Poor', 3: 'Fair', 4: 'OK',
-  5: 'Good', 6: 'V.Good', 7: 'Excel', 8: 'Elite',
+  0: 'None', 1: 'Bad', 2: 'Poor', 3: 'OK',
+  4: 'Good', 5: 'Great', 6: 'Exc', 7: 'Elite',
 };
 
 const TRAIT_DISPLAY_NAMES: Record<string, string> = {

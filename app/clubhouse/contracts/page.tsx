@@ -17,18 +17,17 @@ function getMoraleDisplay(morale: number): { label: string; color: string } {
 }
 
 const TIER_LABELS: Record<number, string> = {
-  1: 'NONE', 2: 'POOR', 3: 'OK', 4: 'GOOD', 5: 'GREAT', 6: 'EXCELLENT', 7: 'ELITE', 8: 'LEGEND'
+  0: 'NONE', 1: 'BAD', 2: 'POOR', 3: 'OK', 4: 'GOOD', 5: 'GREAT', 6: 'EXC', 7: 'ELITE'
 };
-
 const TIER_COLORS: Record<number, string> = {
-  1: 'text-red-500 bg-red-500/20',
-  2: 'text-orange-600 bg-orange-600/20',
-  3: 'text-orange-400 bg-orange-400/20',
-  4: 'text-yellow-400 bg-yellow-400/20',
-  5: 'text-lime-400 bg-lime-400/20',
-  6: 'text-green-400 bg-green-400/20',
-  7: 'text-cyan-400 bg-cyan-400/20',
-  8: 'text-yellow-300 bg-yellow-500/30'
+  0: 'text-red-500 bg-red-500/20',
+  1: 'text-orange-600 bg-orange-600/20',
+  2: 'text-orange-400 bg-orange-400/20',
+  3: 'text-yellow-400 bg-yellow-400/20',
+  4: 'text-lime-400 bg-lime-400/20',
+  5: 'text-green-400 bg-green-400/20',
+  6: 'text-cyan-400 bg-cyan-400/20',
+  7: 'text-yellow-300 bg-yellow-500/30'
 };
 
 const POSITION_COLORS: Record<string, string> = {
@@ -454,7 +453,7 @@ export default function ContractsPage() {
                   );
                 })}
                 <p className="text-gray-500 text-[10px] text-center mt-3 pt-2 border-t border-gray-600">
-                  NONE → POOR → OK → GOOD → GREAT → EXCELLENT → ELITE → LEGEND
+                  NONE → BAD → POOR → OK → GOOD → GREAT → EXC → ELITE
                 </p>
               </div>
 

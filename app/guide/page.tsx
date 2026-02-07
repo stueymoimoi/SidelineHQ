@@ -278,10 +278,10 @@ function GuideContent() {
                       <p className="text-red-400 font-bold m-0 text-sm">None</p>
                     </div>
                     <div className="bg-orange-600/30 rounded p-2 text-center">
-                      <p className="text-orange-400 font-bold m-0 text-sm">Poor</p>
+                      <p className="text-orange-400 font-bold m-0 text-sm">Bad</p>
                     </div>
                     <div className="bg-orange-500/30 rounded p-2 text-center">
-                      <p className="text-orange-300 font-bold m-0 text-sm">Fair</p>
+                      <p className="text-orange-300 font-bold m-0 text-sm">Poor</p>
                     </div>
                     <div className="bg-yellow-500/30 rounded p-2 text-center">
                       <p className="text-yellow-400 font-bold m-0 text-sm">OK</p>
@@ -290,10 +290,10 @@ function GuideContent() {
                       <p className="text-lime-400 font-bold m-0 text-sm">Good</p>
                     </div>
                     <div className="bg-green-500/30 rounded p-2 text-center">
-                      <p className="text-green-400 font-bold m-0 text-sm">Very Good</p>
+                      <p className="text-green-400 font-bold m-0 text-sm">Great</p>
                     </div>
                     <div className="bg-cyan-500/30 rounded p-2 text-center">
-                      <p className="text-cyan-400 font-bold m-0 text-sm">Excellent</p>
+                      <p className="text-cyan-400 font-bold m-0 text-sm">Exc</p>
                     </div>
                     <div className="bg-yellow-500/30 border border-yellow-500/50 rounded p-2 text-center">
                       <p className="text-yellow-300 font-bold m-0 text-sm">Elite</p>
@@ -1331,7 +1331,7 @@ function GuideContent() {
                     <div className="bg-gray-700 rounded-lg p-4">
                       <h4 className="text-white font-bold m-0 mb-2">😴 Manage Fatigue</h4>
                       <p className="text-gray-400 m-0">
-                        Rotate tired players to the bench or rest them. A fresh Good player often outperforms an exhausted Excellent one!
+                        Rotate tired players to the bench or rest them. A fresh Good player often outperforms an exhausted Exc one!
                       </p>
                     </div>
 
