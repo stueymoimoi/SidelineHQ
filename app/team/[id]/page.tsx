@@ -33,7 +33,7 @@ interface Player {
   skill: number;
   stamina: number;
   defense: number;
-  is_academy: boolean;
+  academy_weeks: number;
 }
 
 export default function TeamPage() {
@@ -67,7 +67,7 @@ export default function TeamPage() {
       .from('players')
       .select('*')
       .eq('team_id', teamId)
-      .order('is_academy', { ascending: true })
+      .order('academy_weeks', { ascending: true })
       .order('overall', { ascending: false });
 
     if (playersError) {
@@ -118,8 +118,8 @@ export default function TeamPage() {
     );
   }
 
-  const seniorPlayers = players.filter(p => !p.is_academy);
-  const academyPlayers = players.filter(p => p.is_academy);
+  const seniorPlayers = players.filter(p => !p.academy_weeks || p.academy_weeks <= 0);
+  const academyPlayers = players.filter(p => p.academy_weeks && p.academy_weeks > 0);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
