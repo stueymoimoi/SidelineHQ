@@ -1,19 +1,17 @@
 // ============================================
 // SidelineHQ Financial System v3.0
-// Weekly Processing Logic
+// Weekly Processing Logic — OPTIMISED (Feb 8)
+// ~800 DB calls → ~15 batched calls
 // ============================================
 
-import { createClient } from '@supabase/supabase-js';
 import {
   DIVISION_GRANTS,
   BONUSES,
   EXPENSES,
   ATTENDANCE,
   TV_REVENUE,
-  MORALE,
-  CONTRACTS,
 } from './constants';
-import { TransactionType, TeamFinances, FinancialTransaction } from './types';
+import { TransactionType, TeamFinances } from './types';
 
 // ============================================
 // TYPES
@@ -49,81 +47,23 @@ interface TeamContext {
   contracts: { player_id: string; weekly_wage: number }[];
   match?: MatchResult;
   ladder_position: number;
-  recent_form: number; // wins in last 5
+  recent_form: number;
 }
 
 // ============================================
-// IDEMPOTENCY KEY GENERATOR
-// ============================================
-
-function generateIdempotencyKey(
-  teamId: string,
-  season: number,
-  round: number,
-  type: TransactionType
-): string {
-  return `${teamId}:${season}:${round}:${type}`;
-}
-
-// ============================================
-// RECORD TRANSACTION
-// ============================================
-
-async function recordTransaction(
-  supabase: any,
-  teamId: string,
-  season: number,
-  round: number,
-  type: TransactionType,
-  amount: number,
-  balanceAfter: number,
-  description: string
-): Promise<boolean> {
-  const idempotencyKey = generateIdempotencyKey(teamId, season, round, type);
-
-  const { error } = await supabase
-    .from('financial_transactions')
-    .insert({
-      team_id: teamId,
-      season,
-      round,
-      type,
-      amount,
-      balance_after: balanceAfter,
-      description,
-      idempotency_key: idempotencyKey,
-    });
-
-  // If duplicate key error, transaction already processed (idempotent)
-  if (error?.code === '23505') {
-    console.log(`   ⏭️ Skipped (already processed): ${type}`);
-    return false;
-  }
-
-  if (error) {
-    console.error(`   ❌ Error recording ${type}:`, error.message);
-    return false;
-  }
-
-  return true;
-}
-
-// ============================================
-// ATTENDANCE CALCULATION
+// ATTENDANCE CALCULATION (pure functions — no DB)
 // ============================================
 
 function calculatePriceModifier(ticketPrice: number): number {
   const basePrice = ATTENDANCE.PRICE_BASE;
-  
+
   if (ticketPrice <= basePrice) {
-    // Below base: bonus attendance (bargain!)
     const discount = basePrice - ticketPrice;
-    const modifier = 1.0 + (discount * ATTENDANCE.PRICE_MODIFIER_BELOW);
+    const modifier = 1.0 + discount * ATTENDANCE.PRICE_MODIFIER_BELOW;
     return Math.min(modifier, ATTENDANCE.PRICE_MODIFIER_MAX);
   } else {
-    // Above base: reduced attendance
     const premium = ticketPrice - basePrice;
-    const modifier = 1.0 - (premium * ATTENDANCE.PRICE_MODIFIER_ABOVE);
+    const modifier = 1.0 - premium * ATTENDANCE.PRICE_MODIFIER_ABOVE;
     return Math.max(modifier, ATTENDANCE.PRICE_MODIFIER_MIN);
   }
 }
@@ -140,45 +80,27 @@ function calculateAttendance(
   ticketRevenue: number;
   merchRevenue: number;
 } {
-  // Base fill rate
   let fillRate = ATTENDANCE.BASE_FILL_RATE;
-
-  // Division bonus
   fillRate += ATTENDANCE.DIVISION_BONUS[division] || 0;
-
-  // Form bonus (wins in last 5)
   fillRate += ATTENDANCE.FORM_BONUS[recentForm] ?? 0;
 
-  // Opponent bonus
   if (opponentLadderPosition <= 4) {
     fillRate += ATTENDANCE.OPPONENT_BONUS.TOP_4;
   } else if (opponentLadderPosition > totalTeamsInDiv - 4) {
     fillRate += ATTENDANCE.OPPONENT_BONUS.BOTTOM_4;
   }
 
-  // Price modifier (smooth scaling)
   const priceModifier = calculatePriceModifier(ticketPrice);
-
-  // Calculate attendance
   const attendance = Math.floor(stadiumCapacity * fillRate * priceModifier);
   const finalAttendance = Math.max(0, Math.min(attendance, stadiumCapacity));
 
-  // Revenue
-  const ticketRevenue = finalAttendance * ticketPrice * 100; // Convert to cents
+  const ticketRevenue = finalAttendance * ticketPrice * 100;
   const merchRevenue = Math.floor(ticketRevenue * ATTENDANCE.MERCHANDISE_RATE);
 
-  return {
-    attendance: finalAttendance,
-    ticketRevenue,
-    merchRevenue,
-  };
+  return { attendance: finalAttendance, ticketRevenue, merchRevenue };
 }
 
-// ============================================
-// TV REVENUE CALCULATION
-// ============================================
-
-function calculateTVRevenue(ladderPosition: number, totalTeams: number = 10): number {
+function calculateTVRevenue(ladderPosition: number): number {
   if (ladderPosition <= 4) return TV_REVENUE.TOP_4;
   if (ladderPosition <= 8) return TV_REVENUE.TOP_8;
   if (ladderPosition <= 12) return TV_REVENUE.TOP_12;
@@ -186,258 +108,140 @@ function calculateTVRevenue(ladderPosition: number, totalTeams: number = 10): nu
 }
 
 // ============================================
-// PROCESS SINGLE TEAM
+// IDEMPOTENCY KEY
 // ============================================
 
-export async function processTeamWeeklyFinances(
-  supabase: any,
-  context: TeamContext,
+function generateIdempotencyKey(
+  teamId: string,
   season: number,
   round: number,
-  isSunday: boolean = true
-): Promise<ProcessingResult> {
-  const result: ProcessingResult = {
-    team_id: context.team_id,
-    team_name: context.team_name,
-    success: true,
-    transactions: [],
-    new_balance: context.finances.balance,
-  };
-
-  try {
-    let currentBalance = context.finances.balance;
-
-    // 1. DEDUCT WAGES (Sundays only)
-    const totalWages = context.contracts.reduce((sum, c) => sum + c.weekly_wage, 0);
-    if (isSunday && totalWages > 0) {
-      const recorded = await recordTransaction(
-        supabase,
-        context.team_id,
-        season,
-        round,
-        'PLAYER_WAGES',
-        -totalWages,
-        currentBalance - totalWages,
-        `Weekly wages for ${context.contracts.length} players`
-      );
-      if (recorded) {
-        currentBalance -= totalWages;
-        result.transactions.push({
-          type: 'PLAYER_WAGES',
-          amount: -totalWages,
-          description: `Weekly wages for ${context.contracts.length} players`,
-        });
-      }
-    }
-
-    // 2. DEDUCT FACILITY UPKEEP (Sundays only)
-    if (isSunday) {
-      const recorded2 = await recordTransaction(
-        supabase,
-        context.team_id,
-        season,
-        round,
-        'FACILITY_UPKEEP',
-        -EXPENSES.FACILITY_UPKEEP,
-        currentBalance - EXPENSES.FACILITY_UPKEEP,
-        'Weekly facility upkeep'
-      );
-      if (recorded2) {
-        currentBalance -= EXPENSES.FACILITY_UPKEEP;
-        result.transactions.push({
-          type: 'FACILITY_UPKEEP',
-          amount: -EXPENSES.FACILITY_UPKEEP,
-          description: 'Weekly facility upkeep',
-        });
-      }
-    }
-
-    // 3. ADD DIVISION GRANT (Sundays only)
-    if (isSunday) {
-      const grant = DIVISION_GRANTS[context.division] || DIVISION_GRANTS[10];
-      const recorded3 = await recordTransaction(
-        supabase,
-        context.team_id,
-        season,
-        round,
-        'DIVISION_GRANT',
-        grant,
-        currentBalance + grant,
-        `Division ${context.division} weekly grant`
-      );
-      if (recorded3) {
-        currentBalance += grant;
-        result.transactions.push({
-          type: 'DIVISION_GRANT',
-          amount: grant,
-          description: `Division ${context.division} weekly grant`,
-        });
-      }
-    }
-
-    // 4. PROCESS MATCH REVENUE (if home game this round)
-    if (context.match && context.match.is_home) {
-      // Get opponent's ladder position (default to middle if unknown)
-      const opponentPosition = 5; // TODO: Look up actual position
-
-      const { attendance, ticketRevenue, merchRevenue } = calculateAttendance(
-        context.finances.stadium_capacity,
-        context.finances.ticket_price,
-        context.division,
-        context.recent_form,
-        opponentPosition
-      );
-
-      // Ticket revenue
-      if (ticketRevenue > 0) {
-        const recorded4 = await recordTransaction(
-          supabase,
-          context.team_id,
-          season,
-          round,
-          'TICKET_REVENUE',
-          ticketRevenue,
-          currentBalance + ticketRevenue,
-          `Ticket sales: ${attendance.toLocaleString()} fans @ $${context.finances.ticket_price}`
-        );
-        if (recorded4) {
-          currentBalance += ticketRevenue;
-          result.transactions.push({
-            type: 'TICKET_REVENUE',
-            amount: ticketRevenue,
-            description: `Ticket sales: ${attendance.toLocaleString()} fans @ $${context.finances.ticket_price}`,
-          });
-        }
-      }
-
-      // Merchandise revenue (+ bonus if won)
-      let finalMerch = merchRevenue;
-      const won = context.match.home_score > context.match.away_score;
-      if (won) {
-        finalMerch = Math.floor(merchRevenue * (1 + ATTENDANCE.MERCHANDISE_WIN_BONUS));
-      }
-
-      if (finalMerch > 0) {
-        const recorded5 = await recordTransaction(
-          supabase,
-          context.team_id,
-          season,
-          round,
-          'MERCHANDISE',
-          finalMerch,
-          currentBalance + finalMerch,
-          `Merchandise sales${won ? ' (win bonus)' : ''}`
-        );
-        if (recorded5) {
-          currentBalance += finalMerch;
-          result.transactions.push({
-            type: 'MERCHANDISE',
-            amount: finalMerch,
-            description: `Merchandise sales${won ? ' (win bonus)' : ''}`,
-          });
-        }
-      }
-
-      // TV Revenue
-      const tvRevenue = calculateTVRevenue(context.ladder_position);
-      const recorded6 = await recordTransaction(
-        supabase,
-        context.team_id,
-        season,
-        round,
-        'TV_REVENUE',
-        tvRevenue,
-        currentBalance + tvRevenue,
-        `TV broadcast revenue`
-      );
-      if (recorded6) {
-        currentBalance += tvRevenue;
-        result.transactions.push({
-          type: 'TV_REVENUE',
-          amount: tvRevenue,
-          description: 'TV broadcast revenue',
-        });
-      }
-    }
-
-    // 5. WIN/DRAW BONUS
-    if (context.match) {
-      const isHome = context.match.is_home;
-      const teamScore = isHome ? context.match.home_score : context.match.away_score;
-      const opponentScore = isHome ? context.match.away_score : context.match.home_score;
-
-      if (teamScore > opponentScore) {
-        // WIN
-        const recorded7 = await recordTransaction(
-          supabase,
-          context.team_id,
-          season,
-          round,
-          'WIN_BONUS',
-          BONUSES.WIN,
-          currentBalance + BONUSES.WIN,
-          'Match win bonus'
-        );
-        if (recorded7) {
-          currentBalance += BONUSES.WIN;
-          result.transactions.push({
-            type: 'WIN_BONUS',
-            amount: BONUSES.WIN,
-            description: 'Match win bonus',
-          });
-        }
-      } else if (teamScore === opponentScore) {
-        // DRAW
-        const recorded8 = await recordTransaction(
-          supabase,
-          context.team_id,
-          season,
-          round,
-          'DRAW_BONUS',
-          BONUSES.DRAW,
-          currentBalance + BONUSES.DRAW,
-          'Match draw bonus'
-        );
-        if (recorded8) {
-          currentBalance += BONUSES.DRAW;
-          result.transactions.push({
-            type: 'DRAW_BONUS',
-            amount: BONUSES.DRAW,
-            description: 'Match draw bonus',
-          });
-        }
-      }
-    }
-
-    // 6. UPDATE TEAM FINANCES
-    const weeksInDebt = currentBalance < 0 
-      ? context.finances.weeks_in_debt + 1 
-      : 0;
-
-    await supabase
-      .from('team_finances')
-      .update({
-        balance: currentBalance,
-        total_wages: totalWages,
-        weeks_in_debt: weeksInDebt,
-        last_processed_round: round,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('team_id', context.team_id)
-      .eq('season', season);
-
-    result.new_balance = currentBalance;
-
-  } catch (error: any) {
-    result.success = false;
-    result.error = error.message;
-  }
-
-  return result;
+  type: TransactionType
+): string {
+  return `${teamId}:${season}:${round}:${type}`;
 }
 
 // ============================================
-// PROCESS ALL TEAMS
+// CALCULATE TEAM TRANSACTIONS (pure — no DB)
+// ============================================
+
+function calculateTeamTransactions(
+  context: TeamContext,
+  season: number,
+  round: number,
+  isSunday: boolean,
+  existingKeys: Set<string>
+): {
+  transactions: {
+    team_id: string;
+    season: number;
+    round: number;
+    type: TransactionType;
+    amount: number;
+    balance_after: number;
+    description: string;
+    idempotency_key: string;
+  }[];
+  newBalance: number;
+  totalWages: number;
+  weeksInDebt: number;
+} {
+  const transactions: {
+    team_id: string;
+    season: number;
+    round: number;
+    type: TransactionType;
+    amount: number;
+    balance_after: number;
+    description: string;
+    idempotency_key: string;
+  }[] = [];
+
+  let currentBalance = context.finances.balance;
+  const totalWages = context.contracts.reduce((sum, c) => sum + c.weekly_wage, 0);
+
+  function addTransaction(type: TransactionType, amount: number, description: string) {
+    const key = generateIdempotencyKey(context.team_id, season, round, type);
+    if (existingKeys.has(key)) return; // Already processed — skip
+    currentBalance += amount;
+    transactions.push({
+      team_id: context.team_id,
+      season,
+      round,
+      type,
+      amount,
+      balance_after: currentBalance,
+      description,
+      idempotency_key: key,
+    });
+  }
+
+  // 1. WAGES (Sunday only)
+  if (isSunday && totalWages > 0) {
+    addTransaction('PLAYER_WAGES', -totalWages, `Weekly wages for ${context.contracts.length} players`);
+  }
+
+  // 2. FACILITY UPKEEP (Sunday only)
+  if (isSunday) {
+    addTransaction('FACILITY_UPKEEP', -EXPENSES.FACILITY_UPKEEP, 'Weekly facility upkeep');
+  }
+
+  // 3. DIVISION GRANT (Sunday only)
+  if (isSunday) {
+    const grant = DIVISION_GRANTS[context.division] || DIVISION_GRANTS[10];
+    addTransaction('DIVISION_GRANT', grant, `Division ${context.division} weekly grant`);
+  }
+
+  // 4. MATCH REVENUE (home games only)
+  if (context.match && context.match.is_home) {
+    const opponentPosition = 5; // TODO: look up actual
+    const { attendance, ticketRevenue, merchRevenue } = calculateAttendance(
+      context.finances.stadium_capacity,
+      context.finances.ticket_price,
+      context.division,
+      context.recent_form,
+      opponentPosition
+    );
+
+    if (ticketRevenue > 0) {
+      addTransaction('TICKET_REVENUE', ticketRevenue,
+        `Ticket sales: ${attendance.toLocaleString()} fans @ $${context.finances.ticket_price}`);
+    }
+
+    let finalMerch = merchRevenue;
+    const won = context.match.home_score > context.match.away_score;
+    if (won) {
+      finalMerch = Math.floor(merchRevenue * (1 + ATTENDANCE.MERCHANDISE_WIN_BONUS));
+    }
+    if (finalMerch > 0) {
+      addTransaction('MERCHANDISE', finalMerch, `Merchandise sales${won ? ' (win bonus)' : ''}`);
+    }
+
+    const tvRevenue = calculateTVRevenue(context.ladder_position);
+    addTransaction('TV_REVENUE', tvRevenue, 'TV broadcast revenue');
+  }
+
+  // 5. WIN/DRAW BONUS
+  if (context.match) {
+    const isHome = context.match.is_home;
+    const teamScore = isHome ? context.match.home_score : context.match.away_score;
+    const opponentScore = isHome ? context.match.away_score : context.match.home_score;
+
+    if (teamScore > opponentScore) {
+      addTransaction('WIN_BONUS', BONUSES.WIN, 'Match win bonus');
+    } else if (teamScore === opponentScore) {
+      addTransaction('DRAW_BONUS', BONUSES.DRAW, 'Match draw bonus');
+    }
+  }
+
+  const weeksInDebt = currentBalance < 0
+    ? context.finances.weeks_in_debt + 1
+    : 0;
+
+  return { transactions, newBalance: currentBalance, totalWages, weeksInDebt };
+}
+
+// ============================================
+// PROCESS ALL TEAMS — BATCHED
 // ============================================
 
 export async function processAllTeamFinances(
@@ -448,121 +252,202 @@ export async function processAllTeamFinances(
 ): Promise<ProcessingResult[]> {
   console.log(`\n💰 Processing finances for Season ${season}, Round ${round}...`);
 
+  // ── STEP 1: Bulk fetch all data upfront ──
+
+  const [teamsRes, fixturesRes, contractsRes, standingsRes, existingTxRes] = await Promise.all([
+    supabase
+      .from('teams')
+      .select('id, name, division, team_finances!inner(*)')
+      .eq('team_finances.season', season),
+    supabase
+      .from('match_results')
+      .select('id, fixture_id, home_team_id, away_team_id, home_score, away_score')
+      .eq('round', round)
+      .eq('season', season),
+    supabase
+      .from('player_contracts')
+      .select('player_id, team_id, weekly_wage'),
+    supabase
+      .from('teams')
+      .select('id, wins, division')
+      .order('wins', { ascending: false }),
+    // Fetch existing idempotency keys for this round to skip duplicates
+    supabase
+      .from('financial_transactions')
+      .select('idempotency_key')
+      .eq('season', season)
+      .eq('round', round),
+  ]);
+
+  const teams = teamsRes.data;
+  if (teamsRes.error || !teams) {
+    console.error('❌ Error fetching teams:', teamsRes.error);
+    return [];
+  }
+
+  const fixtures = fixturesRes.data || [];
+  const allContracts = contractsRes.data || [];
+  const standings = standingsRes.data || [];
+  const existingKeys = new Set<string>(
+    (existingTxRes.data || []).map((t: any) => t.idempotency_key)
+  );
+
+  // ── STEP 2: Build lookup maps in memory ──
+
+  // Ladder positions per division
+  const ladderPositions: Record<string, number> = {};
+  const byDivision: Record<number, string[]> = {};
+  for (const team of standings) {
+    if (!byDivision[team.division]) byDivision[team.division] = [];
+    byDivision[team.division].push(team.id);
+  }
+  for (const div in byDivision) {
+    byDivision[div].forEach((teamId, index) => {
+      ladderPositions[teamId] = index + 1;
+    });
+  }
+
+  // Recent form estimate
+  const recentFormMap: Record<string, number> = {};
+  for (const team of standings) {
+    const totalGames = round - 1;
+    if (totalGames > 0) {
+      const winRate = team.wins / totalGames;
+      recentFormMap[team.id] = Math.round(winRate * 5);
+    } else {
+      recentFormMap[team.id] = 2;
+    }
+  }
+
+  // Contracts grouped by team
+  const contractsByTeam: Record<string, { player_id: string; weekly_wage: number }[]> = {};
+  for (const c of allContracts) {
+    if (!contractsByTeam[c.team_id]) contractsByTeam[c.team_id] = [];
+    contractsByTeam[c.team_id].push(c);
+  }
+
+  // Fixtures indexed by team
+  const fixturesByTeam: Record<string, any> = {};
+  for (const f of fixtures) {
+    fixturesByTeam[f.home_team_id] = f;
+    fixturesByTeam[f.away_team_id] = f;
+  }
+
+  // ── STEP 3: Calculate all transactions in memory (zero DB calls) ──
+
+  const allTransactions: {
+    team_id: string;
+    season: number;
+    round: number;
+    type: TransactionType;
+    amount: number;
+    balance_after: number;
+    description: string;
+    idempotency_key: string;
+  }[] = [];
+
+  const balanceUpdates: {
+    team_id: string;
+    newBalance: number;
+    totalWages: number;
+    weeksInDebt: number;
+  }[] = [];
+
   const results: ProcessingResult[] = [];
 
-  // 1. Get all teams with their finances
-  const { data: teams, error: teamsError } = await supabase
-    .from('teams')
-    .select(`
-      id,
-      name,
-      division,
-      team_finances!inner(*)
-    `)
-    .eq('team_finances.season', season);
-
-  if (teamsError) {
-    console.error('❌ Error fetching teams:', teamsError);
-    return results;
-  }
-
-  // 2. Get all match results for this round
-  const { data: fixtures } = await supabase
-    .from('match_results')
-    .select('id, fixture_id, home_team_id, away_team_id, home_score, away_score')
-    .eq('round', round)
-    .eq('season', season);
-
-  // 3. Get all contracts
-  const { data: allContracts } = await supabase
-    .from('player_contracts')
-    .select('player_id, team_id, weekly_wage');
-
-  // 4. Get ladder positions (simplified - by wins)
-  const { data: standings } = await supabase
-    .from('teams')
-    .select('id, wins, division')
-    .order('wins', { ascending: false });
-
-  // Build ladder position map per division
-  const ladderPositions: Record<string, number> = {};
-  if (standings) {
-    const byDivision: Record<number, string[]> = {};
-    for (const team of standings) {
-      if (!byDivision[team.division]) byDivision[team.division] = [];
-      byDivision[team.division].push(team.id);
-    }
-    for (const div in byDivision) {
-      byDivision[div].forEach((teamId, index) => {
-        ladderPositions[teamId] = index + 1;
-      });
-    }
-  }
-
-  // 5. Get recent form (wins in last 5) - simplified for now
-  const recentFormMap: Record<string, number> = {};
-  // TODO: Calculate from actual fixture history
-  // For now, estimate from win percentage
-  if (standings) {
-    for (const team of standings) {
-      const totalGames = round - 1;
-      if (totalGames > 0) {
-        const winRate = team.wins / totalGames;
-        recentFormMap[team.id] = Math.round(winRate * 5); // Estimate last 5
-      } else {
-        recentFormMap[team.id] = 2; // Default
-      }
-    }
-  }
-
-  // 6. Process each team
   for (const team of teams) {
-    const teamContracts = allContracts?.filter((c: any) => c.team_id === team.id) || [];
-    
-    // Find this team's match
-    const match = fixtures?.find(
-      (f: any) => f.home_team_id === team.id || f.away_team_id === team.id
-    );
-
+    const match = fixturesByTeam[team.id];
     const context: TeamContext = {
       team_id: team.id,
       team_name: team.name,
       division: team.division,
       finances: team.team_finances[0],
-      contracts: teamContracts,
+      contracts: contractsByTeam[team.id] || [],
       ladder_position: ladderPositions[team.id] || 5,
       recent_form: recentFormMap[team.id] || 2,
-      match: match ? {
-        fixture_id: match.id,
-        home_team_id: match.home_team_id,
-        away_team_id: match.away_team_id,
-        home_score: match.home_score || 0,
-        away_score: match.away_score || 0,
-        is_home: match.home_team_id === team.id,
-      } : undefined,
+      match: match
+        ? {
+            fixture_id: match.id,
+            home_team_id: match.home_team_id,
+            away_team_id: match.away_team_id,
+            home_score: match.home_score || 0,
+            away_score: match.away_score || 0,
+            is_home: match.home_team_id === team.id,
+          }
+        : undefined,
     };
 
-    const result = await processTeamWeeklyFinances(supabase, context, season, round, isSunday);
-    results.push(result);
+    const { transactions, newBalance, totalWages, weeksInDebt } =
+      calculateTeamTransactions(context, season, round, isSunday, existingKeys);
 
-    if (result.success) {
-      const netChange = result.transactions.reduce((sum, t) => sum + t.amount, 0);
-      console.log(`   ✅ ${team.name}: ${netChange >= 0 ? '+' : ''}$${(netChange / 100).toLocaleString()}`);
-    } else {
-      console.log(`   ❌ ${team.name}: ${result.error}`);
-    }
+    allTransactions.push(...transactions);
+    balanceUpdates.push({ team_id: team.id, newBalance, totalWages, weeksInDebt });
+
+    const netChange = transactions.reduce((sum, t) => sum + t.amount, 0);
+    results.push({
+      team_id: team.id,
+      team_name: team.name,
+      success: true,
+      transactions: transactions.map((t) => ({
+        type: t.type,
+        amount: t.amount,
+        description: t.description,
+      })),
+      new_balance: newBalance,
+    });
+
+    console.log(
+      `   ✅ ${team.name}: ${netChange >= 0 ? '+' : ''}$${(netChange / 100).toLocaleString()}`
+    );
   }
 
-  console.log(`\n💰 Processed ${results.length} teams\n`);
+  // ── STEP 4: Bulk INSERT all transactions ──
 
+  if (allTransactions.length > 0) {
+    // Supabase has a row limit per insert — chunk at 500
+    const chunkSize = 500;
+    for (let i = 0; i < allTransactions.length; i += chunkSize) {
+      const chunk = allTransactions.slice(i, i + chunkSize);
+      const { error } = await supabase.from('financial_transactions').insert(chunk);
+      if (error) {
+        // Ignore duplicate key errors (idempotency)
+        if (error.code !== '23505') {
+          console.error('❌ Error inserting transactions:', error.message);
+        }
+      }
+    }
+    console.log(`   📝 Inserted ${allTransactions.length} transactions`);
+  }
+
+  // ── STEP 5: Bulk UPDATE all team_finances (parallel chunks) ──
+
+  const updateChunkSize = 20;
+  for (let i = 0; i < balanceUpdates.length; i += updateChunkSize) {
+    const chunk = balanceUpdates.slice(i, i + updateChunkSize);
+    await Promise.all(
+      chunk.map((u) =>
+        supabase
+          .from('team_finances')
+          .update({
+            balance: u.newBalance,
+            total_wages: u.totalWages,
+            weeks_in_debt: u.weeksInDebt,
+            last_processed_round: round,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('team_id', u.team_id)
+          .eq('season', season)
+      )
+    );
+  }
+  console.log(`   💰 Updated ${balanceUpdates.length} team balances`);
+
+  console.log(`\n💰 Processed ${results.length} teams\n`);
   return results;
 }
 
 // ============================================
-// CONTRACT COUNTDOWN
-// ============================================
-// ============================================
-// AI AUTO-RENEWAL FOR UNCOACHED TEAMS
+// AI CONTRACT RENEWALS — BATCHED
 // ============================================
 
 export async function processAIContractRenewals(
@@ -571,37 +456,31 @@ export async function processAIContractRenewals(
 ): Promise<{ renewed: number; released: number }> {
   console.log('\n🤖 Processing AI contract renewals...');
 
-  // Get all teams that don't have a human coach
-  const { data: coachedTeamIds } = await supabase
-    .from('coaches')
-    .select('team_id');
-
-  const humanTeamIds = new Set((coachedTeamIds || []).map((c: any) => c.team_id));
-
-  // Get expiring contracts (≤2 weeks) for AI teams
-  const { data: expiringContracts } = await supabase
-    .from('player_contracts')
-    .select(`
-      id,
-      player_id,
-      team_id,
-      weekly_wage,
-      weeks_remaining,
-      players!inner (
+  // 1. Get coached team IDs + expiring contracts in parallel
+  const [coachesRes, expiringRes] = await Promise.all([
+    supabase.from('coaches').select('team_id'),
+    supabase
+      .from('player_contracts')
+      .select(`
         id,
-        first_name,
-        last_name,
-        age,
-        overall
-      )
-    `)
-    .lte('weeks_remaining', 2)
-    .gt('weeks_remaining', 0);
+        player_id,
+        team_id,
+        weekly_wage,
+        weeks_remaining,
+        players!inner (
+          id,
+          first_name,
+          last_name,
+          age,
+          overall
+        )
+      `)
+      .lte('weeks_remaining', 2)
+      .gt('weeks_remaining', 0),
+  ]);
 
-  if (!expiringContracts || expiringContracts.length === 0) {
-    console.log('   ⏭️ No expiring contracts to process');
-    return { renewed: 0, released: 0 };
-  }
+  const humanTeamIds = new Set((coachesRes.data || []).map((c: any) => c.team_id));
+  const expiringContracts = expiringRes.data || [];
 
   // Filter to AI teams only
   const aiContracts = expiringContracts.filter(
@@ -613,6 +492,21 @@ export async function processAIContractRenewals(
     return { renewed: 0, released: 0 };
   }
 
+  // 2. Get all relevant team names in one query
+  const aiTeamIds = [...new Set<string>(aiContracts.map((c: any) => c.team_id))];
+  const { data: teamData } = await supabase
+    .from('teams')
+    .select('id, name, division')
+    .in('id', aiTeamIds);
+
+  const teamMap: Record<string, { name: string; division: number }> = {};
+  for (const t of teamData || []) {
+    teamMap[t.id] = { name: t.name, division: t.division };
+  }
+
+  // 3. Calculate all decisions in memory
+  const contractUpdates: { id: string; weeks_remaining: number; weekly_wage: number }[] = [];
+  const leagueEvents: any[] = [];
   let renewed = 0;
   let released = 0;
 
@@ -620,164 +514,215 @@ export async function processAIContractRenewals(
     const player = contract.players;
     const age = player.age;
     const ovr = player.overall;
-
-    // Decision logic:
-    // - Age ≤29 AND OVR ≥25 → Auto-renew (1-2 seasons)
-    // - Age 30-32 AND OVR ≥30 → Auto-renew (1 season only)
-    // - Age 33+ OR OVR <20 → Let expire (player leaves)
-    // - OVR 20-24 AND Age 30-32 → 50% chance renew
+    const team = teamMap[contract.team_id] || { name: 'their club', division: 1 };
 
     let shouldRenew = false;
-    let newLength = 10; // Default 1 season
+    let newLength = 10;
 
     if (age <= 29 && ovr >= 25) {
       shouldRenew = true;
-      newLength = age <= 26 ? 20 : 10; // Young players get 2 seasons
+      newLength = age <= 26 ? 20 : 10;
     } else if (age >= 30 && age <= 32 && ovr >= 30) {
       shouldRenew = true;
-      newLength = 10; // Veterans get 1 season
+      newLength = 10;
     } else if (age >= 33 || ovr < 20) {
-      shouldRenew = false; // Too old or too weak
+      shouldRenew = false;
     } else if (ovr >= 20 && ovr < 25 && age >= 30 && age <= 32) {
-      shouldRenew = Math.random() < 0.5; // 50% chance
+      shouldRenew = Math.random() < 0.5;
       newLength = 10;
     }
 
     if (shouldRenew) {
-      // Renew the contract
-      const newWage = ovr * 50000; // Same formula as initial contracts
-
-      await supabase
-        .from('player_contracts')
-        .update({
-          weeks_remaining: newLength,
-          weekly_wage: newWage,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contract.id);
-
-      // Get team name for event
-      const { data: teamData } = await supabase
-        .from('teams')
-        .select('name, division')
-        .eq('id', contract.team_id)
-        .single();
-
-      // Log event
-      await supabase.from('league_events').insert({
+      const newWage = ovr * 50000;
+      contractUpdates.push({
+        id: contract.id,
+        weeks_remaining: newLength,
+        weekly_wage: newWage,
+      });
+      leagueEvents.push({
         event_type: 'contract_signed',
-        headline: `${player.first_name} ${player.last_name} re-signed with ${teamData?.name || 'their club'} for ${newLength <= 10 ? '1 season' : '2 seasons'}`,
+        headline: `${player.first_name} ${player.last_name} re-signed with ${team.name} for ${newLength <= 10 ? '1 season' : '2 seasons'}`,
         player_id: player.id,
         team_id: contract.team_id,
-        round: round,
-        division: teamData?.division,
+        round,
+        division: team.division,
         metadata: { wage: newWage, length: newLength, ai_renewal: true },
       });
-
       renewed++;
       console.log(`   ✅ Renewed: ${player.first_name} ${player.last_name} (${age}yo, OVR ${ovr})`);
     } else {
-      // Let contract expire - will be handled by processContractCountdown
-      // But log an event now for the upcoming departure
-      const { data: teamData } = await supabase
-        .from('teams')
-        .select('name, division')
-        .eq('id', contract.team_id)
-        .single();
-
-      await supabase.from('league_events').insert({
+      leagueEvents.push({
         event_type: 'contract_expired',
-        headline: `${player.first_name} ${player.last_name} will leave ${teamData?.name || 'their club'} when contract expires`,
+        headline: `${player.first_name} ${player.last_name} will leave ${team.name} when contract expires`,
         player_id: player.id,
         team_id: contract.team_id,
-        round: round,
-        division: teamData?.division,
+        round,
+        division: team.division,
         metadata: { age, overall: ovr },
       });
-
       released++;
       console.log(`   📤 Releasing: ${player.first_name} ${player.last_name} (${age}yo, OVR ${ovr})`);
     }
   }
 
-  console.log(`   🤖 AI Renewals: ${renewed} renewed, ${released} releasing\n`);
+  // 4. Bulk write — contract updates in parallel chunks
+  if (contractUpdates.length > 0) {
+    const chunkSize = 20;
+    for (let i = 0; i < contractUpdates.length; i += chunkSize) {
+      const chunk = contractUpdates.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map((u) =>
+          supabase
+            .from('player_contracts')
+            .update({
+              weeks_remaining: u.weeks_remaining,
+              weekly_wage: u.weekly_wage,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', u.id)
+        )
+      );
+    }
+  }
 
+  // 5. Bulk insert league events
+  if (leagueEvents.length > 0) {
+    const { error } = await supabase.from('league_events').insert(leagueEvents);
+    if (error) console.error('❌ Error inserting league events:', error.message);
+  }
+
+  console.log(`   🤖 AI Renewals: ${renewed} renewed, ${released} releasing\n`);
   return { renewed, released };
 }
+
+// ============================================
+// CONTRACT COUNTDOWN — kept for legacy export
+// (cron route uses optimised version in route.ts)
+// ============================================
+
 export async function processContractCountdown(
   supabase: any
 ): Promise<{ updated: number; expired: number }> {
   console.log('\n📝 Processing contract countdown...');
 
-  // 1. Decrement weeks_remaining for all contracts
-  const { error: updateError } = await supabase
-    .from('player_contracts')
-    .update({ 
-      weeks_remaining: supabase.rpc('decrement_weeks'),
-      updated_at: new Date().toISOString(),
-    })
-    .gt('weeks_remaining', 0);
-
-  // Actually, Supabase doesn't support that easily. Let's do it differently:
-  const { data: contracts } = await supabase
-    .from('player_contracts')
-    .select('id, weeks_remaining')
-    .gt('weeks_remaining', 0);
+  // Try RPC first (single SQL call)
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('decrement_all_contracts');
 
   let updated = 0;
-  if (contracts) {
-    for (const contract of contracts) {
-      await supabase
-        .from('player_contracts')
-        .update({ 
-          weeks_remaining: contract.weeks_remaining - 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contract.id);
-      updated++;
+  if (!rpcError && rpcResult !== null) {
+    updated = rpcResult;
+  } else {
+    // Fallback: batch update in parallel chunks
+    const { data: contracts } = await supabase
+      .from('player_contracts')
+      .select('id, weeks_remaining')
+      .gt('weeks_remaining', 0);
+
+    if (contracts && contracts.length > 0) {
+      const chunkSize = 100;
+      for (let i = 0; i < contracts.length; i += chunkSize) {
+        const chunk = contracts.slice(i, i + chunkSize);
+        await Promise.all(
+          chunk.map((contract: any) =>
+            supabase
+              .from('player_contracts')
+              .update({
+                weeks_remaining: contract.weeks_remaining - 1,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', contract.id)
+          )
+        );
+      }
+      updated = contracts.length;
     }
   }
 
-  // 2. Find expired contracts (weeks_remaining <= 0)
+  // Handle expired contracts (batch)
   const { data: expiredContracts } = await supabase
     .from('player_contracts')
-    .select('id, player_id, team_id, weekly_wage')
+    .select('id, player_id, team_id')
     .lte('weeks_remaining', 0);
 
   let expired = 0;
   if (expiredContracts && expiredContracts.length > 0) {
-    // Move to free agents
-    for (const contract of expiredContracts) {
-      // Add to free agents
-      await supabase
-        .from('free_agents')
-        .upsert({
-          player_id: contract.player_id,
-          previous_team_id: contract.team_id,
-          expected_wage: contract.weekly_wage,
-          min_contract_weeks: 8,
-          available_since: new Date().toISOString(),
-        }, {
-          onConflict: 'player_id',
-        });
+    const playerIds = expiredContracts.map((c: any) => c.player_id);
+    const contractIds = expiredContracts.map((c: any) => c.id);
 
-      // Remove contract
-      await supabase
-        .from('player_contracts')
-        .delete()
-        .eq('id', contract.id);
+    const { data: roundData } = await supabase
+      .from('fixtures')
+      .select('round')
+      .eq('played', true)
+      .order('round', { ascending: false })
+      .limit(1);
+    const currentRound = roundData?.[0]?.round || 1;
 
-      // Update player's team_id to null
-      await supabase
-        .from('players')
-        .update({ team_id: null })
-        .eq('id', contract.player_id);
+    const freeAgentInserts = expiredContracts.map((contract: any) => ({
+      player_id: contract.player_id,
+      released_by_team_id: contract.team_id,
+      available_round: currentRound + 1,
+      claimed: false,
+    }));
 
-      expired++;
-    }
+    await Promise.all([
+      supabase.from('free_agents').insert(freeAgentInserts),
+      supabase.from('player_contracts').delete().in('id', contractIds),
+      supabase.from('players').update({ team_id: null }).in('id', playerIds),
+    ]);
+
+    expired = expiredContracts.length;
   }
 
   console.log(`   ✅ Updated ${updated} contracts, ${expired} expired\n`);
-
   return { updated, expired };
+}
+
+// ============================================
+// SINGLE TEAM PROCESSING — kept for export
+// (no longer called by processAllTeamFinances)
+// ============================================
+
+export async function processTeamWeeklyFinances(
+  supabase: any,
+  context: TeamContext,
+  season: number,
+  round: number,
+  isSunday: boolean = true
+): Promise<ProcessingResult> {
+  // This function is kept for backward compatibility
+  // but processAllTeamFinances no longer calls it.
+  // If called directly, it falls back to individual writes.
+
+  const existingKeys = new Set<string>();
+  const { transactions, newBalance, totalWages, weeksInDebt } =
+    calculateTeamTransactions(context, season, round, isSunday, existingKeys);
+
+  // Write transactions individually (legacy path)
+  for (const tx of transactions) {
+    await supabase.from('financial_transactions').insert(tx);
+  }
+
+  await supabase
+    .from('team_finances')
+    .update({
+      balance: newBalance,
+      total_wages: totalWages,
+      weeks_in_debt: weeksInDebt,
+      last_processed_round: round,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('team_id', context.team_id)
+    .eq('season', season);
+
+  return {
+    team_id: context.team_id,
+    team_name: context.team_name,
+    success: true,
+    transactions: transactions.map((t) => ({
+      type: t.type,
+      amount: t.amount,
+      description: t.description,
+    })),
+    new_balance: newBalance,
+  };
 }
