@@ -178,26 +178,28 @@ export const TRY_ASSISTER_WEIGHTS = [
 // STAT GENERATION THRESHOLDS
 // ===========================================
 
-/** Missed tackle chance by tackling stat */
+/** Missed tackle chance by tackling stat (0-7 scale) */
 export const MISS_CHANCE_THRESHOLDS = [
-  { min: 90, chance: 0.01 },
-  { min: 80, chance: 0.02 },
-  { min: 70, chance: 0.03 },
-  { min: 60, chance: 0.04 },
-  { min: 50, chance: 0.05 },
-  { min: 40, chance: 0.07 },
-  { min: 0,  chance: 0.10 }
+  { min: 7, chance: 0.01 },
+  { min: 6, chance: 0.02 },
+  { min: 5, chance: 0.03 },
+  { min: 4, chance: 0.04 },
+  { min: 3, chance: 0.06 },
+  { min: 2, chance: 0.08 },
+  { min: 1, chance: 0.10 },
+  { min: 0, chance: 0.12 },
 ] as const;
 
-/** Error chance by passing stat */
+/** Error chance by passing stat (0-7 scale) */
 export const ERROR_CHANCE_THRESHOLDS = [
-  { min: 90, chance: 0.005 },
-  { min: 80, chance: 0.01 },
-  { min: 70, chance: 0.015 },
-  { min: 60, chance: 0.02 },
-  { min: 50, chance: 0.025 },
-  { min: 40, chance: 0.035 },
-  { min: 0,  chance: 0.05 }
+  { min: 7, chance: 0.005 },
+  { min: 6, chance: 0.01 },
+  { min: 5, chance: 0.015 },
+  { min: 4, chance: 0.02 },
+  { min: 3, chance: 0.03 },
+  { min: 2, chance: 0.04 },
+  { min: 1, chance: 0.045 },
+  { min: 0, chance: 0.05 },
 ] as const;
 
 // ===========================================

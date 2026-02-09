@@ -8,7 +8,7 @@
 import type { Player } from '@/lib/game-engine/types';
 import type { OriginSquad } from './selection';
 
-import { generatePlayerStats } from '@/lib/game-engine/player-stats';
+import { generateBaseStats, generateEventDrivenStats } from '@/lib/game-engine/player-stats';
 import { calculatePlayerRating } from '@/lib/game-engine/ratings';
 import { calculateMotmInfluence, buildMotmReason } from '@/lib/game-engine/motm';
 import { calculateTries, calculateKickingStats, calculateScore, distributeTries } from '@/lib/game-engine/scoring';
@@ -152,15 +152,20 @@ export function simulateOriginMatch(
   for (const selection of homeSquad.players) {
     const player = selection.player;
     const minutes = MINUTES_BY_JERSEY[selection.jerseyNumber] ?? 0;
-    const baseStats = generatePlayerStats(player, selection.jerseyNumber, minutes);
+    // Step 1: Base stats
+    const baseStats = generateBaseStats(player, selection.jerseyNumber, minutes);
     
+    // Step 2: Tries and assists
     const tries = homeTryDist.tryScorers[player.id] || 0;
     const tryAssists = homeTryDist.tryAssisters[player.id] || 0;
     const isKicker = homeSquad.goalKicker?.id === player.id;
     const goals = isKicker ? homeKicking.conversions + homeKicking.penalties : 0;
     const points = (tries * 4) + (goals * 2);
     
-    const fullStats = { ...baseStats, tries, tryAssists, goals };
+    // Step 3: Event-driven LB/TB
+    const eventStats = generateEventDrivenStats(player, selection.jerseyNumber, baseStats.metres, tries, tryAssists);
+    
+    const fullStats = { ...baseStats, lineBreaks: eventStats.lineBreaks, tackleBreaks: eventStats.tackleBreaks, tries, tryAssists, goals };
     const rating = calculatePlayerRating(fullStats, selection.jerseyNumber, false, selection.isCaptain);
     const motmInfluence = calculateMotmInfluence(
       fullStats,
@@ -185,8 +190,8 @@ export function simulateOriginMatch(
       tackles: baseStats.tackles,
       missed_tackles: baseStats.missedTackles,
       errors: baseStats.errors,
-      line_breaks: baseStats.lineBreaks,
-      tackle_breaks: baseStats.tackleBreaks,
+      line_breaks: eventStats.lineBreaks,
+      tackle_breaks: eventStats.tackleBreaks,
       minutes_played: minutes,
       rating,
       _motm_influence: motmInfluence
@@ -201,15 +206,20 @@ export function simulateOriginMatch(
   for (const selection of awaySquad.players) {
     const player = selection.player;
     const minutes = MINUTES_BY_JERSEY[selection.jerseyNumber] ?? 0;
-    const baseStats = generatePlayerStats(player, selection.jerseyNumber, minutes);
+    // Step 1: Base stats
+    const baseStats = generateBaseStats(player, selection.jerseyNumber, minutes);
     
+    // Step 2: Tries and assists
     const tries = awayTryDist.tryScorers[player.id] || 0;
     const tryAssists = awayTryDist.tryAssisters[player.id] || 0;
     const isKicker = awaySquad.goalKicker?.id === player.id;
     const goals = isKicker ? awayKicking.conversions + awayKicking.penalties : 0;
     const points = (tries * 4) + (goals * 2);
     
-    const fullStats = { ...baseStats, tries, tryAssists, goals };
+    // Step 3: Event-driven LB/TB
+    const eventStats = generateEventDrivenStats(player, selection.jerseyNumber, baseStats.metres, tries, tryAssists);
+    
+    const fullStats = { ...baseStats, lineBreaks: eventStats.lineBreaks, tackleBreaks: eventStats.tackleBreaks, tries, tryAssists, goals };
     const rating = calculatePlayerRating(fullStats, selection.jerseyNumber, false, selection.isCaptain);
     const motmInfluence = calculateMotmInfluence(
       fullStats,
@@ -234,8 +244,8 @@ export function simulateOriginMatch(
       tackles: baseStats.tackles,
       missed_tackles: baseStats.missedTackles,
       errors: baseStats.errors,
-      line_breaks: baseStats.lineBreaks,
-      tackle_breaks: baseStats.tackleBreaks,
+      line_breaks: eventStats.lineBreaks,
+      tackle_breaks: eventStats.tackleBreaks,
       minutes_played: minutes,
       rating,
       _motm_influence: motmInfluence

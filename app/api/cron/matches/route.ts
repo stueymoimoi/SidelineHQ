@@ -44,7 +44,7 @@ import {
 
 import type { Player, Team, Fixture, TeamTactics, Notification } from '@/lib/game-engine/types';
 
-import { generatePlayerStats } from '@/lib/game-engine/player-stats';
+import { generateBaseStats, generateEventDrivenStats } from '@/lib/game-engine/player-stats';
 import { calculatePlayerRating } from '@/lib/game-engine/ratings';
 import { calculateMotmInfluence, buildMotmReason } from '@/lib/game-engine/motm';
 import { calculateTacticalBonus } from '@/lib/game-engine/tactics';
@@ -551,23 +551,27 @@ export async function GET(request: Request) {
             const traitData = getPlayerTraitData(player);
             const traitMods = calculateTraitModifiers(traitData, homeGameContext, matchContext);
             
-            const baseStats = generatePlayerStats(player, jerseyNumber, minutes);
+            // Step 1: Base stats (metres, tackles, missed tackles, errors)
+            const baseStats = generateBaseStats(player, jerseyNumber, minutes);
             
-            const stats = {
-              metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier),
-              tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier),
-              missedTackles: baseStats.missedTackles,
-              errors: baseStats.errors,
-              lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier),
-              tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier),
-            };
+            const metres = Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier);
+            const tackles = Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier);
+            const missedTackles = baseStats.missedTackles;
+            const errors = baseStats.errors;
             
+            // Step 2: Tries and assists (already distributed)
             const tries = homeTryDist.tryScorers[homePlayerId] || 0;
             const tryAssists = homeTryDist.tryAssisters[homePlayerId] || 0;
             const isKicker = homeTactics.goal_kicker === homePlayerId;
             const goals = isKicker ? homeKicking.conversions + homeKicking.penalties : 0;
             const points = (tries * 4) + (goals * 2);
             
+            // Step 3: Event-driven stats (LB/TB derived from tries, metres)
+            const eventStats = generateEventDrivenStats(player, jerseyNumber, metres, tries, tryAssists);
+            const lineBreaks = Math.round(eventStats.lineBreaks * traitMods.statsMultiplier);
+            const tackleBreaks = Math.round(eventStats.tackleBreaks * traitMods.statsMultiplier);
+            
+            const stats = { metres, tackles, missedTackles, errors, lineBreaks, tackleBreaks };
             const fullStats = { ...stats, tries, tryAssists, goals };
             const rating = calculatePlayerRating(fullStats, jerseyNumber, false, isCaptain);
             const motmInfluence = calculateMotmInfluence(
@@ -631,23 +635,27 @@ export async function GET(request: Request) {
             const traitData = getPlayerTraitData(player);
             const traitMods = calculateTraitModifiers(traitData, awayGameContext, matchContext);
             
-            const baseStats = generatePlayerStats(player, jerseyNumber, minutes);
+            // Step 1: Base stats (metres, tackles, missed tackles, errors)
+            const baseStats = generateBaseStats(player, jerseyNumber, minutes);
             
-            const stats = {
-              metres: Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier),
-              tackles: Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier),
-              missedTackles: baseStats.missedTackles,
-              errors: baseStats.errors,
-              lineBreaks: Math.round(baseStats.lineBreaks * traitMods.statsMultiplier),
-              tackleBreaks: Math.round(baseStats.tackleBreaks * traitMods.statsMultiplier),
-            };
+            const metres = Math.round(baseStats.metres * traitMods.statsMultiplier * traitMods.metreMultiplier);
+            const tackles = Math.round(baseStats.tackles * traitMods.statsMultiplier * traitMods.tackleMultiplier);
+            const missedTackles = baseStats.missedTackles;
+            const errors = baseStats.errors;
             
+            // Step 2: Tries and assists (already distributed)
             const tries = awayTryDist.tryScorers[awayPlayerId] || 0;
             const tryAssists = awayTryDist.tryAssisters[awayPlayerId] || 0;
             const isKicker = awayTactics.goal_kicker === awayPlayerId;
             const goals = isKicker ? awayKicking.conversions + awayKicking.penalties : 0;
             const points = (tries * 4) + (goals * 2);
             
+            // Step 3: Event-driven stats (LB/TB derived from tries, metres)
+            const eventStats = generateEventDrivenStats(player, jerseyNumber, metres, tries, tryAssists);
+            const lineBreaks = Math.round(eventStats.lineBreaks * traitMods.statsMultiplier);
+            const tackleBreaks = Math.round(eventStats.tackleBreaks * traitMods.statsMultiplier);
+            
+            const stats = { metres, tackles, missedTackles, errors, lineBreaks, tackleBreaks };
             const fullStats = { ...stats, tries, tryAssists, goals };
             const rating = calculatePlayerRating(fullStats, jerseyNumber, false, isCaptain);
             const motmInfluence = calculateMotmInfluence(

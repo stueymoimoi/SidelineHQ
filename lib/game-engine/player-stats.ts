@@ -1,6 +1,12 @@
 /**
  * SidelineHQ Player Stats Generation
  * Pure functions for generating match statistics
+ * 
+ * UPDATED: Feb 9, 2026
+ * - All formulas recalibrated for 0-7 stat scale (was 0-100)
+ * - Line breaks now event-driven (derived from tries, assists, metres)
+ * - Tackle breaks now event-driven (derived from metres, power, strength)
+ * - generatePlayerStats split: base stats first, then LB/TB after try distribution
  */
 
 import type { Player, GeneratedStats, PositionConfig } from './types';
@@ -25,7 +31,7 @@ export function getPositionConfig(jerseyNumber: number): PositionConfig {
 }
 
 /**
- * Get missed tackle chance based on tackling stat
+ * Get missed tackle chance based on tackling stat (0-7 scale)
  */
 export function getMissChance(tacklingStat: number): number {
   for (const threshold of MISS_CHANCE_THRESHOLDS) {
@@ -33,11 +39,11 @@ export function getMissChance(tacklingStat: number): number {
       return threshold.chance;
     }
   }
-  return 0.10; // Fallback for very low stats
+  return 0.12;
 }
 
 /**
- * Get error chance based on passing stat
+ * Get error chance based on passing stat (0-7 scale)
  */
 export function getErrorChance(passingStat: number): number {
   for (const threshold of ERROR_CHANCE_THRESHOLDS) {
@@ -45,7 +51,7 @@ export function getErrorChance(passingStat: number): number {
       return threshold.chance;
     }
   }
-  return 0.05; // Fallback for very low stats
+  return 0.05;
 }
 
 /**
@@ -63,20 +69,25 @@ export function isForward(jerseyNumber: number): boolean {
 }
 
 // ===========================================
-// STAT CALCULATIONS
+// STAT CALCULATIONS (Recalibrated for 0-7)
 // ===========================================
+
+/** Midpoint of 0-7 scale */
+const STAT_MID = 3.5;
 
 /**
  * Calculate metres gained
+ * Speed 0 → ~-14m penalty, Speed 7 → ~+14m bonus
+ * Power follows same pattern with slightly less impact
  */
 export function calculateMetres(
   player: Pick<Player, 'speed' | 'power'>,
   config: PositionConfig,
   minutesFactor: number
 ): number {
-  const speedBonus = ((player.speed ?? 50) - 50) / 4;
-  const powerBonus = ((player.power ?? 50) - 50) / 5;
-  const variance = 0.75 + Math.random() * 0.5; // 0.75 to 1.25
+  const speedBonus = ((player.speed ?? 3) - STAT_MID) * 4;
+  const powerBonus = ((player.power ?? 3) - STAT_MID) * 3;
+  const variance = 0.75 + Math.random() * 0.5;
   
   return Math.max(0, Math.round(
     (config.metresBase + speedBonus + powerBonus) * minutesFactor * variance
@@ -85,14 +96,15 @@ export function calculateMetres(
 
 /**
  * Calculate tackles made
+ * Stamina 0 → ~-5 tackles, Stamina 7 → ~+5 tackles
  */
 export function calculateTackles(
   player: Pick<Player, 'stamina'>,
   config: PositionConfig,
   minutesFactor: number
 ): number {
-  const staminaBonus = ((player.stamina ?? 50) - 50) / 8;
-  const variance = 0.8 + Math.random() * 0.4; // 0.8 to 1.2
+  const staminaBonus = ((player.stamina ?? 3) - STAT_MID) * 1.5;
+  const variance = 0.8 + Math.random() * 0.4;
   
   return Math.max(0, Math.round(
     (config.tacklesBase + staminaBonus) * minutesFactor * variance
@@ -106,7 +118,7 @@ export function calculateMissedTackles(
   player: Pick<Player, 'tackling'>,
   tacklesMade: number
 ): number {
-  const missChance = getMissChance(player.tackling ?? 50);
+  const missChance = getMissChance(player.tackling ?? 3);
   const opportunities = tacklesMade + Math.floor(Math.random() * 5);
   
   let missed = 0;
@@ -125,7 +137,7 @@ export function calculateErrors(
   config: PositionConfig,
   minutesFactor: number
 ): number {
-  const errorChance = getErrorChance(player.passing ?? 50);
+  const errorChance = getErrorChance(player.passing ?? 3);
   const touches = Math.round(config.touchesBase * minutesFactor);
   
   let errors = 0;
@@ -137,47 +149,108 @@ export function calculateErrors(
 }
 
 /**
- * Calculate line breaks
- * Backs get more opportunities than forwards
+ * Calculate line breaks — EVENT-DRIVEN
+ * 
+ * Derived from what actually happened:
+ * 1. Try scorers almost always broke the line (85% per try)
+ * 2. Try assisters sometimes broke the line (35%)
+ * 3. High-metre backs get bonus LBs (kick returns, outside breaks)
+ * 4. Small random chance for anyone based on speed
+ * 
+ * Real NRL: Backs 0-3 avg, Forwards 0-1 avg, Elite 3-5
  */
 export function calculateLineBreaks(
   player: Pick<Player, 'speed' | 'power'>,
   jerseyNumber: number,
-  config: PositionConfig,
-  minutesFactor: number
+  metres: number,
+  tries: number,
+  tryAssists: number
 ): number {
-  const lineBreakChance = ((player.speed ?? 50) + (player.power ?? 50) - 80) / 300;
-  const touches = Math.round(config.touchesBase * minutesFactor);
-  const opportunityRate = isBack(jerseyNumber) ? 0.4 : 0.2;
-  const opportunities = Math.floor(touches * opportunityRate);
-  
   let lineBreaks = 0;
-  for (let i = 0; i < opportunities; i++) {
-    if (Math.random() < lineBreakChance) lineBreaks++;
+  
+  // 1. Try scorers broke the line (85% chance per try)
+  for (let i = 0; i < tries; i++) {
+    if (Math.random() < 0.85) lineBreaks++;
   }
+  
+  // 2. Try assisters sometimes broke the line (35% chance per assist)
+  for (let i = 0; i < tryAssists; i++) {
+    if (Math.random() < 0.35) lineBreaks++;
+  }
+  
+  // 3. High-metre bonus — players who ran a lot probably broke the line
+  const metreThreshold = isBack(jerseyNumber) ? 140 : 180;
+  if (metres > metreThreshold) {
+    const excessMetres = metres - metreThreshold;
+    const bonusChances = Math.floor(excessMetres / 40) + 1;
+    const speed = player.speed ?? 3;
+    const lbChance = 0.15 + (speed / 7) * 0.35;
+    
+    for (let i = 0; i < bonusChances; i++) {
+      if (Math.random() < lbChance) lineBreaks++;
+    }
+  }
+  
+  // 4. Small random chance for anyone
+  const randomChance = 0.02 + ((player.speed ?? 3) / 7) * 0.13;
+  if (Math.random() < randomChance) lineBreaks++;
   
   return lineBreaks;
 }
 
 /**
- * Calculate tackle breaks
- * Forwards get more opportunities than backs
+ * Calculate tackle breaks — EVENT-DRIVEN
+ * 
+ * Derived from metres gained + physical dominance:
+ * 1. Metres-based: more carries = more chances to bust tackles
+ *    - Backs run at smaller defenders so break MORE often per carry
+ *    - Forwards run at bigger defenders but carry more often
+ * 2. Try scorers often busted a tackle on the try run
+ * 3. Random bonus based on power
+ * 
+ * Real NRL: Backs 0-8 (big metre games), Forwards 2-6 avg, Elite 8-10
  */
 export function calculateTackleBreaks(
-  player: Pick<Player, 'power' | 'strength'>,
+  player: Pick<Player, 'power' | 'strength' | 'speed'>,
   jerseyNumber: number,
-  config: PositionConfig,
-  minutesFactor: number
+  metres: number,
+  tries: number
 ): number {
-  const tackleBreakChance = ((player.power ?? 50) + (player.strength ?? 50) - 80) / 200;
-  const touches = Math.round(config.touchesBase * minutesFactor);
-  const opportunityRate = isForward(jerseyNumber) ? 0.5 : 0.3;
-  const opportunities = Math.floor(touches * opportunityRate);
-  
   let tackleBreaks = 0;
-  for (let i = 0; i < opportunities; i++) {
-    if (Math.random() < tackleBreakChance) tackleBreaks++;
+  
+  const power = player.power ?? 3;
+  const strength = player.strength ?? 3;
+  
+  // 1. Metres-based tackle breaks
+  //    breakRate: how often a carry busts through
+  //    - Backs: higher break rate (smaller defenders) but fewer carries per metre
+  //    - Forwards: lower break rate (bigger defenders) but more carries
+  //
+  //    Back breakRate:  stats 0+0 = 8%, stats 7+7 = 28% — powerful backs dominate
+  //    Fwd breakRate:   stats 0+0 = 5%, stats 7+7 = 22.5%
+  const isBackPlayer = isBack(jerseyNumber) || jerseyNumber === 7; // halfbacks run at backs too
+  
+  const breakRate = isBackPlayer
+    ? 0.08 + ((power + strength) / 14) * 0.20   // Backs: 8%-28% per carry
+    : 0.05 + ((power + strength) / 14) * 0.175; // Forwards: 5%-22.5% per carry
+  
+  // Backs take longer runs (fewer discrete carries), forwards take short hitups
+  const metresPerCarry = isBackPlayer ? 10 : 8;
+  const carries = Math.max(1, Math.floor(metres / metresPerCarry));
+  
+  for (let i = 0; i < carries; i++) {
+    if (Math.random() < breakRate) tackleBreaks++;
   }
+  
+  // 2. Try scorers often busted a tackle on the try run
+  const tryBreakChance = isForward(jerseyNumber) ? 0.60 : 0.50;
+  for (let i = 0; i < tries; i++) {
+    if (Math.random() < tryBreakChance) tackleBreaks++;
+  }
+  
+  // 3. Small random bonus based on power
+  const randomChance = 0.02 + (power / 7) * 0.10;
+  if (Math.random() < randomChance) tackleBreaks++;
   
   return tackleBreaks;
 }
@@ -187,32 +260,27 @@ export function calculateTackleBreaks(
 // ===========================================
 
 /**
- * Generate all match stats for a player
- * 
- * @param player - The player object
- * @param jerseyNumber - Jersey number (1-17)
- * @param minutes - Minutes played (0-80)
- * @returns Generated stats object
- * 
- * @example
- * const stats = generatePlayerStats(player, 1, 80);
- * // { metres: 142, tackles: 6, missedTackles: 1, errors: 0, lineBreaks: 2, tackleBreaks: 1 }
+ * Base stats that don't depend on try distribution.
+ * Called BEFORE tries are distributed.
  */
-export function generatePlayerStats(
+export interface BaseStats {
+  metres: number;
+  tackles: number;
+  missedTackles: number;
+  errors: number;
+}
+
+/**
+ * Generate base match stats for a player (metres, tackles, missed tackles, errors).
+ * Line breaks and tackle breaks are calculated separately after try distribution.
+ */
+export function generateBaseStats(
   player: Pick<Player, 'speed' | 'strength' | 'power' | 'passing' | 'stamina' | 'tackling'>,
   jerseyNumber: number,
   minutes: number
-): GeneratedStats {
-  // No stats if didn't play
+): BaseStats {
   if (minutes === 0) {
-    return {
-      metres: 0,
-      tackles: 0,
-      missedTackles: 0,
-      errors: 0,
-      lineBreaks: 0,
-      tackleBreaks: 0
-    };
+    return { metres: 0, tackles: 0, missedTackles: 0, errors: 0 };
   }
 
   const config = getPositionConfig(jerseyNumber);
@@ -222,15 +290,49 @@ export function generatePlayerStats(
   const tackles = calculateTackles(player, config, minutesFactor);
   const missedTackles = calculateMissedTackles(player, tackles);
   const errors = calculateErrors(player, config, minutesFactor);
-  const lineBreaks = calculateLineBreaks(player, jerseyNumber, config, minutesFactor);
-  const tackleBreaks = calculateTackleBreaks(player, jerseyNumber, config, minutesFactor);
+
+  return { metres, tackles, missedTackles, errors };
+}
+
+/**
+ * Generate line breaks and tackle breaks AFTER try distribution is known.
+ */
+export function generateEventDrivenStats(
+  player: Pick<Player, 'speed' | 'power' | 'strength'>,
+  jerseyNumber: number,
+  metres: number,
+  tries: number,
+  tryAssists: number
+): { lineBreaks: number; tackleBreaks: number } {
+  const lineBreaks = calculateLineBreaks(player, jerseyNumber, metres, tries, tryAssists);
+  const tackleBreaks = calculateTackleBreaks(player, jerseyNumber, metres, tries);
+  
+  return { lineBreaks, tackleBreaks };
+}
+
+/**
+ * LEGACY: Generate all match stats in one call (kept for backward compatibility).
+ * Calculates LB/TB without try info so they'll be lower.
+ * Prefer generateBaseStats + generateEventDrivenStats separately.
+ */
+export function generatePlayerStats(
+  player: Pick<Player, 'speed' | 'strength' | 'power' | 'passing' | 'stamina' | 'tackling'>,
+  jerseyNumber: number,
+  minutes: number
+): GeneratedStats {
+  if (minutes === 0) {
+    return {
+      metres: 0, tackles: 0, missedTackles: 0,
+      errors: 0, lineBreaks: 0, tackleBreaks: 0
+    };
+  }
+
+  const base = generateBaseStats(player, jerseyNumber, minutes);
+  const eventStats = generateEventDrivenStats(player, jerseyNumber, base.metres, 0, 0);
 
   return {
-    metres,
-    tackles,
-    missedTackles,
-    errors,
-    lineBreaks,
-    tackleBreaks
+    ...base,
+    lineBreaks: eventStats.lineBreaks,
+    tackleBreaks: eventStats.tackleBreaks
   };
 }
