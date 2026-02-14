@@ -2,12 +2,10 @@
  * SidelineHQ Game Engine Constants
  * All configurable values in one place for easy tuning
  * 
- * UPDATED: January 31, 2026
- * - Stat tiers changed from 1-8 to 0-7
- * - OVR range changed from 0-49 to 0-49
- * - Labels: NONE → BAD → POOR → OK → GOOD → GREAT → EXC → ELITE
- * - Fatigue rebalance: FATIGUE_PER_MATCH = 12, scaled recovery
- * - Origin fatigue: 10-13 range
+ * UPDATED: February 14, 2026
+ * - Position base stats corrected (Rating System v2.0 Phase 1)
+ * - Props: 190m → 110m, Second Row: 170m → 130m, Lock: 180m → 140m
+ * - All positions calibrated to real NRL averages
  */
 
 import type { PositionConfig, ProgressStage } from './types';
@@ -44,38 +42,42 @@ export const BASELINE_RECOVERY = 10;
 // POSITION CONFIGURATION
 // ===========================================
 
-/** 
+/**
  * Position-specific base stats for stat generation
  * Jersey numbers 1-13 are starters, 14-17 are bench
+ * 
+ * UPDATED Feb 14, 2026: Calibrated to real NRL averages
+ * - Backs need 140-150m for excellent performance
+ * - Forwards need 110-140m for excellent performance
  */
 export const POSITION_CONFIGS: Record<number, PositionConfig> = {
-  // Backs - need 150+ metres for excellent
-  1:  { metresBase: 160, tacklesBase: 8,  touchesBase: 18 },  // Fullback
-  2:  { metresBase: 140, tacklesBase: 10, touchesBase: 12 },  // Winger
-  3:  { metresBase: 150, tacklesBase: 18, touchesBase: 14 },  // Centre
-  4:  { metresBase: 150, tacklesBase: 18, touchesBase: 14 },  // Centre
-  5:  { metresBase: 140, tacklesBase: 10, touchesBase: 12 },  // Winger
-  6:  { metresBase: 120, tacklesBase: 22, touchesBase: 22 },  // Five-eighth
-  7:  { metresBase: 70,  tacklesBase: 28, touchesBase: 35 },  // Halfback
-  // Forwards - need 180+ metres for excellent
-  8:  { metresBase: 190, tacklesBase: 32, touchesBase: 14 },  // Prop
-  9:  { metresBase: 80,  tacklesBase: 48, touchesBase: 40 },  // Hooker
-  10: { metresBase: 190, tacklesBase: 32, touchesBase: 14 },  // Prop
-  11: { metresBase: 170, tacklesBase: 36, touchesBase: 14 },  // Second Row
-  12: { metresBase: 170, tacklesBase: 36, touchesBase: 14 },  // Second Row
-  13: { metresBase: 180, tacklesBase: 42, touchesBase: 16 },  // Lock
+  // Backs
+  1:  { metresBase: 150, tacklesBase: 6,  touchesBase: 18 },  // Fullback
+  2:  { metresBase: 130, tacklesBase: 8,  touchesBase: 12 },  // Winger
+  3:  { metresBase: 120, tacklesBase: 16, touchesBase: 14 },  // Centre
+  4:  { metresBase: 120, tacklesBase: 16, touchesBase: 14 },  // Centre
+  5:  { metresBase: 130, tacklesBase: 8,  touchesBase: 12 },  // Winger
+  6:  { metresBase: 90,  tacklesBase: 22, touchesBase: 22 },  // Five-eighth
+  7:  { metresBase: 60,  tacklesBase: 25, touchesBase: 35 },  // Halfback
+  // Forwards
+  8:  { metresBase: 110, tacklesBase: 30, touchesBase: 14 },  // Prop
+  9:  { metresBase: 65,  tacklesBase: 40, touchesBase: 40 },  // Hooker
+  10: { metresBase: 110, tacklesBase: 30, touchesBase: 14 },  // Prop
+  11: { metresBase: 130, tacklesBase: 32, touchesBase: 14 },  // Second Row
+  12: { metresBase: 130, tacklesBase: 32, touchesBase: 14 },  // Second Row
+  13: { metresBase: 140, tacklesBase: 35, touchesBase: 16 },  // Lock
   // Bench (reduced minutes = lower base)
-  14: { metresBase: 80,  tacklesBase: 18, touchesBase: 8 },
-  15: { metresBase: 70,  tacklesBase: 16, touchesBase: 8 },
-  16: { metresBase: 60,  tacklesBase: 14, touchesBase: 6 },
-  17: { metresBase: 50,  tacklesBase: 12, touchesBase: 5 },
+  14: { metresBase: 60,  tacklesBase: 15, touchesBase: 8 },
+  15: { metresBase: 55,  tacklesBase: 13, touchesBase: 8 },
+  16: { metresBase: 50,  tacklesBase: 12, touchesBase: 6 },
+  17: { metresBase: 40,  tacklesBase: 10, touchesBase: 5 },
 } as const;
 
 /** Default config for unknown jersey numbers */
-export const DEFAULT_POSITION_CONFIG: PositionConfig = { 
-  metresBase: 80, 
-  tacklesBase: 18, 
-  touchesBase: 8 
+export const DEFAULT_POSITION_CONFIG: PositionConfig = {
+  metresBase: 80,
+  tacklesBase: 18,
+  touchesBase: 8
 };
 
 /** Minutes played per jersey position */
@@ -126,7 +128,7 @@ export const OUTSIDE_BACK_JERSEYS = [1, 2, 3, 4, 5] as const;
 // TRY SCORING WEIGHTS
 // ===========================================
 
-/** 
+/**
  * Weights for try scoring by jersey position
  * Higher = more likely to score
  */
@@ -150,7 +152,7 @@ export const TRY_SCORER_WEIGHTS = [
   2    // #17 Bench
 ] as const;
 
-/** 
+/**
  * Weights for try assists by jersey position
  * Playmakers get higher weights
  */
@@ -296,7 +298,7 @@ export const RATING_MODIFIERS = {
 // STAT TIER NAMES (v3.0 - 0-7 Scale)
 // ===========================================
 
-/** 
+/**
  * Stat tier names for display (0-7 scale)
  * OVR = sum of 7 stats = 0-49 range
  */
@@ -354,7 +356,7 @@ export const MATCHES_PER_WEEK = 1;
 /** List of all positions */
 export const POSITIONS = [
   'Fullback',
-  'Winger', 
+  'Winger',
   'Centre',
   'Five-Eighth',
   'Halfback',
@@ -489,7 +491,7 @@ export const getMinutesForPlayer = (jerseyNumber: number, position: string): num
     // Everyone else plays 80
     return 80;
   }
-  
+
   // Bench (14-17) - based on player's actual position
   if (jerseyNumber >= 14 && jerseyNumber <= 17) {
     switch (position) {
@@ -508,7 +510,7 @@ export const getMinutesForPlayer = (jerseyNumber: number, position: string): num
         return 15;  // Tactical only, rarely used
     }
   }
-  
+
   return 0;
 };
 
@@ -516,7 +518,7 @@ export const getMinutesForPlayer = (jerseyNumber: number, position: string): num
 // TRAINING POINTS SYSTEM (v3.0 - Updated for 0-7 scale)
 // =============================================
 
-/** 
+/**
  * Points needed to gain +1 stat, based on current stat level
  * Higher stats = more points needed (natural diminishing returns)
  */
@@ -567,8 +569,8 @@ export const TRAINING_AFFINITY_BONUS: Record<string, number> = {
 export const TRAINING_PROGRESS_LABELS = [
   { maxPercent: 25, label: 'Just Started', color: 'text-gray-400', barColor: 'bg-gray-500' },
   { maxPercent: 50, label: 'Building Foundation', color: 'text-yellow-400', barColor: 'bg-yellow-500' },
-  { maxPercent: 75, label: 'Making Progress', color: 'text-orange-400', barColor: 'bg-orange-500' },
-  { maxPercent: 99, label: 'Nearly There!', color: 'text-green-400', barColor: 'bg-green-500' },
+  { maxPercent: 75, label: 'Making Progress', color: 'text-orange-400', barColor: 'bg-orange-500' },  
+  { maxPercent: 99, label: 'Nearly There!', color: 'text-green-400', barColor: 'bg-green-500' },      
   { maxPercent: 100, label: 'Ready!', color: 'text-green-300', barColor: 'bg-green-400' },
 ] as const;
 
@@ -582,24 +584,24 @@ export function getTrainingProgressLabel(currentPoints: number, threshold: numbe
   percent: number;
 } {
   const percent = Math.min(100, Math.round((currentPoints / threshold) * 100));
-  
+
   for (const tier of TRAINING_PROGRESS_LABELS) {
     if (percent <= tier.maxPercent) {
-      return { 
-        label: tier.label, 
-        color: tier.color, 
+      return {
+        label: tier.label,
+        color: tier.color,
         barColor: tier.barColor,
-        percent 
+        percent
       };
     }
   }
-  
+
   // Fallback
-  return { 
-    label: 'Just Started', 
-    color: 'text-gray-400', 
+  return {
+    label: 'Just Started',
+    color: 'text-gray-400',
     barColor: 'bg-gray-500',
-    percent: 0 
+    percent: 0
   };
 }
 
@@ -843,14 +845,14 @@ export const COACH_XP_REWARDS = {
   LOSS: 2,
   WIN_BLOWOUT_BONUS: 5,      // Win by 20+ points
   WIN_STREAK_BONUS: 5,       // Per match while streak ≥3
-  
+
   // Player development
   PLAYER_STAT_GAIN: 3,       // Training pays off
-  
+
   // Season achievements
   DIVISION_TITLE: 50,
   GRAND_FINAL_WIN: 100,
-  
+
   // Representative honors
   ORIGIN_SELECTION: 10,      // Per player selected
 } as const;
@@ -877,7 +879,7 @@ export const COACH_LEVELS: Array<{
 export function getCoachLevel(xp: number): { level: number; title: string; xpForNext: number | null; progress: number } {
   let currentLevel = COACH_LEVELS[0];
   let nextLevel: typeof currentLevel | null = null;
-  
+
   for (let i = COACH_LEVELS.length - 1; i >= 0; i--) {
     if (xp >= COACH_LEVELS[i].xpRequired) {
       currentLevel = COACH_LEVELS[i];
@@ -885,18 +887,18 @@ export function getCoachLevel(xp: number): { level: number; title: string; xpFor
       break;
     }
   }
-  
+
   // Calculate progress to next level
   let progress = 100;
   let xpForNext: number | null = null;
-  
+
   if (nextLevel) {
     const xpIntoLevel = xp - currentLevel.xpRequired;
     const xpNeeded = nextLevel.xpRequired - currentLevel.xpRequired;
     progress = Math.round((xpIntoLevel / xpNeeded) * 100);
     xpForNext = nextLevel.xpRequired;
   }
-  
+
   return {
     level: currentLevel.level,
     title: currentLevel.title,
