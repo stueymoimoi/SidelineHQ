@@ -302,16 +302,22 @@ export async function GET(request: Request) {
   const supabase = getSupabase();
   const url = new URL(request.url);
   
-  // Auth check
+  // Auth check - MUST be admin or valid cron secret
   const secret = url.searchParams.get('secret');
   const CRON_SECRET = process.env.CRON_SECRET;
   
-  // Verify admin — either secret match or check auth
   if (secret !== CRON_SECRET) {
-    // Try auth check
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
+    // No valid secret - verify user is admin
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    // Verify user is admin (your admin UUID from master prompt)
+    const ADMIN_ID = 'b0c4c970-ac17-4be8-9b35-68d321a166ad';
+    if (user.id !== ADMIN_ID) {
+      return NextResponse.json({ success: false, error: 'Forbidden - Admin only' }, { status: 403 });
     }
   }
   

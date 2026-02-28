@@ -495,14 +495,26 @@ export async function GET(request: Request) {
         const homeKicking = calculateKickingStats(homeTries, homeKicker?.kicking || 4);
         const awayKicking = calculateKickingStats(awayTries, awayKicker?.kicking || 4);
         
-        const homeScore = calculateScore(homeTries, homeKicking.conversions, homeKicking.penalties);
-        const awayScore = calculateScore(awayTries, awayKicking.conversions, awayKicking.penalties);
-        
-        const totalPoints = homeScore + awayScore;
-        const margin = Math.abs(homeScore - awayScore);
-        const homeWon = homeScore > awayScore;
-        const awayWon = awayScore > homeScore;
-        const draw = homeScore === awayScore;
+        let homeScore = calculateScore(homeTries, homeKicking.conversions, homeKicking.penalties);
+let awayScore = calculateScore(awayTries, awayKicking.conversions, awayKicking.penalties);
+
+// Finals cannot end in a draw — golden point extra time
+const isFinals = currentRound >= 22;
+if (isFinals && homeScore === awayScore) {
+  const homeWinsGoldenPoint = Math.random() < 0.55;
+  if (homeWinsGoldenPoint) {
+    homeScore += 1;
+  } else {
+    awayScore += 1;
+  }
+  logs.push(`⚡ Golden point: ${homeScore}-${awayScore}`);
+}
+
+const totalPoints = homeScore + awayScore;
+const margin = Math.abs(homeScore - awayScore);
+const homeWon = homeScore > awayScore;
+const awayWon = awayScore > homeScore;
+const draw = homeScore === awayScore; // Always false in finals
         
         const homeTryDist = distributeTries(playersMap, homeTries, homeTactics);
         const awayTryDist = distributeTries(playersMap, awayTries, awayTactics);
