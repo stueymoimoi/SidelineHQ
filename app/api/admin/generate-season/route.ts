@@ -766,7 +766,280 @@ export async function GET(request: Request) {
       });
     }
     
-    return NextResponse.json({ success: false, error: `Unknown phase: ${phase}` }, { status: 400 });
+    // =========================================
+    // PHASE: SEASON ROLLOVER (after Grand Final)
+    // =========================================
+    if (phase === 'rollover') {
+      const logs: string[] = [];
+
+      // ── 1. Verify Grand Final is complete ──────────────────────────────
+      const { data: gfFixtures } = await supabase
+  .from('fixtures')
+  .select('id, division, played, home_team_id, away_team_id')
+  .eq('season', season)
+  .eq('round', 24);
+
+      if (!gfFixtures || gfFixtures.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: 'No Grand Final fixtures found. Has ?phase=gf been run?'
+        }, { status: 400 });
+      }
+
+      const unplayed = gfFixtures.filter(f => !f.played);
+      if (unplayed.length > 0) {
+        return NextResponse.json({
+          success: false,
+          error: `Grand Final not yet played in ${unplayed.length} division(s). Run rollover after Round 24 completes.`
+        }, { status: 400 });
+      }
+
+      logs.push(`✅ Grand Final complete in ${gfFixtures.length} division(s)`);
+
+      // ── 2. Determine Grand Final winners ───────────────────────────────
+      const gfFixtureIds = gfFixtures.map(f => f.id);
+      const { data: gfResults } = await supabase
+        .from('match_results')
+        .select('*')
+        .in('fixture_id', gfFixtureIds);
+
+      const gfResultsMap: Record<string, any> = {};
+      (gfResults || []).forEach(r => { gfResultsMap[r.fixture_id] = r; });
+
+      // Map division → champion team ID
+      const champions: Record<number, string> = {};
+      for (const fixture of gfFixtures) {
+        const result = gfResultsMap[fixture.id];
+        if (result) {
+          champions[fixture.division] = result.home_score >= result.away_score
+            ? fixture.home_team_id
+            : fixture.away_team_id;
+        }
+      }
+
+      logs.push(`🏆 Champions determined for ${Object.keys(champions).length} division(s)`);
+
+      // ── 3. Load all teams with standings ───────────────────────────────
+      const { data: allTeams } = await supabase
+        .from('teams')
+        .select('id, name, division, wins, draws, losses, points_for, points_against');
+
+      if (!allTeams) {
+        return NextResponse.json({ success: false, error: 'Failed to load teams' }, { status: 500 });
+      }
+
+      // Group by division and sort by ladder
+      const byDivision: Record<number, typeof allTeams> = {};
+      for (const team of allTeams) {
+        if (!byDivision[team.division]) byDivision[team.division] = [];
+        byDivision[team.division].push(team);
+      }
+
+      const sortedDivisions: Record<number, typeof allTeams> = {};
+      for (const [divStr, teams] of Object.entries(byDivision)) {
+        sortedDivisions[parseInt(divStr)] = teams.sort((a, b) => {
+          const aPoints = (a.wins * 2) + a.draws;
+          const bPoints = (b.wins * 2) + b.draws;
+          if (bPoints !== aPoints) return bPoints - aPoints;
+          const aDiff = a.points_for - a.points_against;
+          const bDiff = b.points_for - b.points_against;
+          if (bDiff !== aDiff) return bDiff - aDiff;
+          return b.points_for - a.points_for;
+        });
+      }
+
+      // ── 4. Promotion / Relegation (top 2 up, bottom 2 down) ────────────
+      const divisionNumbers = Object.keys(sortedDivisions).map(Number).sort((a, b) => a - b);
+      const maxDivision = Math.max(...divisionNumbers);
+      const promotionMap: Record<string, { from: number; to: number; direction: 'promoted' | 'relegated' }> = {};
+
+      for (const div of divisionNumbers) {
+        const teams = sortedDivisions[div];
+        if (teams.length < 4) continue;
+
+        // Top 2 get promoted (unless already in div 1)
+        if (div > 1) {
+          const promoted = teams.slice(0, 2);
+          for (const team of promoted) {
+            promotionMap[team.id] = { from: div, to: div - 1, direction: 'promoted' };
+          }
+        }
+
+        // Bottom 2 get relegated (unless already in last division)
+        if (div < maxDivision) {
+          const relegated = teams.slice(-2);
+          for (const team of relegated) {
+            promotionMap[team.id] = { from: div, to: div + 1, direction: 'relegated' };
+          }
+        }
+      }
+
+      // Apply division changes
+      const promotionUpdates = Object.entries(promotionMap).map(([teamId, info]) =>
+        supabase.from('teams').update({ division: info.to }).eq('id', teamId)
+      );
+      await Promise.all(promotionUpdates);
+
+      const promotedCount = Object.values(promotionMap).filter(p => p.direction === 'promoted').length;
+      const relegatedCount = Object.values(promotionMap).filter(p => p.direction === 'relegated').length;
+      logs.push(`📈 Promoted: ${promotedCount} teams, 📉 Relegated: ${relegatedCount} teams`);
+
+      // ── 5. Send promotion/relegation notifications ─────────────────────
+      const notifications: any[] = [];
+
+      for (const [teamId, info] of Object.entries(promotionMap)) {
+        const isChampion = champions[info.from] === teamId;
+        if (info.direction === 'promoted') {
+          notifications.push({
+            team_id: teamId,
+            type: 'promoted',
+            title: '📈 Promoted!',
+            message: isChampion
+              ? `Congratulations! You won Division ${info.from} and have been promoted to Division ${info.to} for Season ${season + 1}!`
+              : `You finished in the top 2 of Division ${info.from} and have been promoted to Division ${info.to} for Season ${season + 1}!`,
+          });
+        } else {
+          notifications.push({
+            team_id: teamId,
+            type: 'relegated',
+            title: '📉 Relegated',
+            message: `You finished in the bottom 2 of Division ${info.from} and have been relegated to Division ${info.to} for Season ${season + 1}.`,
+          });
+        }
+      }
+
+      // Champion notifications for teams that didn't get promoted (div 1 winner)
+      for (const [divStr, championId] of Object.entries(champions)) {
+        const div = parseInt(divStr);
+        if (!promotionMap[championId]) {
+          // Div 1 champion — already top division
+          notifications.push({
+            team_id: championId,
+            type: 'champion',
+            title: '🏆 Division Champion!',
+            message: `Congratulations! You are the Division ${div} Season ${season} Champion!`,
+          });
+        }
+      }
+
+      if (notifications.length > 0) {
+        await supabase.from('notifications').insert(notifications);
+      }
+      logs.push(`🔔 ${notifications.length} notifications sent`);
+
+      // ── 6. Age all players +1 year ─────────────────────────────────────
+      // Increment age for all players
+      const { data: allPlayers } = await supabase
+        .from('players')
+        .select('id, age, is_u21, is_u23, retiring_end_of_season');
+
+      if (allPlayers && allPlayers.length > 0) {
+        // Process in chunks of 500
+        const chunkSize = 500;
+        for (let i = 0; i < allPlayers.length; i += chunkSize) {
+          const chunk = allPlayers.slice(i, i + chunkSize);
+          await Promise.all(
+            chunk.map((player: any) => {
+              const newAge = player.age + 1;
+              return supabase
+                .from('players')
+                .update({
+                  age: newAge,
+                  is_u21: newAge < 21,
+                  is_u23: newAge < 23,
+                })
+                .eq('id', player.id);
+            })
+          );
+        }
+
+        // Handle retirements — remove players flagged retiring_end_of_season
+        const retirees = allPlayers.filter((p: any) => p.retiring_end_of_season);
+        if (retirees.length > 0) {
+          const retireeIds = retirees.map((p: any) => p.id);
+
+          // Delete their contracts first
+          await supabase.from('player_contracts').delete().in('player_id', retireeIds);
+
+          // Notify coaches
+          const retirementNotifications: any[] = [];
+          for (const player of retirees) {
+            const { data: playerData } = await supabase
+              .from('players')
+              .select('first_name, last_name, position, overall, team_id')
+              .eq('id', player.id)
+              .single();
+
+            if (playerData?.team_id) {
+              retirementNotifications.push({
+                team_id: playerData.team_id,
+                type: 'retirement',
+                title: '👋 Player Retired',
+                message: `${playerData.first_name} ${playerData.last_name} (${playerData.position}, ${playerData.overall} OVR) has retired at the end of Season ${season}.`,
+                player_id: player.id,
+              });
+            }
+          }
+
+          if (retirementNotifications.length > 0) {
+            await supabase.from('notifications').insert(retirementNotifications);
+          }
+
+          // Null out team_id for retirees (keep player records for history)
+          await supabase
+            .from('players')
+            .update({ team_id: null, retiring_end_of_season: false })
+            .in('id', retireeIds);
+
+          logs.push(`👋 ${retirees.length} players retired`);
+        }
+
+        logs.push(`🎂 ${allPlayers.length} players aged +1 year`);
+      }
+
+      // ── 7. Reset all team records ───────────────────────────────────────
+      await supabase
+        .from('teams')
+        .update({
+          wins: 0,
+          losses: 0,
+          draws: 0,
+          points_for: 0,
+          points_against: 0,
+          weekly_transfers_used: 0,
+        })
+        .gte('wins', 0); // matches all rows
+
+      logs.push('🔄 All team records reset');
+
+      // ── 8. Update game_state to off-season ─────────────────────────────
+      await supabase
+        .from('game_state')
+        .update({ current_phase: 'off_season' })
+        .eq('id', 1);
+
+      logs.push('🏁 Game state set to off_season');
+
+      // ── Summary ────────────────────────────────────────────────────────
+      const promoSummary = Object.entries(promotionMap).map(([teamId, info]) => {
+        const team = allTeams.find(t => t.id === teamId);
+        return `${info.direction === 'promoted' ? '📈' : '📉'} ${team?.name} (Div ${info.from} → Div ${info.to})`;
+      });
+
+      return NextResponse.json({
+        success: true,
+        season,
+        phase: 'rollover',
+        champions,
+        promotion_relegation: promoSummary,
+        logs,
+        next_steps: [
+          '1. Manually bump SEASON constant in /lib/game-engine/constants.ts from 0 to 1',
+          '2. Wait one week (3 match days) — no fixtures will process during off-season',
+          `3. Run ?phase=season&season=${season + 1}&sport=${sport} to generate Season ${season + 1} fixtures`,
+        ],
+      });
+    }return NextResponse.json({ success: false, error: `Unknown phase: ${phase}` }, { status: 400 });
     
   } catch (error) {
     console.error('Generate season error:', error);
