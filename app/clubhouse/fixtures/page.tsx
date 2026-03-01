@@ -63,8 +63,8 @@ function getRoundDates(): Date[] {
   const start = new Date(SEASON_0_START);
   let current = new Date(start);
 
-  // FIX 1: Extended from 18 to 21 rounds
-  for (let round = 1; round <= 21; round++) {
+  // Extended to 24 rounds to include finals (22=QF, 23=SF, 24=GF)
+  for (let round = 1; round <= 24; round++) {
     dates.push(new Date(current));
 
     const day = current.getDay();
@@ -99,8 +99,8 @@ function getNextUpdateTime(): { date: Date; round: number } {
     }
   }
 
-  // FIX 2: Updated fallback from 18 to 21
-  return { date: ROUND_DATES[ROUND_DATES.length - 1], round: 21 };
+  // Updated fallback to 24 (Grand Final)
+  return { date: ROUND_DATES[ROUND_DATES.length - 1], round: 24 };
 }
 
 function formatCountdown(targetDate: Date): string {
@@ -120,6 +120,17 @@ function formatCountdown(targetDate: Date): string {
 
 function getDayName(date: Date): string {
   return date.toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'Australia/Sydney' });
+}
+
+function getFinalsLabel(round: number): string | null {
+  if (round === 22) return 'QF';
+  if (round === 23) return 'SF';
+  if (round === 24) return 'GF';
+  return null;
+}
+
+function getRoundLabel(round: number): string {
+  return getFinalsLabel(round) ?? String(round);
 }
 
 export default function FixturesPage() {
@@ -254,7 +265,8 @@ export default function FixturesPage() {
       // If all matches in this round are played, show next round as current
       const scheduleRoundFixtures = fixturesWithTeams.filter(f => f.round === displayRound);
       const allPlayed = scheduleRoundFixtures.length > 0 && scheduleRoundFixtures.every(f => f.played);
-      if (allPlayed && displayRound < 21) {
+      // Updated cap from 21 to 24 to allow advancing into finals rounds
+      if (allPlayed && displayRound < 24) {
         displayRound = displayRound + 1;
       }
 
@@ -354,9 +366,13 @@ export default function FixturesPage() {
             ← Back to Clubhouse
           </Link>
           <h1 className="text-3xl font-bold text-white">📅 Fixtures</h1>
-          {/* FIX 3: Updated from "of 18" to "of 21" */}
           <p className="text-white/80 mt-1">
-            Season 0 • Division {userDivision} • {seasonStarted ? `Round ${currentRound} of 21` : 'Pre-Season'}
+            Season 0 • Division {userDivision} •{' '}
+            {seasonStarted
+              ? currentRound > 21
+                ? `Finals — ${getFinalsLabel(currentRound)}`
+                : `Round ${currentRound} of 21`
+              : 'Pre-Season'}
           </p>
         </div>
       </div>
@@ -367,7 +383,11 @@ export default function FixturesPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-400 text-sm">
-                {seasonStarted ? `Round ${nextUpdate?.round} Simulates` : 'Season Kicks Off'}
+                {seasonStarted
+                  ? nextUpdate && nextUpdate.round > 21
+                    ? `${getFinalsLabel(nextUpdate.round)} Simulates`
+                    : `Round ${nextUpdate?.round} Simulates`
+                  : 'Season Kicks Off'}
               </p>
               <p className="text-white font-bold text-lg">
                 {nextUpdate && getDayName(nextUpdate.date)} 6:00 PM AEST
@@ -385,7 +405,12 @@ export default function FixturesPage() {
 
         {myNextMatch && (
           <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-gray-400 text-sm mb-3">YOUR NEXT MATCH • Round {myNextMatch.round}</h2>
+            <h2 className="text-gray-400 text-sm mb-3">
+              YOUR NEXT MATCH •{' '}
+              {myNextMatch.round > 21
+                ? getFinalsLabel(myNextMatch.round)
+                : `Round ${myNextMatch.round}`}
+            </h2>
             <div className="flex items-center justify-between">
               <div className="flex-1 text-center">
                 <TeamBadge
@@ -450,8 +475,9 @@ export default function FixturesPage() {
         <div className="bg-gray-800 rounded-lg p-4">
           <h2 className="text-white font-bold mb-3">Browse Rounds</h2>
           <div className="flex flex-wrap gap-2">
-            {Array.from({ length: 21 }, (_, i) => i + 1).map(round => {
+            {Array.from({ length: 24 }, (_, i) => i + 1).map(round => {
               const isOriginRound = [9, 12, 15].includes(round);
+              const isFinalsRound = round > 21;
               const roundGames = getFixturesForRound(round);
               const allPlayed = roundGames.length > 0 && roundGames.every(f => f.played);
               const isCurrentRound = round === currentRound;
@@ -460,19 +486,27 @@ export default function FixturesPage() {
                 <button
                   key={round}
                   onClick={() => setSelectedRound(round)}
-                  className={`w-10 h-10 rounded-lg font-bold transition ${
+                  className={`${isFinalsRound ? 'w-12' : 'w-10'} h-10 rounded-lg font-bold text-sm transition ${
                     selectedRound === round
-                      ? isOriginRound ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'
-                      : isOriginRound
-                        ? 'bg-blue-900/50 text-blue-400 border border-blue-500 hover:bg-blue-800/50'
-                        : allPlayed
-                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                          : isCurrentRound
-                            ? 'bg-gray-700 text-green-400 border border-green-500 hover:bg-gray-600'
-                            : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                      ? isFinalsRound
+                        ? 'bg-yellow-500 text-black'
+                        : isOriginRound
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-green-600 text-white'
+                      : isFinalsRound
+                        ? allPlayed
+                          ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-600 hover:bg-yellow-800/50'
+                          : 'bg-yellow-900/30 text-yellow-400 border border-yellow-500 hover:bg-yellow-800/30'
+                        : isOriginRound
+                          ? 'bg-blue-900/50 text-blue-400 border border-blue-500 hover:bg-blue-800/50'
+                          : allPlayed
+                            ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                            : isCurrentRound
+                              ? 'bg-gray-700 text-green-400 border border-green-500 hover:bg-gray-600'
+                              : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
                   }`}
                 >
-                  {round}
+                  {getRoundLabel(round)}
                 </button>
               );
             })}
@@ -487,13 +521,19 @@ export default function FixturesPage() {
             <span className="flex items-center gap-1">
               <span className="w-3 h-3 bg-gray-700 rounded"></span> Upcoming
             </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-yellow-900/30 border border-yellow-500 rounded"></span> Finals
+            </span>
           </div>
         </div>
 
         {selectedRound && (
           <div className="bg-gray-800 rounded-lg p-4">
             <h2 className="text-white font-bold mb-4">
-              Round {selectedRound} {selectedRound === currentRound && <span className="text-green-400 text-sm font-normal">(Current)</span>}
+              {selectedRound > 21
+                ? `${getFinalsLabel(selectedRound)} — ${selectedRound === 22 ? 'Quarter Final' : selectedRound === 23 ? 'Semi Final' : 'Grand Final'}`
+                : `Round ${selectedRound}`}{' '}
+              {selectedRound === currentRound && <span className="text-green-400 text-sm font-normal">(Current)</span>}
             </h2>
             <div className="space-y-3">
               {roundFixtures.length === 0 ? (
@@ -660,7 +700,7 @@ export default function FixturesPage() {
                           {isHome ? 'vs' : '@'} {opponent.name}
                         </p>
                         <p className="text-gray-500 text-xs">
-                          Round {fixture.round} • {opponentCoach ? `👤 ${opponentCoach}` : 'Unmanaged'}
+                          {fixture.round > 21 ? getFinalsLabel(fixture.round) : `Round ${fixture.round}`} • {opponentCoach ? `👤 ${opponentCoach}` : 'Unmanaged'}
                         </p>
                       </div>
                     </div>
@@ -702,21 +742,25 @@ export default function FixturesPage() {
               }
             });
 
-            const completed = completedRounds.size;
+            // Only count regular season rounds (1-21) for the progress bar
+            const completedRegular = [...completedRounds].filter(r => r <= 21).length;
+            const inFinals = currentRound > 21;
 
             return (
               <>
                 <div className="w-full bg-gray-700 rounded-full h-4">
-                  {/* FIX 4: Updated from / 18 to / 21 */}
                   <div
                     className="bg-green-500 h-4 rounded-full transition-all duration-500"
-                    style={{ width: `${(completed / 21) * 100}%` }}
+                    style={{ width: `${(completedRegular / 21) * 100}%` }}
                   ></div>
                 </div>
                 <div className="flex justify-between text-sm text-gray-500 mt-2">
                   <span>Round 1</span>
-                  {/* FIX 5: Updated from "of 18" to "of 21" */}
-                  <span>{completed} of 21 rounds completed</span>
+                  <span>
+                    {inFinals
+                      ? `Finals — ${getFinalsLabel(currentRound)}`
+                      : `${completedRegular} of 21 rounds completed`}
+                  </span>
                   <span>Finals</span>
                 </div>
               </>
