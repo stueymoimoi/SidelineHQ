@@ -1,11 +1,11 @@
 /**
  * SidelineHQ Cron: FINANCES
- * 
+ *
  * Phase 3 of 5 - Runs at 6:10pm AEST (8:10 UTC)
- * 
+ *
  * SUNDAY: Full processing (wages, grants, revenue, contracts)
  * TUE/THU: Light processing (just contracts + AI renewals)
- * 
+ *
  * Schedule: 10 8 * * 0,2,4
  */
 
@@ -15,10 +15,10 @@ export const dynamic = 'force-dynamic';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { SEASON } from '@/lib/game-engine/constants';
-import { 
-  processAllTeamFinances, 
+import {
+  processAllTeamFinances,
   processAIContractRenewals,
-  ENABLE_FINANCES 
+  ENABLE_FINANCES
 } from '@/lib/finances';
 
 function getSupabase() {
@@ -35,11 +35,11 @@ function getSupabase() {
 async function processContractCountdownOptimized(
   supabase: any
 ): Promise<{ updated: number; expired: number }> {
-  
+
   // 1. Try to use the RPC function first (single SQL call)
   let updated = 0;
   const { data: rpcResult, error: rpcError } = await supabase.rpc('decrement_all_contracts');
-  
+
   if (!rpcError && rpcResult !== null) {
     updated = rpcResult;
   } else {
@@ -48,7 +48,7 @@ async function processContractCountdownOptimized(
       .from('player_contracts')
       .select('id, weeks_remaining')
       .gt('weeks_remaining', 0);
-    
+
     if (contracts && contracts.length > 0) {
       const chunkSize = 100;
       for (let i = 0; i < contracts.length; i += chunkSize) {
@@ -57,7 +57,7 @@ async function processContractCountdownOptimized(
           chunk.map((contract: any) =>
             supabase
               .from('player_contracts')
-              .update({ 
+              .update({
                 weeks_remaining: contract.weeks_remaining - 1,
                 updated_at: new Date().toISOString(),
               })
@@ -77,10 +77,8 @@ async function processContractCountdownOptimized(
 
   let expired = 0;
   if (expiredContracts && expiredContracts.length > 0) {
-    const playerIds = expiredContracts.map((c: any) => c.player_id);
-    const contractIds = expiredContracts.map((c: any) => c.id);
-    
-    // Get current round for free agent availability
+
+    // Get current round
     const { data: roundData } = await supabase
       .from('fixtures')
       .select('round')
@@ -89,7 +87,29 @@ async function processContractCountdownOptimized(
       .order('round', { ascending: false })
       .limit(1);
     const currentRound = roundData?.[0]?.round || 1;
-    
+
+    // 🔒 FINALS PROTECTION: Don't expire contracts during finals (rounds 22-24)
+    if (currentRound >= 22) {
+      const contractIds = expiredContracts.map((c: any) => c.id);
+      await supabase
+        .from('player_contracts')
+        .update({ weeks_remaining: 4 })
+        .in('id', contractIds);
+      return { updated, expired: 0 };
+    }
+
+    const playerIds = expiredContracts.map((c: any) => c.player_id);
+    const contractIds = expiredContracts.map((c: any) => c.id);
+
+    // Get player details for notifications
+    const { data: expiringPlayers } = await supabase
+      .from('players')
+      .select('id, first_name, last_name, overall, position, team_id')
+      .in('id', playerIds);
+
+    const playersMap: Record<string, any> = {};
+    (expiringPlayers || []).forEach((p: any) => { playersMap[p.id] = p; });
+
     // Batch insert to free_agents
     const freeAgentInserts = expiredContracts.map((contract: any) => ({
       player_id: contract.player_id,
@@ -97,21 +117,40 @@ async function processContractCountdownOptimized(
       available_round: currentRound + 1,
       claimed: false,
     }));
-    
     await supabase.from('free_agents').insert(freeAgentInserts);
-    
+
     // Batch delete contracts
     await supabase
       .from('player_contracts')
       .delete()
       .in('id', contractIds);
-    
-    // Batch update players
+
+    // Batch update players — null out team_id
     await supabase
       .from('players')
       .update({ team_id: null })
       .in('id', playerIds);
-    
+
+    // 🔔 Notify coaches of expired contracts
+    const expiryNotifications = expiredContracts
+      .filter((contract: any) => contract.team_id)
+      .map((contract: any) => {
+        const player = playersMap[contract.player_id];
+        return {
+          team_id: contract.team_id,
+          type: 'contract_expired',
+          title: '📋 Contract Expired',
+          message: player
+            ? `${player.first_name} ${player.last_name} (${player.position}, ${player.overall} OVR) contract has expired and entered free agency.`
+            : 'A player contract has expired.',
+          player_id: contract.player_id,
+        };
+      });
+
+    if (expiryNotifications.length > 0) {
+      await supabase.from('notifications').insert(expiryNotifications);
+    }
+
     expired = expiredContracts.length;
   }
 
@@ -122,24 +161,24 @@ export async function GET(request: Request) {
   const startTime = Date.now();
   const supabase = getSupabase();
   const logs: string[] = [];
-  
+
   // Auth check
   const url = new URL(request.url);
   const secret = url.searchParams.get('secret');
   const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
-  
+
   const CRON_SECRET = process.env.CRON_SECRET;
   if (!isVercelCron && secret !== CRON_SECRET) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
-  
+
   try {
     await supabase.from('game_state').update({ current_phase: 'finances' }).eq('id', 1);
     logs.push('💰 Finances phase started');
-    
+
     const today = new Date();
     const isSunday = today.getUTCDay() === 0;
-    
+
     // Get current round
     const { data: fixtures } = await supabase
       .from('fixtures')
@@ -148,10 +187,10 @@ export async function GET(request: Request) {
       .eq('played', true)
       .order('round', { ascending: false })
       .limit(1);
-    
+
     const currentRound = fixtures?.[0]?.round || 1;
     logs.push(`Round: ${currentRound}, Sunday: ${isSunday}`);
-    
+
     // ===========================================
     // SUNDAY ONLY: Reset weekly transfers
     // ===========================================
@@ -159,11 +198,10 @@ export async function GET(request: Request) {
       await supabase.from('teams').update({ weekly_transfers_used: 0 }).gte('weekly_transfers_used', 0);
       logs.push('🔄 Weekly transfers reset');
     }
-    
+
     if (ENABLE_FINANCES) {
       // ===========================================
       // SUNDAY ONLY: Full team finances (wages, grants, revenue)
-      // This is the slow part - only run on Sundays
       // ===========================================
       if (isSunday) {
         const financeStart = Date.now();
@@ -173,25 +211,25 @@ export async function GET(request: Request) {
       } else {
         logs.push('💰 Skipping full finances (not Sunday)');
       }
-      
+
       // ===========================================
       // EVERY RUN: AI contract renewals (fast)
       // ===========================================
       const aiStart = Date.now();
       const aiRenewalResult = await processAIContractRenewals(supabase, currentRound);
       logs.push(`🤖 AI: ${aiRenewalResult.renewed} renewed, ${aiRenewalResult.released} releasing (${Date.now() - aiStart}ms)`);
-      
+
       // ===========================================
       // EVERY RUN: Contract countdown (optimized)
       // ===========================================
       const contractStart = Date.now();
       const contractResult = await processContractCountdownOptimized(supabase);
-      logs.push(`📝 Contracts: ${contractResult.updated} decremented, ${contractResult.expired} expired (${Date.now() - contractStart}ms)`);
+      logs.push(`📋 Contracts: ${contractResult.updated} decremented, ${contractResult.expired} expired (${Date.now() - contractStart}ms)`);
     }
-    
+
     const totalTime = Date.now() - startTime;
     logs.push(`✅ Complete in ${totalTime}ms`);
-    
+
     return NextResponse.json({
       success: true,
       phase: 'finances',
@@ -200,7 +238,7 @@ export async function GET(request: Request) {
       executionTime: totalTime,
       logs
     });
-    
+
   } catch (error) {
     console.error('Finances cron error:', error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
