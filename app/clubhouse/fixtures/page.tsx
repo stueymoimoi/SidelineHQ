@@ -62,16 +62,17 @@ function getRoundDates(): Date[] {
   const dates: Date[] = [];
   const start = new Date(SEASON_0_START);
   let current = new Date(start);
-  
-  for (let round = 1; round <= 18; round++) {
+
+  // FIX 1: Extended from 18 to 21 rounds
+  for (let round = 1; round <= 21; round++) {
     dates.push(new Date(current));
-    
+
     const day = current.getDay();
     if (day === 2) current.setDate(current.getDate() + 2);
     else if (day === 4) current.setDate(current.getDate() + 3);
     else current.setDate(current.getDate() + 2);
   }
-  
+
   return dates;
 }
 
@@ -79,38 +80,39 @@ const ROUND_DATES = getRoundDates();
 
 function getCurrentRoundFromSchedule(): number {
   const now = new Date();
-  
+
   for (let i = ROUND_DATES.length - 1; i >= 0; i--) {
     if (now >= ROUND_DATES[i]) {
       return i + 1;
     }
   }
-  
+
   return 0;
 }
 
 function getNextUpdateTime(): { date: Date; round: number } {
   const now = new Date();
-  
+
   for (let i = 0; i < ROUND_DATES.length; i++) {
     if (now < ROUND_DATES[i]) {
       return { date: ROUND_DATES[i], round: i + 1 };
     }
   }
-  
-  return { date: ROUND_DATES[ROUND_DATES.length - 1], round: 18 };
+
+  // FIX 2: Updated fallback from 18 to 21
+  return { date: ROUND_DATES[ROUND_DATES.length - 1], round: 21 };
 }
 
 function formatCountdown(targetDate: Date): string {
   const now = new Date();
   const diff = targetDate.getTime() - now.getTime();
-  
+
   if (diff <= 0) return 'Update pending...';
-  
+
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   if (days > 0) return `${days}d ${hours}h ${minutes}m`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
@@ -143,15 +145,15 @@ export default function FixturesPage() {
     const updateCountdown = () => {
       const scheduleRound = getCurrentRoundFromSchedule();
       setSeasonStarted(scheduleRound > 0);
-      
+
       const next = getNextUpdateTime();
       setNextUpdate(next);
       setCountdown(formatCountdown(next.date));
     };
-    
+
     updateCountdown();
     const interval = setInterval(updateCountdown, 60000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -200,7 +202,7 @@ export default function FixturesPage() {
       const { data: coachesData } = await supabase
         .from('coaches')
         .select('team_id, coach_name');
-      
+
       const coachesMap: Record<string, string> = {};
       (coachesData || []).forEach((c: Coach) => { coachesMap[c.team_id] = c.coach_name; });
       setCoaches(coachesMap);
@@ -220,7 +222,7 @@ export default function FixturesPage() {
 
       const fixtureIds = (fixturesData || []).map(f => f.id);
       let resultsMap: Record<string, MatchResult> = {};
-      
+
       if (fixtureIds.length > 0) {
         const { data: results } = await supabase
           .from('match_results')
@@ -252,7 +254,7 @@ export default function FixturesPage() {
       // If all matches in this round are played, show next round as current
       const scheduleRoundFixtures = fixturesWithTeams.filter(f => f.round === displayRound);
       const allPlayed = scheduleRoundFixtures.length > 0 && scheduleRoundFixtures.every(f => f.played);
-      if (allPlayed && displayRound < 18) {
+      if (allPlayed && displayRound < 21) {
         displayRound = displayRound + 1;
       }
 
@@ -269,8 +271,8 @@ export default function FixturesPage() {
 
   const getMyNextMatch = (): FixtureWithTeams | null => {
     if (!team) return null;
-    return fixtures.find(f => 
-      !f.played && 
+    return fixtures.find(f =>
+      !f.played &&
       (f.home_team_id === team.id || f.away_team_id === team.id)
     ) || null;
   };
@@ -281,8 +283,8 @@ export default function FixturesPage() {
 
   const getMyResults = (): FixtureWithTeams[] => {
     if (!team) return [];
-    return fixtures.filter(f => 
-      f.played && 
+    return fixtures.filter(f =>
+      f.played &&
       (f.home_team_id === team.id || f.away_team_id === team.id)
     );
   };
@@ -297,23 +299,23 @@ export default function FixturesPage() {
       const aPoints = (a.wins * 2) + a.draws;
       const bPoints = (b.wins * 2) + b.draws;
       if (bPoints !== aPoints) return bPoints - aPoints;
-      
+
       const aDiff = a.points_for - a.points_against;
       const bDiff = b.points_for - b.points_against;
       if (bDiff !== aDiff) return bDiff - aDiff;
-      
+
       return b.points_for - a.points_for;
     });
   };
 
   const ladder = getLadder();
-  
+
   const getOrdinal = (n: number) => {
     const s = ['th', 'st', 'nd', 'rd'];
     const v = n % 100;
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   };
-  
+
   const getLadderPosition = (teamId: string): string => {
     const pos = ladder.findIndex(t => t.id === teamId) + 1;
     return getOrdinal(pos);
@@ -321,11 +323,11 @@ export default function FixturesPage() {
 
   const getResultBadge = (fixture: FixtureWithTeams): { text: string; color: string } => {
     if (!fixture.result || !team) return { text: '', color: '' };
-    
+
     const isHome = fixture.home_team_id === team.id;
     const myScore = isHome ? fixture.result.home_score : fixture.result.away_score;
     const theirScore = isHome ? fixture.result.away_score : fixture.result.home_score;
-    
+
     if (myScore > theirScore) return { text: 'W', color: 'bg-green-500' };
     if (myScore < theirScore) return { text: 'L', color: 'bg-red-500' };
     return { text: 'D', color: 'bg-yellow-500' };
@@ -341,7 +343,7 @@ export default function FixturesPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <div 
+      <div
         className="p-6"
         style={{
           background: `linear-gradient(135deg, ${team?.primary_color || '#1f2937'} 0%, ${team?.secondary_color || '#111827'} 100%)`
@@ -352,14 +354,15 @@ export default function FixturesPage() {
             ← Back to Clubhouse
           </Link>
           <h1 className="text-3xl font-bold text-white">📅 Fixtures</h1>
+          {/* FIX 3: Updated from "of 18" to "of 21" */}
           <p className="text-white/80 mt-1">
-            Season 0 • Division {userDivision} • {seasonStarted ? `Round ${currentRound} of 18` : 'Pre-Season'}
+            Season 0 • Division {userDivision} • {seasonStarted ? `Round ${currentRound} of 21` : 'Pre-Season'}
           </p>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto p-6 space-y-6">
-        
+
         <div className="bg-gray-800 rounded-lg p-4 border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
@@ -385,7 +388,7 @@ export default function FixturesPage() {
             <h2 className="text-gray-400 text-sm mb-3">YOUR NEXT MATCH • Round {myNextMatch.round}</h2>
             <div className="flex items-center justify-between">
               <div className="flex-1 text-center">
-                <TeamBadge 
+                <TeamBadge
                   teamName={myNextMatch.home_team.name}
                   primaryColor={myNextMatch.home_team.primary_color}
                   size="lg"
@@ -417,7 +420,7 @@ export default function FixturesPage() {
               </div>
 
               <div className="flex-1 text-center">
-                <TeamBadge 
+                <TeamBadge
                   teamName={myNextMatch.away_team.name}
                   primaryColor={myNextMatch.away_team.primary_color}
                   size="lg"
@@ -452,7 +455,7 @@ export default function FixturesPage() {
               const roundGames = getFixturesForRound(round);
               const allPlayed = roundGames.length > 0 && roundGames.every(f => f.played);
               const isCurrentRound = round === currentRound;
-              
+
               return (
                 <button
                   key={round}
@@ -518,7 +521,7 @@ export default function FixturesPage() {
                             </div>
                             <p className="text-gray-400 mt-4">Game {originMatch.game_number} @ {originMatch.venue}</p>
                             {winner && <p className="text-green-400 mt-2">{winner} wins!</p>}
-                            <Link 
+                            <Link
                               href={`/clubhouse/match/origin/${originMatch.id}`}
                               className="inline-block mt-4 text-blue-400 hover:text-blue-300 text-sm"
                             >
@@ -542,9 +545,9 @@ export default function FixturesPage() {
                 roundFixtures.map(fixture => {
                   const isMyGame = fixture.home_team_id === team?.id || fixture.away_team_id === team?.id;
                   const isClickable = fixture.played && fixture.result;
-                  
+
                   const content = (
-                    <div 
+                    <div
                       className={`p-4 rounded-lg transition ${
                         isMyGame ? 'bg-gray-700 border border-green-500/50' : 'bg-gray-700/50'
                       } ${isClickable ? 'hover:bg-gray-600 cursor-pointer' : ''}`}
@@ -553,7 +556,7 @@ export default function FixturesPage() {
                         {/* Home Team */}
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <TeamBadge 
+                            <TeamBadge
                               teamName={fixture.home_team.name}
                               primaryColor={fixture.home_team.primary_color}
                               size="sm"
@@ -601,7 +604,7 @@ export default function FixturesPage() {
                                 {getLadderPosition(fixture.away_team_id)} • {fixture.away_coach ? `👤 ${fixture.away_coach}` : 'Unmanaged'}
                               </p>
                             </div>
-                            <TeamBadge 
+                            <TeamBadge
                               teamName={fixture.away_team.name}
                               primaryColor={fixture.away_team.primary_color}
                               size="sm"
@@ -612,7 +615,7 @@ export default function FixturesPage() {
                       </div>
                     </div>
                   );
-                  
+
                   return isClickable ? (
                     <Link key={fixture.id} href={`/clubhouse/match/${fixture.id}`}>
                       {content}
@@ -635,9 +638,9 @@ export default function FixturesPage() {
                 const opponent = isHome ? fixture.away_team : fixture.home_team;
                 const opponentCoach = isHome ? fixture.away_coach : fixture.home_coach;
                 const result = getResultBadge(fixture);
-                
+
                 return (
-                  <Link 
+                  <Link
                     key={fixture.id}
                     href={`/clubhouse/match/${fixture.id}`}
                     className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition"
@@ -646,7 +649,7 @@ export default function FixturesPage() {
                       <span className={`w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm ${result.color}`}>
                         {result.text}
                       </span>
-                      <TeamBadge 
+                      <TeamBadge
                         teamName={opponent.name}
                         primaryColor={opponent.primary_color}
                         size="sm"
@@ -665,7 +668,7 @@ export default function FixturesPage() {
                       <div>
                         <p className="text-white font-bold">
                           {fixture.result && (
-                            isHome 
+                            isHome
                               ? `${fixture.result.home_score} - ${fixture.result.away_score}`
                               : `${fixture.result.away_score} - ${fixture.result.home_score}`
                           )}
@@ -686,32 +689,34 @@ export default function FixturesPage() {
           {(() => {
             const completedRounds = new Set<number>();
             const roundCounts: Record<number, { total: number; played: number }> = {};
-            
+
             fixtures.forEach(f => {
               if (!roundCounts[f.round]) roundCounts[f.round] = { total: 0, played: 0 };
               roundCounts[f.round].total++;
               if (f.played) roundCounts[f.round].played++;
             });
-            
+
             Object.entries(roundCounts).forEach(([round, counts]) => {
               if (counts.played === counts.total && counts.total > 0) {
                 completedRounds.add(Number(round));
               }
             });
-            
+
             const completed = completedRounds.size;
-            
+
             return (
               <>
                 <div className="w-full bg-gray-700 rounded-full h-4">
-                  <div 
+                  {/* FIX 4: Updated from / 18 to / 21 */}
+                  <div
                     className="bg-green-500 h-4 rounded-full transition-all duration-500"
-                    style={{ width: `${(completed / 18) * 100}%` }}
+                    style={{ width: `${(completed / 21) * 100}%` }}
                   ></div>
                 </div>
                 <div className="flex justify-between text-sm text-gray-500 mt-2">
                   <span>Round 1</span>
-                  <span>{completed} of 18 rounds completed</span>
+                  {/* FIX 5: Updated from "of 18" to "of 21" */}
+                  <span>{completed} of 21 rounds completed</span>
                   <span>Finals</span>
                 </div>
               </>
